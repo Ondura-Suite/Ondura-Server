@@ -19,16 +19,26 @@ the system's light or dark appearance.
 ## What it does
 
 **Mail** — folders with unread counts, message list with search across all mail
-folders, reading pane, compose with attachments, reply and forward, flag,
-mark read/unread, move between folders, and delete (to Deleted Items, then
-permanently). HTML messages are shown in a sandboxed frame so message content
-cannot run scripts.
+folders, reading pane, compose with attachments and signature, reply and
+forward, flag, mark read/unread, move between folders, and delete (to Deleted
+Items, then permanently). Select several messages at once to move, delete or
+mark them read in one go, and empty Deleted Items or mark a whole folder read.
+Create, rename and delete your own folders. HTML messages are shown in a
+sandboxed frame so message content cannot run scripts. Drafts reopen in the
+composer.
 
 **Calendar** — a month view with your events; series are expanded by the
 server. Create and edit events, delete them, and accept, decline or tentatively
 answer meeting invitations.
 
 **Contacts** — list, create, edit and delete contacts with the common fields.
+
+**Tasks and notes** — keep a task list (with due dates and completion) and
+simple notes.
+
+**Settings** (gear icon) — change your display name and signature, set an
+out-of-office auto-reply (with separate texts for internal and external
+senders), and change your password.
 
 ## Turning it off
 

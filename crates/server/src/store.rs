@@ -197,6 +197,8 @@ pub struct UserSettings {
     pub oof: OofSettings,
     /// IANA zone used for all-day events and when a client sends none.
     pub time_zone: Option<String>,
+    /// Signature appended to new messages composed in webmail.
+    pub signature: String,
     pub forward_to: Option<String>,
     pub keep_forwarded_copy: bool,
     /// Senders that recently got an automatic reply (address → time).

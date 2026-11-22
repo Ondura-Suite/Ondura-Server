@@ -83,6 +83,8 @@ svg { width: 18px; height: 18px; display: block; }
   background: var(--surface-solid); outline: none; border-bottom: 2px solid transparent; width: 100%;
 }
 .field input, .field select { height: 34px; }
+.field input[type=checkbox] { width: auto; height: auto; margin-right: 6px; accent-color: var(--tint); vertical-align: middle; }
+.field label:has(input[type=checkbox]) { flex-direction: row; align-items: center; color: var(--text); font-size: 14px; }
 .field input:focus, .field select:focus, .field textarea:focus { border-bottom-color: var(--tint); }
 .error { color: var(--danger); min-height: 20px; margin: 2px 0 8px; font-size: 13px; }
 
@@ -131,9 +133,27 @@ svg { width: 18px; height: 18px; display: block; }
 .list { border-right: 1px solid var(--border); overflow-y: auto; }
 .list .hd { padding: 12px 14px 8px; display: flex; align-items: center; gap: 8px; position: sticky; top: 0; background: var(--bg); z-index: 1; }
 .list .hd h2 { font-size: 16px; margin: 0; flex: 1; }
-.msg { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.msg { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; gap: 9px; align-items: flex-start; }
 .msg:hover { background: var(--surface-hover); }
-.msg.active { background: var(--tint-soft); }
+.msg.active, .msg.sel { background: var(--tint-soft); }
+.msgmain { flex: 1; min-width: 0; }
+.msgchk { margin-top: 3px; flex: 0 0 auto; accent-color: var(--tint); }
+.msg .msgchk { opacity: 0; transition: opacity .1s; }
+.msg:hover .msgchk, .msg.sel .msgchk { opacity: 1; }
+#ctxMenu .navitem { padding: 7px 10px; }
+.iconbtn.danger { color: var(--danger); }
+.taskrow { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--border); }
+.taskrow .tck { width: 20px; height: 20px; border: 1.6px solid var(--border); border-radius: 50%; cursor: pointer; display: grid; place-items: center; flex: 0 0 auto; }
+.taskrow .tck.done { background: var(--tint); border-color: var(--tint); color: #fff; }
+.taskrow.done .tt { text-decoration: line-through; color: var(--muted); }
+.taskrow .tt { flex: 1; cursor: pointer; }
+.taskrow .td { color: var(--muted); font-size: 12.5px; }
+.notecard { padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.notecard:hover { background: var(--surface-hover); }
+.notecard h3 { margin: 0 0 4px; font-size: 15px; }
+.notecard p { margin: 0; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.listpane { height: 100%; display: grid; grid-template-columns: 1fr; min-height: 0; }
+.listscroll { overflow-y: auto; }
 .msg.unread .mf { font-weight: 700; }
 .msg .top { display: flex; gap: 8px; align-items: baseline; }
 .msg .mf { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -224,6 +244,7 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
     <div class="sp"></div>
     <button class="btn primary" id="composeBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span data-t="compose">Compose</span></button>
     <span class="who" id="who"></span>
+    <button class="iconbtn" id="settingsBtn" title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.4 5.6l-1.4 1.4M7 17l-1.4 1.4M18.4 18.4 17 17M7 7 5.6 5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
     <button class="iconbtn" id="langBtn" title="Language"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <button class="iconbtn" id="logoutBtn" title=""><svg viewBox="0 0 24 24"><path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3M10 8l-4 4 4 4M6 12h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
   </div>
@@ -248,6 +269,9 @@ const T = {
     newContact: "New contact", editContact: "Contact", firstName: "First name", lastName: "Last name", company: "Company", jobTitle: "Job title", phone: "Mobile", notes: "Notes", noContacts: "No contacts", selectContact: "Select a contact",
     logout: "Sign out", confirmDelete: "Delete this item?", sent: "Sent", saved: "Saved", deleted: "Deleted", emptyTrash: "Empty", confirmEmpty: "Permanently delete all items in Deleted Items?", loading: "Loading…", langName: "Deutsch",
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
+    tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
+    profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
+    newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add",
   },
   de: {
     webmail: "Webmail", signInSub: "Bei deinem Postfach anmelden", email: "E-Mail", password: "Passwort", signIn: "Anmelden",
@@ -260,6 +284,9 @@ const T = {
     newContact: "Neuer Kontakt", editContact: "Kontakt", firstName: "Vorname", lastName: "Nachname", company: "Firma", jobTitle: "Position", phone: "Mobil", notes: "Notizen", noContacts: "Keine Kontakte", selectContact: "Kontakt auswählen",
     logout: "Abmelden", confirmDelete: "Diesen Eintrag löschen?", sent: "Gesendet", saved: "Gespeichert", deleted: "Gelöscht", emptyTrash: "Leeren", confirmEmpty: "Alle Elemente im Papierkorb endgültig löschen?", loading: "Lädt…", langName: "English",
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
+    tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
+    profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
+    newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen",
   },
 };
 let lang;
@@ -299,6 +326,12 @@ const ICON = {
   flag: '<path d="M6 21V4h11l-2 4 2 4H6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
   paperclip: '<path d="M8 12V7a4 4 0 0 1 8 0v9a2.5 2.5 0 0 1-5 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   chev: '<path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  tasks: '<path d="M4 6h10M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="m17 6 2 2 3-3M17 13l2 2 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  note: '<path d="M5 4h14v12l-5 5H5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 21v-5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  settings: '<circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.4 5.6l-1.4 1.4M7 17l-1.4 1.4M18.4 18.4 17 17M7 7 5.6 5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  check: '<path d="M5 12l4 4L19 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  dots: '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
+  plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
 };
 const icon = (n) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] || ICON.folder) + "</svg>";
 
@@ -319,6 +352,7 @@ const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { if (
 
 // ------------------------------------------------------------ state
 let me = null, view = "mail", folders = [], curFolder = null, curMsg = null, messages = [];
+let selected = new Set();
 
 function showLogin() { $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); $("#overlay").innerHTML = ""; $("#le").focus(); }
 
@@ -332,6 +366,7 @@ $("#langToggle").addEventListener("click", (e) => { e.preventDefault(); setLang(
 $("#langBtn").addEventListener("click", () => setLang(lang === "de" ? "en" : "de"));
 $("#logoutBtn").addEventListener("click", guard(async () => { await api("POST", "/logout"); showLogin(); }));
 $("#composeBtn").addEventListener("click", () => openCompose());
+$("#settingsBtn").addEventListener("click", () => openSettings());
 let searchTimer;
 $("#q").addEventListener("input", (e) => { clearTimeout(searchTimer); const v = e.target.value.trim(); searchTimer = setTimeout(() => { if (view !== "mail") { view = "mail"; renderRail(); } loadMessages(v); }, 250); });
 
@@ -352,19 +387,36 @@ function mailFolders() {
   return mail.sort((a, b) => (FOLDER_ORDER.indexOf(a.role) + 1 || 99) - (FOLDER_ORDER.indexOf(b.role) + 1 || 99));
 }
 function renderRail() {
-  const nav = [["mail", "mail"], ["calendar", "calendar"], ["contacts", "contacts"]].map(([k, ic]) =>
+  const nav = [["mail", "mail"], ["calendar", "calendar"], ["contacts", "contacts"], ["tasks", "tasks"], ["notes", "note"]].map(([k, ic]) =>
     `<div class="navitem ${view === k ? "active" : ""}" data-view="${k}">${icon(ic)}<span>${esc(t(k))}</span></div>`).join("");
   let html = nav;
   if (view === "mail") {
-    html += '<div class="railsep"></div>';
-    html += mailFolders().map((f) =>
-      `<div class="folder ${curFolder && f.id === curFolder.id ? "active" : ""}" data-folder="${f.id}">${icon(f.role || "folder")}<span class="nm">${esc(folderLabel(f))}</span>${f.unread ? `<span class="ct">${f.unread}</span>` : ""}</div>`).join("");
+    html += `<div class="railsep"></div><div class="folder" id="addFolder" style="color:var(--muted)">${icon("plus")}<span class="nm">${esc(t("newFolder"))}</span></div>`;
+    html += mailFolders().map((f) => {
+      const custom = !f.role;
+      return `<div class="folder ${curFolder && f.id === curFolder.id ? "active" : ""}" data-folder="${f.id}">${icon(f.role || "folder")}<span class="nm">${esc(folderLabel(f))}</span>${custom ? `<button class="iconbtn fmenu" data-fid="${f.id}" data-fname="${esc(f.name)}" style="width:22px;height:22px">${icon("dots")}</button>` : ""}${f.unread ? `<span class="ct">${f.unread}</span>` : ""}</div>`;
+    }).join("");
   }
   $("#rail").innerHTML = html;
-  $("#rail").querySelectorAll("[data-view]").forEach((e) => e.onclick = () => { view = e.dataset.view; render(); });
-  $("#rail").querySelectorAll("[data-folder]").forEach((e) => e.onclick = () => { curFolder = folders.find((f) => f.id == e.dataset.folder); curMsg = null; $("#q").value = ""; render(); });
+  $("#rail").querySelectorAll("[data-view]").forEach((e) => e.onclick = () => { view = e.dataset.view; curMsg = null; selected.clear(); render(); });
+  $("#rail").querySelectorAll("[data-folder]").forEach((e) => e.onclick = (ev) => { if (ev.target.closest(".fmenu")) return; curFolder = folders.find((f) => f.id == e.dataset.folder); curMsg = null; selected.clear(); $("#q").value = ""; render(); });
+  const af = $("#addFolder"); if (af) af.onclick = guard(async () => { const name = prompt(t("folderName")); if (!name || !name.trim()) return; await api("POST", "/folder", { name: name.trim() }); await refreshFolders(); renderRail(); toast(t("saved")); });
+  $("#rail").querySelectorAll(".fmenu").forEach((b) => b.onclick = guard(async (ev) => {
+    ev.stopPropagation();
+    const rename = confirm(t("rename") + " — OK\n" + t("delete") + " — " + t("cancel"));
+    if (rename) { const name = prompt(t("folderName"), b.dataset.fname); if (name && name.trim()) { await api("POST", "/folder/rename", { id: +b.dataset.fid, name: name.trim() }); } }
+    else { if (!confirm(t("confirmDeleteFolder"))) return; await api("POST", "/folder/delete", { id: +b.dataset.fid }); if (curFolder && curFolder.id == b.dataset.fid) curFolder = folders.find((f) => f.role === "inbox"); }
+    await refreshFolders(); render();
+  }));
 }
-function render() { applyTexts(); renderRail(); if (view === "mail") renderMail(); else if (view === "calendar") renderCalendar(); else renderContacts(); }
+function render() {
+  applyTexts(); renderRail();
+  if (view === "mail") renderMail();
+  else if (view === "calendar") renderCalendar();
+  else if (view === "contacts") renderContacts();
+  else if (view === "tasks") renderTasks();
+  else if (view === "notes") renderNotes();
+}
 
 // ------------------------------------------------------------ MAIL
 async function loadMessages(search) {
@@ -373,28 +425,57 @@ async function loadMessages(search) {
   messages = r.messages; renderMsgList();
 }
 function renderMail() {
+  selected.clear();
   const canEmpty = curFolder && curFolder.role === "deleteditems";
-  const emptyBtn = canEmpty ? `<button class="btn danger" id="emptyTrash">${icon("trash")}<span>${esc(t("emptyTrash"))}</span></button>` : "";
-  $("#view").innerHTML = `<div class="mailgrid"><div class="list"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0"><h2>${esc(curFolder ? folderLabel(curFolder) : t("inbox"))}</h2>${emptyBtn}</div><div id="msgs"></div></div><div class="reader" id="reader"><div class="empty">${esc(t("selectMessage"))}</div></div></div>`;
+  const extra = (canEmpty ? `<button class="btn danger" id="emptyTrash">${icon("trash")}<span>${esc(t("emptyTrash"))}</span></button>` : "")
+    + `<button class="iconbtn" id="markAll" title="${esc(t("markAllRead"))}">${icon("check")}</button>`;
+  $("#view").innerHTML = `<div class="mailgrid"><div class="list"><div class="hd glass" id="listHead" style="box-shadow:none;border:0;border-radius:0"><h2>${esc(curFolder ? folderLabel(curFolder) : t("inbox"))}</h2>${extra}</div><div id="msgs"></div></div><div class="reader" id="reader"><div class="empty">${esc(t("selectMessage"))}</div></div></div>`;
   guard(loadMessages)();
   if (canEmpty) $("#emptyTrash").onclick = guard(async () => {
     if (!confirm(t("confirmEmpty"))) return;
     await api("POST", "/empty", { folder: curFolder.id });
     curMsg = null; loadMessages(); refreshFolders(); toast(t("deleted"));
   });
+  $("#markAll").onclick = guard(async () => { await api("POST", "/folder/read", { folder: curFolder.id }); loadMessages(); refreshFolders(); });
   if (curMsg) openMessage(curMsg);
 }
+function renderSelectionBar() {
+  const head = $("#listHead"); if (!head) return;
+  if (!selected.size) { renderMail(); return; }
+  head.innerHTML = `<button class="iconbtn" id="selClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button>
+    <h2 style="font-size:14px">${selected.size} ${esc(t("selected"))}</h2>
+    <button class="iconbtn" id="selMove" title="${esc(t("moveTo"))}">${icon("folder")}</button>
+    <button class="iconbtn" id="selRead" title="${esc(t("markRead"))}">${icon("check")}</button>
+    <button class="iconbtn danger" id="selDel" title="${esc(t("delete"))}">${icon("trash")}</button>`;
+  $("#selClose").onclick = () => { selected.clear(); renderMail(); };
+  $("#selRead").onclick = guard(async () => { await api("POST", "/bulk", { ids: [...selected], action: "read" }); selected.clear(); loadMessages(); refreshFolders(); });
+  $("#selDel").onclick = guard(async () => { await api("POST", "/bulk", { ids: [...selected], action: "delete" }); selected.clear(); loadMessages(); refreshFolders(); toast(t("deleted")); });
+  $("#selMove").onclick = (e) => openMoveMenu(e.target.closest("button"), async (fid) => { await api("POST", "/bulk", { ids: [...selected], action: "move", folder: fid }); selected.clear(); loadMessages(); refreshFolders(); });
+}
+function openMoveMenu(anchor, onPick) {
+  closeMenu();
+  const r = anchor.getBoundingClientRect();
+  const m = document.createElement("div"); m.id = "ctxMenu"; m.className = "glass";
+  m.style.cssText = `position:fixed;top:${r.bottom + 4}px;left:${Math.min(r.left, innerWidth - 220)}px;z-index:60;min-width:200px;max-height:60vh;overflow:auto;padding:6px`;
+  m.innerHTML = mailFolders().filter((f) => !curFolder || f.id !== curFolder.id).map((f) => `<div class="navitem" data-fid="${f.id}">${icon(f.role || "folder")}<span>${esc(folderLabel(f))}</span></div>`).join("");
+  document.body.appendChild(m);
+  m.querySelectorAll("[data-fid]").forEach((e) => e.onclick = guard(async () => { closeMenu(); await onPick(+e.dataset.fid); }));
+  setTimeout(() => document.addEventListener("click", closeMenu, { once: true }), 0);
+}
+function closeMenu() { const m = $("#ctxMenu"); if (m) m.remove(); }
 function renderMsgList() {
   const box = $("#msgs"); if (!box) return;
   if (!messages.length) { box.innerHTML = `<div class="empty" style="height:auto;padding:40px">${esc(t("noMessages"))}</div>`; return; }
   box.innerHTML = messages.map((m) => {
     const who = curFolder && (curFolder.role === "sentitems" || curFolder.role === "drafts") ? (m.to && m.to.length ? personStr(m.to[0]) : "") : personStr(m.from);
-    return `<div class="msg ${m.flags.read ? "" : "unread"} ${curMsg === m.id ? "active" : ""}" data-id="${m.id}">
-      <div class="top"><span class="mf">${m.flags.read ? "" : '<span class="dot"></span> '}${esc(who)}</span><span class="dt">${esc(fmtShort(m.date))}</span></div>
+    return `<div class="msg ${m.flags.read ? "" : "unread"} ${curMsg === m.id ? "active" : ""} ${selected.has(m.id) ? "sel" : ""}" data-id="${m.id}">
+      <input type="checkbox" class="msgchk" data-id="${m.id}" ${selected.has(m.id) ? "checked" : ""}>
+      <div class="msgmain"><div class="top"><span class="mf">${m.flags.read ? "" : '<span class="dot"></span> '}${esc(who)}</span><span class="dt">${esc(fmtShort(m.date))}</span></div>
       <div class="su">${m.flags.flagged ? "⚑ " : ""}${esc(m.subject || "(" + t("subject") + ")")}</div>
-      <div class="pv">${m.hasAttachments ? "📎 " : ""}${esc(m.preview)}</div></div>`;
+      <div class="pv">${m.hasAttachments ? "📎 " : ""}${esc(m.preview)}</div></div></div>`;
   }).join("");
-  box.querySelectorAll(".msg").forEach((e) => e.onclick = () => openMessage(+e.dataset.id));
+  box.querySelectorAll(".msgmain").forEach((e) => e.onclick = () => openMessage(+e.parentElement.dataset.id));
+  box.querySelectorAll(".msgchk").forEach((e) => e.onclick = (ev) => { ev.stopPropagation(); const id = +e.dataset.id; if (e.checked) selected.add(id); else selected.delete(id); e.closest(".msg").classList.toggle("sel", e.checked); renderSelectionBar(); });
 }
 async function openMessage(id) {
   // In Drafts, clicking a message reopens it in the composer.
@@ -423,6 +504,7 @@ async function openMessage(id) {
       <button class="btn" data-a="reply">${icon("reply")}<span>${esc(t("reply"))}</span></button>
       <button class="btn" data-a="forward">${icon("forward")}<span>${esc(t("forward"))}</span></button>
       <button class="btn" data-a="flag">${icon("flag")}<span>${esc(t("flag"))}</span></button>
+      <button class="btn" data-a="move">${icon("folder")}<span>${esc(t("moveTo"))}</span></button>
       <button class="btn danger" data-a="delete">${icon("trash")}<span>${esc(t("delete"))}</span></button>
     </div>
     <div class="bodywrap">${bodyHtml}</div>
@@ -431,6 +513,7 @@ async function openMessage(id) {
   reader.querySelector('[data-a="reply"]').onclick = () => openCompose({ mode: "reply", msg: m });
   reader.querySelector('[data-a="forward"]').onclick = () => openCompose({ mode: "forward", msg: m });
   reader.querySelector('[data-a="flag"]').onclick = guard(async () => { await api("POST", "/flag", { id, flagged: !(messages.find((x) => x.id === id) || {}).flags?.flagged }); loadMessages(); });
+  reader.querySelector('[data-a="move"]').onclick = (e) => openMoveMenu(e.target.closest("button"), async (fid) => { await api("POST", "/move", { id, folder: fid }); curMsg = null; reader.innerHTML = `<div class="empty">${esc(t("selectMessage"))}</div>`; loadMessages(); refreshFolders(); toast(t("saved")); });
   reader.querySelector('[data-a="delete"]').onclick = guard(async () => { await api("POST", "/delete", { id }); curMsg = null; reader.innerHTML = `<div class="empty">${esc(t("selectMessage"))}</div>`; loadMessages(); refreshFolders(); toast(t("deleted")); });
 }
 async function refreshFolders() { try { const r = await api("GET", "/me"); folders = r.folders.filter((f) => f.role !== "root"); if (curFolder) curFolder = folders.find((f) => f.id === curFolder.id) || curFolder; renderRail(); } catch (e) {} }
@@ -459,6 +542,7 @@ function openCompose(opt) {
     subject = opt.msg.subject || "";
     text = opt.msg.text || "";
   }
+  if (opt.mode !== "draft" && me && me.signature) { text += `\n\n-- \n${me.signature}`; }
   panel(t("compose"),
     `<div class="field"><label>${esc(t("to"))}</label><input id="cto" value="${esc(to)}"></div>
      <div class="field"><label>${esc(t("cc"))}</label><input id="ccc" value="${esc(cc)}"></div>
@@ -588,6 +672,99 @@ function openContact(c) {
     await api("POST", "/contact", body); closePanel(); toast(t("saved")); renderContacts();
   });
   if ($("#ctDel")) $("#ctDel").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("POST", "/contact/delete", { id: c.id }); closePanel(); toast(t("deleted")); renderContacts(); });
+}
+
+// ------------------------------------------------------------ TASKS
+async function renderTasks() {
+  $("#view").innerHTML = `<div class="listpane"><div class="list" style="border:0"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 16px;display:flex;gap:8px;position:sticky;top:0;background:var(--bg)"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("tasks"))}</h2><button class="btn primary" id="newTask">${icon("plus")}<span>${esc(t("newTask"))}</span></button></div><div id="taskList" class="listscroll"></div></div></div>`;
+  $("#newTask").onclick = () => openTask();
+  let tasks = [];
+  try { tasks = (await api("GET", "/tasks")).tasks; } catch (e) {}
+  const box = $("#taskList");
+  box.innerHTML = tasks.length ? tasks.map((tk) => `<div class="taskrow ${tk.complete ? "done" : ""}" data-id="${tk.id}">
+    <div class="tck ${tk.complete ? "done" : ""}" data-toggle="${tk.id}">${tk.complete ? icon("check") : ""}</div>
+    <div class="tt" data-edit="${tk.id}">${esc(tk.subject)}</div>
+    ${tk.due ? `<div class="td">${esc(t("due"))}: ${esc(fmtDate(tk.due))}</div>` : ""}</div>`).join("") : `<div class="empty" style="height:auto;padding:40px">${esc(t("noTasks"))}</div>`;
+  box.querySelectorAll("[data-toggle]").forEach((e) => e.onclick = guard(async () => {
+    const tk = tasks.find((x) => x.id == e.dataset.toggle);
+    const task = Object.assign({}, tk.task, { complete: !tk.complete, percent_complete: !tk.complete ? 100 : 0 });
+    await api("POST", "/task", { id: tk.id, task }); renderTasks();
+  }));
+  box.querySelectorAll("[data-edit]").forEach((e) => e.onclick = () => { const tk = tasks.find((x) => x.id == e.dataset.edit); openTask(tk); });
+}
+function openTask(tk) {
+  const task = tk ? tk.task : {};
+  panel(tk ? t("editTask") : t("newTask"),
+    `<div class="field"><label>${esc(t("title"))}</label><input id="tkSub" value="${esc(task.subject || "")}"></div>
+     <div class="field"><label>${esc(t("due"))}</label><input id="tkDue" type="date" value="${task.due ? toLocalInput(task.due).slice(0, 10) : ""}"></div>
+     <div class="field"><label>${esc(t("content"))}</label><textarea id="tkBody" style="min-height:120px">${esc(task.body || "")}</textarea></div>
+     <div class="field"><label><input type="checkbox" id="tkDone" ${task.complete ? "checked" : ""}> ${esc(t("complete"))}</label></div>`,
+    `${tk ? `<button class="btn danger" id="tkDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div><button class="btn primary" id="tkSave">${esc(t("save"))}</button>`);
+  $("#tkSave").onclick = guard(async () => {
+    const done = $("#tkDone").checked;
+    const t2 = Object.assign({}, task, { subject: $("#tkSub").value, body: $("#tkBody").value, complete: done, percent_complete: done ? 100 : 0, due: $("#tkDue").value ? fromLocalInput($("#tkDue").value + "T00:00") : null });
+    const b = { task: t2 }; if (tk) b.id = tk.id;
+    await api("POST", "/task", b); closePanel(); toast(t("saved")); renderTasks();
+  });
+  if ($("#tkDel")) $("#tkDel").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("POST", "/task/delete", { id: tk.id }); closePanel(); toast(t("deleted")); renderTasks(); });
+}
+
+// ------------------------------------------------------------ NOTES
+async function renderNotes() {
+  $("#view").innerHTML = `<div class="listpane"><div class="list" style="border:0"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 16px;display:flex;gap:8px;position:sticky;top:0;background:var(--bg)"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("notes"))}</h2><button class="btn primary" id="newNote">${icon("plus")}<span>${esc(t("newNote"))}</span></button></div><div id="noteList" class="listscroll"></div></div></div>`;
+  $("#newNote").onclick = () => openNote();
+  let notes = [];
+  try { notes = (await api("GET", "/notes")).notes; } catch (e) {}
+  const box = $("#noteList");
+  box.innerHTML = notes.length ? notes.map((n) => `<div class="notecard" data-id="${n.id}"><h3>${esc(n.subject || "(" + t("notes") + ")")}</h3><p>${esc(n.body)}</p></div>`).join("") : `<div class="empty" style="height:auto;padding:40px">${esc(t("noNotes"))}</div>`;
+  box.querySelectorAll(".notecard").forEach((e) => e.onclick = () => { const n = notes.find((x) => x.id == e.dataset.id); openNote(n); });
+}
+function openNote(n) {
+  panel(n ? t("editNote") : t("newNote"),
+    `<div class="field"><label>${esc(t("title"))}</label><input id="nSub" value="${esc(n ? n.subject : "")}"></div>
+     <div class="field"><label>${esc(t("content"))}</label><textarea id="nBody" style="min-height:220px">${esc(n ? n.body : "")}</textarea></div>`,
+    `${n ? `<button class="btn danger" id="nDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div><button class="btn primary" id="nSave">${esc(t("save"))}</button>`);
+  $("#nSave").onclick = guard(async () => {
+    const note = { subject: $("#nSub").value, body: $("#nBody").value, categories: (n && n.note ? n.note.categories : []) || [] };
+    const b = { note }; if (n) b.id = n.id;
+    await api("POST", "/note", b); closePanel(); toast(t("saved")); renderNotes();
+  });
+  if ($("#nDel")) $("#nDel").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("POST", "/note/delete", { id: n.id }); closePanel(); toast(t("deleted")); renderNotes(); });
+}
+
+// ------------------------------------------------------------ SETTINGS
+async function openSettings() {
+  let s;
+  try { s = await api("GET", "/settings"); } catch (e) { return; }
+  const oof = s.oof || {};
+  panel(t("settings"),
+    `<h3 style="margin:0 0 10px">${esc(t("profile"))}</h3>
+     <div class="field"><label>${esc(t("displayName"))}</label><input id="stName" value="${esc(s.name || "")}"></div>
+     <div class="field"><label>${esc(t("signature"))}</label><textarea id="stSig" style="min-height:90px">${esc(s.signature || "")}</textarea></div>
+     <h3 style="margin:22px 0 10px">${esc(t("outOfOffice"))}</h3>
+     <div class="field"><label><input type="checkbox" id="stOof" ${oof.state === "Enabled" ? "checked" : ""}> ${esc(t("oofOn"))}</label></div>
+     <div class="field"><label>${esc(t("internalReply"))}</label><textarea id="stOofInt" style="min-height:70px">${esc(oof.internalReply || "")}</textarea></div>
+     <div class="field"><label>${esc(t("externalReply"))}</label><textarea id="stOofExt" style="min-height:70px">${esc(oof.externalReply || "")}</textarea></div>
+     <h3 style="margin:22px 0 10px">${esc(t("changePassword"))}</h3>
+     <div class="field"><label>${esc(t("currentPassword"))}</label><input id="stPwCur" type="password" autocomplete="current-password"></div>
+     <div class="row2"><div class="field"><label>${esc(t("newPassword"))}</label><input id="stPwNew" type="password" autocomplete="new-password"></div>
+     <div class="field"><label>&nbsp;</label><input id="stPwNew2" type="password" autocomplete="new-password" placeholder="${esc(t("newPassword"))}"></div></div>
+     <button class="btn" id="stPwBtn">${esc(t("changePassword"))}</button>`,
+    `<div style="flex:1"></div><button class="btn primary" id="stSave">${esc(t("save"))}</button>`);
+  $("#stSave").onclick = guard(async () => {
+    await api("POST", "/settings", {
+      name: $("#stName").value, signature: $("#stSig").value,
+      oof: { state: $("#stOof").checked ? "Enabled" : "Disabled", internalReply: $("#stOofInt").value, externalReply: $("#stOofExt").value, externalAudience: "All" },
+    });
+    me = await api("GET", "/me"); $("#who").textContent = me.email;
+    closePanel(); toast(t("saved"));
+  });
+  $("#stPwBtn").onclick = guard(async () => {
+    if ($("#stPwNew").value !== $("#stPwNew2").value) { toast(t("pwMismatch"), true); return; }
+    await api("POST", "/password", { current: $("#stPwCur").value, new: $("#stPwNew").value });
+    $("#stPwCur").value = $("#stPwNew").value = $("#stPwNew2").value = "";
+    toast(t("passwordChanged"));
+  });
 }
 
 // ------------------------------------------------------------ boot
