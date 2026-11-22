@@ -295,6 +295,7 @@ fn print_dns(s: &Store, cfg: &Config, domain: &str) {
 }
 
 async fn serve(cfg: Config) -> Result<()> {
+    let _ = admin::started();
     let store = open_store(&cfg)?;
     let mut reloaders = Vec::new();
     let (smtp_tls, https_tls) = match (&cfg.tls.cert, &cfg.tls.key) {
