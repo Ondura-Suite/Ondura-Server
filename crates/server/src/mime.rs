@@ -351,6 +351,31 @@ pub struct Outgoing {
     pub headers: Vec<(String, String)>,
     pub in_reply_to: Option<String>,
     pub multipart_report: Option<String>,
+    /// Further attachments.
+    pub files: Vec<File>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct File {
+    pub name: String,
+    pub content_type: String,
+    pub data: Vec<u8>,
+    pub content_id: Option<String>,
+    pub inline: bool,
+}
+
+impl File {
+    fn part(&self) -> String {
+        let cid = self.content_id.as_ref().map(|c| format!("Content-ID: <{c}>\r\n")).unwrap_or_default();
+        format!(
+            "Content-Type: {}; name=\"{}\"\r\nContent-Disposition: {}; filename=\"{}\"\r\n{cid}Content-Transfer-Encoding: base64\r\n\r\n{}",
+            self.content_type,
+            encode_word(&self.name),
+            if self.inline { "inline" } else { "attachment" },
+            encode_word(&self.name),
+            wrap_base64(&self.data)
+        )
+    }
 }
 
 impl Outgoing {
@@ -396,29 +421,66 @@ impl Outgoing {
             s.push_str(&format!("--{b}--\r\n"));
             s
         };
-        let body = match (&self.attachment, &self.multipart_report) {
-            (Some((ctype, name, data)), report) => {
-                let b = format!("mix-{}", uuid::Uuid::new_v4().simple());
-                let outer = match report {
-                    Some(r) => format!("multipart/report; report-type={r}"),
-                    None => "multipart/mixed".to_string(),
-                };
-                let disposition = if ctype.starts_with("message/") || ctype.starts_with("text/rfc822") {
-                    format!("Content-Type: {ctype}\r\nContent-Disposition: inline\r\n\r\n{}\r\n", String::from_utf8_lossy(data))
-                } else {
-                    format!(
-                        "Content-Type: {ctype}; name=\"{name}\"\r\nContent-Disposition: attachment; filename=\"{name}\"\r\nContent-Transfer-Encoding: base64\r\n\r\n{}",
-                        wrap_base64(data)
-                    )
-                };
-                format!("Content-Type: {outer}; boundary=\"{b}\"\r\n\r\n--{b}\r\n{body}--{b}\r\n{disposition}--{b}--\r\n")
+        let mut extra: Vec<String> = Vec::new();
+        if let Some((ctype, name, data)) = &self.attachment {
+            extra.push(if ctype.starts_with("message/") || ctype.starts_with("text/rfc822") {
+                format!("Content-Type: {ctype}\r\nContent-Disposition: inline\r\n\r\n{}\r\n", String::from_utf8_lossy(data))
+            } else {
+                File { name: name.clone(), content_type: ctype.clone(), data: data.clone(), content_id: None, inline: false }.part()
+            });
+        }
+        extra.extend(self.files.iter().map(File::part));
+        let body = if extra.is_empty() {
+            body
+        } else {
+            let b = format!("mix-{}", uuid::Uuid::new_v4().simple());
+            let outer = match &self.multipart_report {
+                Some(r) => format!("multipart/report; report-type={r}"),
+                None => "multipart/mixed".to_string(),
+            };
+            let mut s = format!("Content-Type: {outer}; boundary=\"{b}\"\r\n\r\n--{b}\r\n{body}");
+            for p in extra {
+                s.push_str(&format!("--{b}\r\n{p}"));
             }
-            (None, _) => body,
+            s.push_str(&format!("--{b}--\r\n"));
+            s
         };
         let mut out = h.into_bytes();
         out.extend_from_slice(body.as_bytes());
         out
     }
+}
+
+/// Attachments of a message as files (to rebuild it).
+pub fn files_of(raw: &[u8]) -> Vec<File> {
+    attachments(raw)
+        .into_iter()
+        .filter_map(|a| attachment_data(raw, a.index))
+        .map(|(info, data)| File { name: info.name, content_type: info.content_type, data, content_id: info.content_id, inline: info.inline })
+        .collect()
+}
+
+/// The same message with a different set of attachments.
+pub fn with_files(raw: &[u8], files: Vec<File>, hostname: &str) -> Vec<u8> {
+    let meta = parse_meta(raw);
+    let (text, html) = bodies(raw);
+    let mut headers = Vec::new();
+    if !meta.bcc.is_empty() {
+        headers.push(("Bcc".to_string(), format_list(&meta.bcc)));
+    }
+    Outgoing {
+        from: meta.from.unwrap_or_default(),
+        to: meta.to,
+        cc: meta.cc,
+        subject: meta.subject,
+        text: text.unwrap_or_default(),
+        html,
+        headers,
+        files,
+        in_reply_to: meta.in_reply_to,
+        ..Default::default()
+    }
+    .build(hostname)
 }
 
 /// Remove the Bcc header from a message before it leaves the server.
