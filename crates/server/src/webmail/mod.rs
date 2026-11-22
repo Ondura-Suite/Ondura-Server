@@ -23,6 +23,8 @@ use crate::store::User;
 mod calendar_api;
 mod contacts_api;
 mod mail_api;
+mod pim_api;
+mod settings_api;
 #[cfg(test)]
 mod tests;
 
@@ -152,6 +154,20 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/event/respond") => calendar_api::respond(app, user, body).await,
         (&Method::POST, "/contact") => contacts_api::save(app, user, body),
         (&Method::POST, "/contact/delete") => contacts_api::delete(app, user, body),
+        (&Method::GET, "/tasks") => pim_api::tasks(app, user),
+        (&Method::POST, "/task") => pim_api::save_task(app, user, body),
+        (&Method::POST, "/task/delete") => pim_api::delete_task(app, user, body),
+        (&Method::GET, "/notes") => pim_api::notes(app, user),
+        (&Method::POST, "/note") => pim_api::save_note(app, user, body),
+        (&Method::POST, "/note/delete") => pim_api::delete_note(app, user, body),
+        (&Method::GET, "/settings") => settings_api::get(app, user),
+        (&Method::POST, "/settings") => settings_api::save(app, user, body),
+        (&Method::POST, "/password") => settings_api::password(app, user, body),
+        (&Method::POST, "/folder") => pim_api::create_folder(app, user, body),
+        (&Method::POST, "/folder/rename") => pim_api::rename_folder(app, user, body),
+        (&Method::POST, "/folder/delete") => pim_api::delete_folder(app, user, body),
+        (&Method::POST, "/folder/read") => pim_api::mark_folder_read(app, user, body),
+        (&Method::POST, "/bulk") => pim_api::bulk(app, user, body),
         (&Method::GET, _) if api.starts_with("/message/") => mail_api::message(app, user, api.trim_start_matches("/message/")),
         _ => Err(not_found()),
     }
@@ -207,11 +223,13 @@ fn me(app: &Shared, user: &User) -> ApiResult {
             "unread": unread,
         }));
     }
+    let signature = app.store.settings(user.id).map(|s| s.signature).unwrap_or_default();
     Ok(json!({
         "email": user.email,
         "name": user.name,
         "quota": user.quota,
         "used": app.store.used_bytes(user.id).unwrap_or(0),
+        "signature": signature,
         "folders": list,
     }))
 }
