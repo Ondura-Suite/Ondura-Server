@@ -1,0 +1,47 @@
+[package]
+name = "ondura-server-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+ondura-wbxml = { path = "../crates/wbxml" }
+ondura-server = { path = "../crates/server" }
+
+# Detach from the main workspace: this crate is built with a nightly toolchain.
+[workspace]
+
+[profile.release]
+debug = 1
+
+[[bin]]
+name = "wbxml_decode"
+path = "fuzz_targets/wbxml_decode.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ews_xml"
+path = "fuzz_targets/ews_xml.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "mime_meta"
+path = "fuzz_targets/mime_meta.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "ical_parse"
+path = "fuzz_targets/ical_parse.rs"
+test = false
+doc = false
+bench = false

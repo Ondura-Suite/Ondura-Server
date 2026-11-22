@@ -3,3 +3,9 @@
 *.db-wal
 *.db-shm
 /data
+
+# cargo-fuzz
+/fuzz/target/
+/fuzz/artifacts/
+/fuzz/corpus/
+fuzz/Cargo.lock

@@ -1,6 +1,8 @@
 [workspace]
 resolver = "3"
 members = ["crates/wbxml", "crates/server"]
+# The fuzz crate needs a nightly toolchain (libFuzzer) and is built on its own.
+exclude = ["fuzz"]
 
 [workspace.package]
 version = "0.1.0"
