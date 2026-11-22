@@ -146,6 +146,7 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/flag") => mail_api::flag(app, user, body),
         (&Method::POST, "/move") => mail_api::move_message(app, user, body),
         (&Method::POST, "/delete") => mail_api::delete(app, user, body),
+        (&Method::POST, "/empty") => mail_api::empty(app, user, body),
         (&Method::POST, "/event") => calendar_api::save(app, user, body),
         (&Method::POST, "/event/delete") => calendar_api::delete(app, user, body),
         (&Method::POST, "/event/respond") => calendar_api::respond(app, user, body).await,

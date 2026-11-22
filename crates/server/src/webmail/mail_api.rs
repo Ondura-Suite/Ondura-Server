@@ -199,6 +199,9 @@ struct Compose {
     /// Id of a message being answered, so it can be flagged.
     #[serde(default)]
     answering: Option<i64>,
+    /// Id of a draft being sent, removed from Drafts once the mail is on its way.
+    #[serde(default)]
+    draft_id: Option<i64>,
     #[serde(default)]
     attachments: Vec<Attachment>,
 }
@@ -240,6 +243,25 @@ pub async fn send(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     {
         let _ = app.store.update_flags(item.id, flags::ANSWERED, 0, None, WRITER);
     }
+    // The mail is on its way, so drop the draft it was composed from.
+    if let Some(did) = c.draft_id
+        && let Ok(item) = own_item(app, user, did)
+    {
+        let _ = app.store.delete_item(item.id, WRITER);
+    }
+    Ok(json!({ "ok": true }))
+}
+
+/// POST /empty — permanently remove every message in one of the user's folders
+/// (used for emptying Deleted Items).
+pub fn empty(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct EmptyBody {
+        folder: i64,
+    }
+    let b: EmptyBody = parse(body)?;
+    let folder = app.store.folder(b.folder).map_err(internal)?.filter(|f| f.user_id == user.id).ok_or_else(not_found)?;
+    app.store.empty_folder(folder.id, false, WRITER).map_err(internal)?;
     Ok(json!({ "ok": true }))
 }
 

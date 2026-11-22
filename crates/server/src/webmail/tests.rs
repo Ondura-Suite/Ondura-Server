@@ -59,6 +59,21 @@ fn foreign_item_is_not_found() {
 }
 
 #[test]
+fn empty_folder_removes_all() {
+    let (app, user) = App::test();
+    // Put two drafts into Deleted Items, then empty it.
+    let trash = app.store.ensure_folder(user.id, "deleteditems").unwrap();
+    for n in ["a", "b"] {
+        let saved = mail_api::draft(&app, &user, &body(serde_json::json!({ "subject": n, "text": n }))).unwrap();
+        let id = saved["id"].as_i64().unwrap();
+        mail_api::move_message(&app, &user, &body(serde_json::json!({ "id": id, "folder": trash.id }))).unwrap();
+    }
+    assert_eq!(mail_api::messages(&app, &user, &format!("folder={}", trash.id)).unwrap()["messages"].as_array().unwrap().len(), 2);
+    mail_api::empty(&app, &user, &body(serde_json::json!({ "folder": trash.id }))).unwrap();
+    assert_eq!(mail_api::messages(&app, &user, &format!("folder={}", trash.id)).unwrap()["messages"].as_array().unwrap().len(), 0);
+}
+
+#[test]
 fn calendar_save_and_list() {
     let (app, user) = App::test();
     let start = crate::store::now() + 3600;

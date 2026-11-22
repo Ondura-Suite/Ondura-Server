@@ -246,7 +246,7 @@ const T = {
     newEvent: "New event", editEvent: "Event", title: "Title", location: "Location", start: "Start", end: "End", allDay: "All day", save: "Save", cancel: "Cancel",
     accept: "Accept", decline: "Decline", tentative: "Tentative", today: "Today",
     newContact: "New contact", editContact: "Contact", firstName: "First name", lastName: "Last name", company: "Company", jobTitle: "Job title", phone: "Mobile", notes: "Notes", noContacts: "No contacts", selectContact: "Select a contact",
-    logout: "Sign out", confirmDelete: "Delete this item?", sent: "Sent", saved: "Saved", deleted: "Deleted", loading: "Loading…", langName: "Deutsch",
+    logout: "Sign out", confirmDelete: "Delete this item?", sent: "Sent", saved: "Saved", deleted: "Deleted", emptyTrash: "Empty", confirmEmpty: "Permanently delete all items in Deleted Items?", loading: "Loading…", langName: "Deutsch",
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
   },
   de: {
@@ -258,7 +258,7 @@ const T = {
     newEvent: "Neuer Termin", editEvent: "Termin", title: "Titel", location: "Ort", start: "Beginn", end: "Ende", allDay: "Ganztägig", save: "Speichern", cancel: "Abbrechen",
     accept: "Zusagen", decline: "Absagen", tentative: "Vorbehalt", today: "Heute",
     newContact: "Neuer Kontakt", editContact: "Kontakt", firstName: "Vorname", lastName: "Nachname", company: "Firma", jobTitle: "Position", phone: "Mobil", notes: "Notizen", noContacts: "Keine Kontakte", selectContact: "Kontakt auswählen",
-    logout: "Abmelden", confirmDelete: "Diesen Eintrag löschen?", sent: "Gesendet", saved: "Gespeichert", deleted: "Gelöscht", loading: "Lädt…", langName: "English",
+    logout: "Abmelden", confirmDelete: "Diesen Eintrag löschen?", sent: "Gesendet", saved: "Gespeichert", deleted: "Gelöscht", emptyTrash: "Leeren", confirmEmpty: "Alle Elemente im Papierkorb endgültig löschen?", loading: "Lädt…", langName: "English",
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
   },
 };
@@ -373,8 +373,15 @@ async function loadMessages(search) {
   messages = r.messages; renderMsgList();
 }
 function renderMail() {
-  $("#view").innerHTML = `<div class="mailgrid"><div class="list"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0"><h2>${esc(curFolder ? folderLabel(curFolder) : t("inbox"))}</h2></div><div id="msgs"></div></div><div class="reader" id="reader"><div class="empty">${esc(t("selectMessage"))}</div></div></div>`;
+  const canEmpty = curFolder && curFolder.role === "deleteditems";
+  const emptyBtn = canEmpty ? `<button class="btn danger" id="emptyTrash">${icon("trash")}<span>${esc(t("emptyTrash"))}</span></button>` : "";
+  $("#view").innerHTML = `<div class="mailgrid"><div class="list"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0"><h2>${esc(curFolder ? folderLabel(curFolder) : t("inbox"))}</h2>${emptyBtn}</div><div id="msgs"></div></div><div class="reader" id="reader"><div class="empty">${esc(t("selectMessage"))}</div></div></div>`;
   guard(loadMessages)();
+  if (canEmpty) $("#emptyTrash").onclick = guard(async () => {
+    if (!confirm(t("confirmEmpty"))) return;
+    await api("POST", "/empty", { folder: curFolder.id });
+    curMsg = null; loadMessages(); refreshFolders(); toast(t("deleted"));
+  });
   if (curMsg) openMessage(curMsg);
 }
 function renderMsgList() {
@@ -390,6 +397,12 @@ function renderMsgList() {
   box.querySelectorAll(".msg").forEach((e) => e.onclick = () => openMessage(+e.dataset.id));
 }
 async function openMessage(id) {
+  // In Drafts, clicking a message reopens it in the composer.
+  if (curFolder && curFolder.role === "drafts") {
+    const m = await api("GET", "/message/" + id);
+    openCompose({ mode: "draft", msg: m, draftId: id });
+    return;
+  }
   curMsg = id; renderMsgList();
   const m = await api("GET", "/message/" + id);
   if (!m.flags.read) { guard(async () => { await api("POST", "/flag", { id, read: true }); const it = messages.find((x) => x.id === id); if (it) { it.flags.read = true; renderMsgList(); } refreshFolders(); })(); }
@@ -432,6 +445,7 @@ let pendingFiles = [];
 function openCompose(opt) {
   opt = opt || {}; pendingFiles = [];
   let to = "", cc = "", subject = "", text = "", answering = null;
+  const draftId = opt.mode === "draft" ? opt.draftId : null;
   if (opt.mode === "reply" && opt.msg) {
     to = opt.msg.from ? opt.msg.from.email : ""; answering = opt.msg.id;
     subject = (/^(re|aw):/i.test(opt.msg.subject) ? "" : t("re") + ": ") + opt.msg.subject;
@@ -439,6 +453,11 @@ function openCompose(opt) {
   } else if (opt.mode === "forward" && opt.msg) {
     subject = (/^(fwd|wg):/i.test(opt.msg.subject) ? "" : t("fwd") + ": ") + opt.msg.subject;
     text = `\n\n--- ${personStr(opt.msg.from)}, ${fmtDate(opt.msg.date)} ---\n` + (opt.msg.text || "");
+  } else if (opt.mode === "draft" && opt.msg) {
+    to = (opt.msg.to || []).map((p) => p.email).join(", ");
+    cc = (opt.msg.cc || []).map((p) => p.email).join(", ");
+    subject = opt.msg.subject || "";
+    text = opt.msg.text || "";
   }
   panel(t("compose"),
     `<div class="field"><label>${esc(t("to"))}</label><input id="cto" value="${esc(to)}"></div>
@@ -454,9 +473,14 @@ function openCompose(opt) {
   $("#csend").onclick = guard(async () => {
     const body = { to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").value, attachments: pendingFiles };
     if (answering) body.answering = answering;
-    await api("POST", "/send", body); closePanel(); toast(t("sent")); if (view === "mail") loadMessages();
+    if (draftId) body.draftId = draftId;
+    await api("POST", "/send", body); closePanel(); toast(t("sent")); if (view === "mail") loadMessages(); refreshFolders();
   });
-  $("#cdraft").onclick = guard(async () => { await api("POST", "/draft", { to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").value }); closePanel(); toast(t("saved")); refreshFolders(); });
+  $("#cdraft").onclick = guard(async () => {
+    const d = { to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").value };
+    if (draftId) d.id = draftId;
+    await api("POST", "/draft", d); closePanel(); toast(t("saved")); refreshFolders(); if (view === "mail") loadMessages();
+  });
 }
 function renderFileList() { $("#filelist").innerHTML = pendingFiles.map((f, i) => `<span class="att">${esc(f.name)} <a href="#" data-rm="${i}" style="color:var(--danger)">✕</a></span>`).join(""); $("#filelist").querySelectorAll("[data-rm]").forEach((e) => e.onclick = (ev) => { ev.preventDefault(); pendingFiles.splice(+e.dataset.rm, 1); renderFileList(); }); }
 function fileB64(file) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result.split(",")[1]); r.readAsDataURL(file); }); }
