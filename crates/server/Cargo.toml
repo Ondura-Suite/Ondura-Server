@@ -43,3 +43,27 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 uuid = { version = "1.29.3", features = ["v4", "v5"] }
 webpki-roots = "1.0.12"
+
+[package.metadata.deb]
+name = "ondura-server"
+maintainer = "Niklas Linz <niklas.linz@mirranet.de>"
+copyright = "2026, Niklas Linz"
+license-file = ["../../LICENSE", "0"]
+extended-description = """\
+Mail server for mail, calendars, contacts and tasks with Exchange ActiveSync \
+and Exchange Web Services: works with Ondura Mail, Outlook for iOS and \
+Android, the mail apps of iOS and Android and EWS clients. Includes SMTP \
+with DKIM, SPF and DMARC, Autodiscover and a web-based Admin Center."""
+section = "mail"
+priority = "optional"
+depends = "$auto, adduser"
+recommends = "certbot"
+assets = [
+    ["target/release/ondura-server", "usr/bin/", "755"],
+    ["../../packaging/certbot-deploy-hook.sh", "usr/share/ondura-server/certbot-deploy-hook.sh", "755"],
+    ["../../README.md", "usr/share/doc/ondura-server/README.md", "644"],
+    ["../../docs/admin.md", "usr/share/doc/ondura-server/admin.md", "644"],
+    ["../../THIRD-PARTY-NOTICES.txt", "usr/share/doc/ondura-server/THIRD-PARTY-NOTICES.txt", "644"],
+]
+maintainer-scripts = "../../packaging/debian/"
+systemd-units = { unit-name = "ondura-server", unit-scripts = "../../packaging", enable = true, start = false }

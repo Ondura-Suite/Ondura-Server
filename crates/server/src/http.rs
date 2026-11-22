@@ -31,8 +31,8 @@ pub fn router(app: Shared) -> Router {
 }
 
 fn client_ip(app: &Shared, peer: IpAddr, headers: &HeaderMap) -> IpAddr {
-    if app.cfg.http.trusted_proxies.contains(&peer) || (app.cfg.http.behind_proxy && peer.is_loopback()) {
-        if let Some(ip) = headers
+    if (app.cfg.http.trusted_proxies.contains(&peer) || (app.cfg.http.behind_proxy && peer.is_loopback()))
+        && let Some(ip) = headers
             .get("X-Forwarded-For")
             .and_then(|v| v.to_str().ok())
             .and_then(|v| v.split(',').next_back())
@@ -40,7 +40,6 @@ fn client_ip(app: &Shared, peer: IpAddr, headers: &HeaderMap) -> IpAddr {
         {
             return ip;
         }
-    }
     peer
 }
 
@@ -81,7 +80,8 @@ async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
         Ok(b) => b,
         Err(_) => return (StatusCode::PAYLOAD_TOO_LARGE, "Request too large").into_response(),
     };
-    let response = match path.trim_end_matches('/') {
+    
+    match path.trim_end_matches('/') {
         "/microsoft-server-activesync" => {
             if method == axum::http::Method::OPTIONS && !headers.contains_key(header::AUTHORIZATION) {
                 return unauthorized();
@@ -105,8 +105,7 @@ async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
             admin::handle(app.clone(), method, &path, &query, &headers, body, ip).await
         }
         _ => StatusCode::NOT_FOUND.into_response(),
-    };
-    response
+    }
 }
 
 async fn serve_conn<S>(router: Router, io: S, peer: SocketAddr)

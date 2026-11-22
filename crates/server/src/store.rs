@@ -276,6 +276,7 @@ pub struct Item {
 }
 
 impl Item {
+    #[cfg(test)]
     pub fn is_read(&self) -> bool {
         self.flags & model::flags::READ != 0
     }
@@ -459,6 +460,7 @@ impl Store {
         Self::init(conn)
     }
 
+    #[cfg(test)]
     pub fn open_memory() -> Result<Store> {
         Self::init(Connection::open_in_memory()?)
     }
@@ -490,14 +492,7 @@ impl Store {
         Ok(self.db().query_row("SELECT modseq FROM users WHERE id = ?1", [user_id], |r| r.get(0))?)
     }
 
-    pub fn meta(&self, key: &str) -> Result<Option<String>> {
-        Ok(self.db().query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0)).optional()?)
-    }
 
-    pub fn set_meta(&self, key: &str, value: &str) -> Result<()> {
-        self.db().execute("INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value", params![key, value])?;
-        Ok(())
-    }
 
     pub fn audit(&self, actor: &str, action: &str, detail: &str) {
         let _ = self.db().execute("INSERT INTO audit (time, actor, action, detail) VALUES (?1, ?2, ?3, ?4)", params![now(), actor, action, detail]);
@@ -1183,17 +1178,7 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    pub fn item_count(&self, folder_id: i64) -> Result<i64> {
-        Ok(self.db().query_row("SELECT COUNT(*) FROM items WHERE folder_id = ?1", [folder_id], |r| r.get(0))?)
-    }
 
-    /// Mail items of a folder received at or after `since`.
-    pub fn items_since(&self, folder_id: i64, since: i64) -> Result<Vec<Item>> {
-        let db = self.db();
-        let mut st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE folder_id = ?1 AND received >= ?2 ORDER BY received DESC"))?;
-        let rows = st.query_map(params![folder_id, since], item_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
-    }
 
     /// Calendar items that may have occurrences in `[from, to)`.
     pub fn events_in_range(&self, folder_id: i64, from: i64, to: i64) -> Result<Vec<Item>> {
@@ -1212,12 +1197,6 @@ impl Store {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
-    pub fn item_by_message_id(&self, user_id: i64, message_id: &str) -> Result<Option<Item>> {
-        Ok(self
-            .db()
-            .query_row(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE user_id = ?1 AND message_id = ?2 LIMIT 1"), params![user_id, message_id], item_from_row)
-            .optional()?)
-    }
 
     /// Simple full-text search over subject, sender, recipients, preview and
     /// (for PIM items) the JSON data. All words must match.

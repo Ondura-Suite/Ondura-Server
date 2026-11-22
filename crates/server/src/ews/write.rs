@@ -10,7 +10,7 @@ use chrono_tz::Tz;
 use super::{Ctx, Shape, bool_str, class_element, folder_id, push};
 use crate::mime;
 use crate::model::{
-    AttendeeKind, BusyStatus, Contact, Event, Frequency, ItemKind, Occurrence, Person, Recurrence, Response, Sensitivity, Task, WEEKDAYS, flags,
+    AttendeeKind, BusyStatus, Contact, Event, Frequency, ItemKind, Occurrence, Person, Recurrence, Response, Task, WEEKDAYS, flags,
 };
 use crate::store::{Folder, Item};
 use crate::tzinfo;
@@ -320,8 +320,8 @@ fn mail_xml(ctx: &Ctx, item: &Item, shape: &Shape, find: bool) -> String {
     if shape.wants("message:ReplyTo", false) && !item.recipients.reply_to.is_empty() {
         s.push_str(&recipients("ReplyTo", &item.recipients.reply_to));
     }
-    if el == "MeetingRequest" || el == "MeetingCancellation" {
-        if let Some(e) = item.data.as_deref().map(crate::ical::parse).and_then(|c| c.events.into_iter().next()) {
+    if (el == "MeetingRequest" || el == "MeetingCancellation")
+        && let Some(e) = item.data.as_deref().map(crate::ical::parse).and_then(|c| c.events.into_iter().next()) {
             let own = crate::calendar::find_by_uid(&ctx.app, item.user_id, &e.uid).ok().flatten();
             if let Some(o) = &own {
                 let _ = write!(s, r#"<t:AssociatedCalendarItemId Id="I.{}" ChangeKey="C{}"/>"#, o.id, o.modseq);
@@ -346,7 +346,6 @@ fn mail_xml(ctx: &Ctx, item: &Item, shape: &Shape, find: bool) -> String {
                 s.push_str(&single("Organizer", o));
             }
         }
-    }
     let _ = write!(s, "</t:{el}>");
     s
 }
@@ -810,11 +809,10 @@ fn task_xml(item: &Item, t: &Task, shape: &Shape, find: bool) -> String {
     if shape.wants("item:Importance", true) {
         push(&mut s, "Importance", t.importance.ews());
     }
-    if let Some(r) = t.reminder {
-        if shape.wants("item:ReminderDueBy", true) {
+    if let Some(r) = t.reminder
+        && shape.wants("item:ReminderDueBy", true) {
             push(&mut s, "ReminderDueBy", &utc(r));
         }
-    }
     if shape.wants("item:ReminderIsSet", true) {
         push(&mut s, "ReminderIsSet", bool_str(t.reminder.is_some()));
     }
@@ -866,6 +864,3 @@ pub fn busy_type(b: BusyStatus) -> &'static str {
     }
 }
 
-pub fn sensitivity_private(s: Sensitivity) -> bool {
-    matches!(s, Sensitivity::Private | Sensitivity::Confidential)
-}

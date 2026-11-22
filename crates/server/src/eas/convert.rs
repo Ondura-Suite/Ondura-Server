@@ -207,11 +207,10 @@ pub fn email(item: &Item, raw: Option<&[u8]>, prefs: &BodyPrefs, version: f32, m
         d.push(body(prefs, text.as_deref().unwrap_or_default(), html.as_deref(), Some(raw), smime));
     }
     d.push_text("Email:MessageClass", if item.message_class.is_empty() { "IPM.Note".to_string() } else { item.message_class.clone() });
-    if item.message_class.starts_with("IPM.Schedule.Meeting.Request") || item.message_class.starts_with("IPM.Schedule.Meeting.Canceled") {
-        if let Some(e) = item.data.as_deref().map(crate::ical::parse).and_then(|c| c.events.into_iter().next()) {
+    if (item.message_class.starts_with("IPM.Schedule.Meeting.Request") || item.message_class.starts_with("IPM.Schedule.Meeting.Canceled"))
+        && let Some(e) = item.data.as_deref().map(crate::ical::parse).and_then(|c| c.events.into_iter().next()) {
             d.push(meeting_request(&e, me));
         }
-    }
     d.push_text("Email:InternetCPID", "65001");
     let mut flag = Element::new("Email:Flag");
     if item.flags & flags::FLAGGED != 0 {
@@ -755,7 +754,7 @@ pub fn apply_contact(d: &Element, mut c: Contact) -> Contact {
     // ActiveSync sends complete contacts; missing fields are empty.
     let full = d.has("Contacts:FileAs") || d.has("Contacts:FirstName") || d.has("Contacts:LastName") || d.has("Contacts:CompanyName");
     let t = |n: &str| d.text_of(n);
-    let mut set = |field: &mut String, name: &str| match t(name) {
+    let set = |field: &mut String, name: &str| match t(name) {
         Some(v) => *field = v,
         None if full => field.clear(),
         None => {}
@@ -815,12 +814,12 @@ pub fn apply_contact(d: &Element, mut c: Contact) -> Contact {
         c.im = ims;
     }
     match t("Contacts:Birthday") {
-        Some(b) => c.birthday = parse_date(&b).map(|ts| contact_date(ts)),
+        Some(b) => c.birthday = parse_date(&b).map(contact_date),
         None if full => c.birthday = None,
         None => {}
     }
     match t("Contacts:Anniversary") {
-        Some(b) => c.anniversary = parse_date(&b).map(|ts| contact_date(ts)),
+        Some(b) => c.anniversary = parse_date(&b).map(contact_date),
         None if full => c.anniversary = None,
         None => {}
     }

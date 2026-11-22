@@ -1,0 +1,99 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo clippy --workspace --all-targets --locked -- -D warnings
+      - run: cargo test --workspace --locked
+      - name: Third-party notices up to date
+        # Regenerate with `python3 scripts/third-party-notices.py` after dependency changes.
+        run: |
+          python3 scripts/third-party-notices.py
+          git diff --exit-code -- THIRD-PARTY-NOTICES.txt
+
+  package:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            arch: x86_64
+          - target: aarch64-unknown-linux-gnu
+            arch: aarch64
+    # Ubuntu 22.04 keeps the glibc requirement low (Debian 12, Ubuntu 22.04+).
+    runs-on: ubuntu-22.04
+    env:
+      CC_aarch64_unknown_linux_gnu: aarch64-linux-gnu-gcc
+      CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Cross compiler (ARM64)
+        if: matrix.arch == 'aarch64'
+        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: cargo-deb
+        run: cargo install --locked cargo-deb
+      - name: Build
+        run: |
+          cargo build --release --locked -p ondura-server --target ${{ matrix.target }}
+          cargo deb --no-build -p ondura-server --target ${{ matrix.target }}
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)
+          mkdir -p dist
+          cp target/${{ matrix.target }}/debian/*.deb dist/
+          tar -czf "dist/ondura-server-${version}-${{ matrix.arch }}-linux.tar.gz" \
+            -C target/${{ matrix.target }}/release ondura-server \
+            -C "$GITHUB_WORKSPACE" LICENSE README.md THIRD-PARTY-NOTICES.txt docs/admin.md packaging
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ondura-server-${{ matrix.arch }}
+          path: dist/*
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          cat > notes.md <<NOTES
+          Ondura Server ${version}
+
+          | System | File |
+          | --- | --- |
+          | Debian 12+, Ubuntu 22.04+ (x86_64) | \`ondura-server_${version}-1_amd64.deb\` |
+          | Debian 12+, Ubuntu 22.04+ (ARM64) | \`ondura-server_${version}-1_arm64.deb\` |
+          | Other Linux distributions | \`ondura-server-${version}-<arch>-linux.tar.gz\` |
+
+          Installation and update: see docs/admin.md.
+          NOTES
+          sed -i 's/^          //' notes.md
+          gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "Ondura Server ${version}" --notes-file notes.md

@@ -27,7 +27,6 @@ pub struct Ctx {
     pub app: Shared,
     pub user: User,
     pub device_id: String,
-    pub device_type: String,
     pub version: f32,
     /// Writer tag of this device (changes made by it are not echoed back).
     pub writer: String,
@@ -35,7 +34,6 @@ pub struct Ctx {
     pub me: Vec<String>,
     pub params: HashMap<String, String>,
     pub save_in_sent: bool,
-    pub accept_multipart: bool,
 }
 
 impl Ctx {
@@ -246,12 +244,10 @@ pub async fn handle(app: Shared, user: User, method: Method, query: &str, header
         app: app.clone(),
         user,
         device_id: q.device_id.clone(),
-        device_type: q.device_type.clone(),
         version,
         me,
         params: q.params,
         save_in_sent: q.save_in_sent,
-        accept_multipart: q.accept_multipart || headers.get("MS-ASAcceptMultiPart").is_some_and(|v| v.as_bytes().eq_ignore_ascii_case(b"T")),
     };
 
     // Provisioning: a device must accept the policy before it may sync.

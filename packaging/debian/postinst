@@ -1,0 +1,23 @@
+#!/bin/sh
+set -e
+
+if [ "$1" = "configure" ]; then
+    if ! getent passwd ondura >/dev/null; then
+        adduser --system --group --home /var/lib/ondura-server --no-create-home --gecos "Ondura Server" ondura
+    fi
+    install -d -o ondura -g ondura -m 0750 /var/lib/ondura-server
+    install -d -o root -g ondura -m 0750 /etc/ondura-server
+    install -d -o root -g ondura -m 0750 /etc/ondura-server/tls
+    if [ ! -f /etc/ondura-server/config.toml ]; then
+        host="$(hostname -f 2>/dev/null || hostname)"
+        case "$host" in *.*) ;; *) host="mail.example.com" ;; esac
+        /usr/bin/ondura-server --config /etc/ondura-server/config.toml init --hostname "$host" >/dev/null
+        # Certificates are expected in /etc/ondura-server/tls (see the certbot hook).
+        sed -i "s|^cert = .*|cert = \"/etc/ondura-server/tls/fullchain.pem\"|; s|^key = .*|key = \"/etc/ondura-server/tls/privkey.pem\"|" /etc/ondura-server/config.toml
+        chown root:ondura /etc/ondura-server/config.toml
+        chmod 0640 /etc/ondura-server/config.toml
+        echo "Ondura Server: edit /etc/ondura-server/config.toml, then see /usr/share/doc/ondura-server/admin.md"
+    fi
+fi
+
+#DEBHELPER#

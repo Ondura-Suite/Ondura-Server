@@ -12,7 +12,6 @@ use crate::model::{Importance, Person};
 pub struct MailMeta {
     pub subject: String,
     pub from: Option<Person>,
-    pub sender: Option<Person>,
     pub to: Vec<Person>,
     pub cc: Vec<Person>,
     pub bcc: Vec<Person>,
@@ -20,7 +19,6 @@ pub struct MailMeta {
     pub date: Option<i64>,
     pub message_id: Option<String>,
     pub in_reply_to: Option<String>,
-    pub references: Vec<String>,
     pub importance: Importance,
     pub preview: String,
     pub has_attachments: bool,
@@ -28,7 +26,6 @@ pub struct MailMeta {
     pub message_class: String,
     /// iCalendar data of a meeting message.
     pub calendar: Option<String>,
-    pub thread_topic: String,
 }
 
 fn persons(addr: Option<&MpAddress<'_>>) -> Vec<Person> {
@@ -105,7 +102,6 @@ pub fn parse_meta(raw: &[u8]) -> MailMeta {
     MailMeta {
         subject: msg.subject().unwrap_or_default().trim().to_string(),
         from: persons(msg.from()).into_iter().next(),
-        sender: persons(msg.sender()).into_iter().next(),
         to: persons(msg.to()),
         cc: persons(msg.cc()),
         bcc: persons(msg.bcc()),
@@ -113,16 +109,11 @@ pub fn parse_meta(raw: &[u8]) -> MailMeta {
         date: msg.date().map(|d| d.to_timestamp()),
         message_id: msg.message_id().map(|m| format!("<{}>", m.trim_matches(['<', '>']))),
         in_reply_to: text_list(msg.in_reply_to()).into_iter().next().map(|m| format!("<{}>", m.trim_matches(['<', '>']))),
-        references: text_list(msg.references()).into_iter().map(|m| format!("<{}>", m.trim_matches(['<', '>']))).collect(),
         importance,
         preview,
         has_attachments,
         message_class,
         calendar,
-        thread_topic: msg
-            .header_raw("Thread-Topic")
-            .map(|s| s.trim().to_string())
-            .unwrap_or_else(|| strip_subject_prefix(msg.subject().unwrap_or_default()).to_string()),
     }
 }
 
@@ -130,14 +121,6 @@ fn is_inline_image(p: &mail_parser::MessagePart<'_>) -> bool {
     p.content_id().is_some() && p.content_disposition().is_none_or(|d| d.ctype().eq_ignore_ascii_case("inline")) && p.content_type().is_some_and(|c| c.ctype().eq_ignore_ascii_case("image"))
 }
 
-fn strip_subject_prefix(s: &str) -> &str {
-    let mut s = s.trim();
-    loop {
-        let lower = s.to_ascii_lowercase();
-        let Some(p) = ["re:", "aw:", "fw:", "fwd:", "wg:"].iter().find(|p| lower.starts_with(**p)) else { return s };
-        s = s[p.len()..].trim_start();
-    }
-}
 
 fn preview_of(msg: &mail_parser::Message<'_>) -> String {
     let text = msg

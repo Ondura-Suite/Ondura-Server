@@ -17,7 +17,7 @@ pub fn search(app: &Shared, query: &str, limit: usize) -> Vec<User> {
             !words.is_empty() && words.iter().all(|w| hay.contains(w.as_str()))
         })
         .collect();
-    out.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
+    out.sort_by_key(|a| a.name.to_lowercase());
     out.truncate(limit);
     out
 }
