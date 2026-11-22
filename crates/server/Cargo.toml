@@ -25,7 +25,7 @@ hyper-util = { version = "0.1.21", features = ["tokio", "server-auto", "service"
 mail-auth = { version = "0.13", features = ["generate"] }
 mail-parser = "0.11.9"
 ondura-wbxml = { path = "../wbxml" }
-quick-xml = "0.38"
+quick-xml = "0.42"
 rand = "0.10.4"
 rusqlite = { version = "0.43.0", features = ["bundled"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }

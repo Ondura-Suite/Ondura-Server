@@ -12,11 +12,10 @@ pub struct Node {
     pub children: Vec<Node>,
 }
 
-fn local(name: &[u8]) -> String {
-    let s = String::from_utf8_lossy(name);
-    match s.rsplit_once(':') {
+fn local(name: &str) -> String {
+    match name.rsplit_once(':') {
         Some((_, l)) => l.to_string(),
-        None => s.into_owned(),
+        None => name.to_string(),
     }
 }
 
@@ -27,8 +26,11 @@ impl Node {
         let attrs = |e: &quick_xml::events::BytesStart<'_>| -> Vec<(String, String)> {
             e.attributes()
                 .flatten()
-                .filter(|a| !a.key.as_ref().starts_with(b"xmlns"))
-                .map(|a| (local(a.key.as_ref()), a.unescape_value().map(|v| v.into_owned()).unwrap_or_default()))
+                .filter(|a| !a.key.as_ref().starts_with("xmlns"))
+                .map(|a| {
+                    let value = a.normalized_value(quick_xml::XmlVersion::Implicit1_0).map(|v| v.into_owned()).unwrap_or_default();
+                    (local(a.key.as_ref()), value)
+                })
                 .collect()
         };
         loop {
@@ -39,13 +41,13 @@ impl Node {
                     stack.last_mut().ok_or("unbalanced XML")?.children.push(n);
                 }
                 Event::Text(t) => {
-                    let text = t.decode().map_err(|e| e.to_string())?;
+                    let text = t.into_inner();
                     stack.last_mut().ok_or("unbalanced XML")?.text.push_str(&text);
                 }
                 Event::GeneralRef(r) => {
                     let resolved = match r.resolve_char_ref().map_err(|e| e.to_string())? {
                         Some(c) => c.to_string(),
-                        None => match r.decode().map_err(|e| e.to_string())?.as_ref() {
+                        None => match r.as_ref() {
                             "amp" => "&".into(),
                             "lt" => "<".into(),
                             "gt" => ">".into(),
@@ -56,7 +58,7 @@ impl Node {
                     };
                     stack.last_mut().ok_or("unbalanced XML")?.text.push_str(&resolved);
                 }
-                Event::CData(t) => stack.last_mut().ok_or("unbalanced XML")?.text.push_str(&String::from_utf8_lossy(&t)),
+                Event::CData(t) => stack.last_mut().ok_or("unbalanced XML")?.text.push_str(&t.into_inner()),
                 Event::End(_) => {
                     let n = stack.pop().ok_or("unbalanced XML")?;
                     stack.last_mut().ok_or("unbalanced XML")?.children.push(n);

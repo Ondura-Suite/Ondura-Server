@@ -33,9 +33,15 @@ pub enum Mode {
     Submissions,
 }
 
+/// Maximum simultaneous SMTP connections across all clients.
+const MAX_CONNECTIONS: usize = 512;
+/// Maximum simultaneous SMTP connections from a single remote IP.
+const MAX_CONNECTIONS_PER_IP: usize = 20;
+
 pub async fn serve(app: Shared, addr: SocketAddr, mode: Mode) -> Result<()> {
     let listener = TcpListener::bind(addr).await.map_err(|e| anyhow::anyhow!("bind SMTP {addr}: {e}"))?;
     info!(%addr, ?mode, "SMTP listening");
+    let limiter = crate::netlimit::ConnLimiter::new(MAX_CONNECTIONS, MAX_CONNECTIONS_PER_IP);
     loop {
         let (tcp, peer) = match listener.accept().await {
             Ok(x) => x,
@@ -44,11 +50,17 @@ pub async fn serve(app: Shared, addr: SocketAddr, mode: Mode) -> Result<()> {
                 continue;
             }
         };
+        let Some(guard) = limiter.admit(peer.ip()) else {
+            debug!(%peer, "SMTP connection refused: limit reached");
+            // Drop without a banner; a well-behaved peer retries later.
+            continue;
+        };
         let app = app.clone();
         tokio::spawn(async move {
             if let Err(e) = session(app, tcp, peer, mode).await {
                 debug!(%peer, "SMTP session ended: {e}");
             }
+            drop(guard);
         });
     }
 }

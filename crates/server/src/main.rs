@@ -15,6 +15,7 @@ mod http;
 mod ical;
 mod mime;
 mod model;
+mod netlimit;
 mod smtp;
 mod store;
 mod tls;
