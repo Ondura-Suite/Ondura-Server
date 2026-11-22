@@ -226,6 +226,7 @@ With the Autodiscover record in place, clients only need the e-mail address and 
 
 | Client | Setup |
 | --- | --- |
+| Browser (no install) | Open `https://mail.example.com/mail` and sign in – see the [webmail guide](webmail.md) |
 | Ondura Mail | Add an Exchange Server (on-premises) account. EWS URL if asked: `https://mail.example.com/EWS/Exchange.asmx` |
 | iPhone / iPad | *Settings › Mail › Accounts › Add Account › Microsoft Exchange*. Server if asked: `mail.example.com` |
 | Android (Gmail app, Samsung Email) | *Add account › Exchange*. Server: `mail.example.com` |
