@@ -20,6 +20,7 @@ pub mod smtp;
 pub mod store;
 pub mod tls;
 pub mod tzinfo;
+pub mod webmail;
 pub mod xml;
 
 use std::path::PathBuf;

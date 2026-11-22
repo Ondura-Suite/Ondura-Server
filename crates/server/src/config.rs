@@ -56,11 +56,14 @@ pub struct Http {
     /// Allow the Admin Center (`/admin`).
     #[serde(default = "yes")]
     pub admin_center: bool,
+    /// Allow webmail (`/mail`) for end users.
+    #[serde(default = "yes")]
+    pub webmail: bool,
 }
 
 impl Default for Http {
     fn default() -> Self {
-        Http { https: default_https(), http: vec![], behind_proxy: false, trusted_proxies: vec![], admin_center: true }
+        Http { https: default_https(), http: vec![], behind_proxy: false, trusted_proxies: vec![], admin_center: true, webmail: true }
     }
 }
 
@@ -230,6 +233,8 @@ https = ["[::]:443"]
 http = ["[::]:80"]
 behind_proxy = false
 admin_center = true
+# Browser webmail for end users at /mail.
+webmail = true
 
 [smtp]
 inbound = ["[::]:25"]
