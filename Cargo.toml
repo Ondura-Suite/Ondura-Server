@@ -1,0 +1,17 @@
+[workspace]
+resolver = "3"
+members = ["crates/wbxml", "crates/server"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+authors = ["Niklas Linz <niklas.linz@mirranet.de>"]
+license = "AGPL-3.0-or-later"
+homepage = "https://ondura.mirranet.de"
+repository = "https://github.com/Ondura-Suite/Ondura-Server"
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
+strip = true

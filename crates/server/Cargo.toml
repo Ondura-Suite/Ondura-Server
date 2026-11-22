@@ -1,0 +1,43 @@
+[package]
+name = "ondura-server"
+description = "Mail server with Exchange ActiveSync and Exchange Web Services"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+anyhow = "1.0.104"
+argon2 = "0.6.0"
+axum = "0.8.9"
+base64 = "0.23.1"
+bytes = "1.12.2"
+chrono = { version = "0.4.45", features = ["serde"] }
+chrono-tz = "0.10.4"
+clap = { version = "4.6.9", features = ["derive"] }
+futures = "0.3.34"
+hex = "0.4.3"
+hickory-resolver = { version = "0.26.3", features = ["tokio"] }
+hyper-util = { version = "0.1.21", features = ["tokio", "server-auto", "service"] }
+mail-auth = { version = "0.15.1", default-features = false, features = ["rust-crypto", "dns-hickory", "generate"] }
+mail-parser = "0.11.9"
+ondura-wbxml = { path = "../wbxml" }
+quick-xml = "0.42.0"
+rand = "0.10.4"
+rrule = "0.14.0"
+rusqlite = { version = "0.43.0", features = ["bundled"] }
+rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
+rustls-pemfile = "2.2.0"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+sha2 = "0.11.1"
+thiserror = "2.0.21"
+tokio = { version = "1.54.1", features = ["full"] }
+tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
+toml = "1.2.2"
+tower-http = { version = "0.7.1", features = ["trace"] }
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
+uuid = { version = "1.29.3", features = ["v4"] }
+webpki-roots = "1.0.12"
