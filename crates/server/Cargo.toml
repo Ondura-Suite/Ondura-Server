@@ -15,15 +15,17 @@ base64 = "0.23.1"
 bytes = "1.12.2"
 chrono = { version = "0.4.45", features = ["serde"] }
 chrono-tz = "0.10.4"
-clap = { version = "4.6.9", features = ["derive"] }
+clap = { version = "4.6.9", features = ["derive", "env"] }
 futures = "0.3.34"
 hex = "0.4.3"
 hickory-resolver = { version = "0.26.3", features = ["tokio"] }
+http-body-util = "0.1.5"
+hyper = { version = "1.12.0", features = ["http1", "http2", "server"] }
 hyper-util = { version = "0.1.21", features = ["tokio", "server-auto", "service"] }
 mail-auth = { version = "0.13", features = ["generate"] }
 mail-parser = "0.11.9"
 ondura-wbxml = { path = "../wbxml" }
-quick-xml = "0.42.0"
+quick-xml = "0.38"
 rand = "0.10.4"
 rusqlite = { version = "0.43.0", features = ["bundled"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }
@@ -35,8 +37,9 @@ thiserror = "2.0.21"
 tokio = { version = "1.54.1", features = ["full"] }
 tokio-rustls = { version = "0.26.6", default-features = false, features = ["ring", "tls12", "logging"] }
 toml = "1.2.2"
+tower = { version = "0.5.3", features = ["util"] }
 tower-http = { version = "0.7.1", features = ["trace"] }
 tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
-uuid = { version = "1.29.3", features = ["v4"] }
+uuid = { version = "1.29.3", features = ["v4", "v5"] }
 webpki-roots = "1.0.12"
