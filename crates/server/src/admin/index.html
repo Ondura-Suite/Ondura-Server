@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ondura Server – Admin Center</title>
+<link rel="icon" href="/admin/logo.svg">
+<style>
+:root {
+  --tint: #3b5bdb;
+  --tint-strong: #304bb4;
+  --tint-soft: rgba(59, 91, 219, 0.1);
+  --bg: #eceef2;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-solid: #ffffff;
+  --surface-hover: rgba(15, 23, 42, 0.045);
+  --border: rgba(15, 23, 42, 0.09);
+  --text: #1b1f27;
+  --muted: #5d6573;
+  --danger: #c4314b;
+  --ok: #107c41;
+  --warn: #b7791f;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --radius: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111216;
+    --surface: rgba(32, 34, 40, 0.72);
+    --surface-solid: #1d1f24;
+    --surface-hover: rgba(255, 255, 255, 0.05);
+    --border: rgba(255, 255, 255, 0.09);
+    --text: #e8eaef;
+    --muted: #9aa1ad;
+    --tint-soft: rgba(110, 138, 255, 0.16);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font: 14px/1.45 "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", "Noto Sans", sans-serif;
+  color: var(--text);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 40%),
+    radial-gradient(75vw 65vh at 0% 0%, color-mix(in srgb, var(--tint) 13%, transparent), transparent 70%),
+    radial-gradient(70vw 70vh at 100% 100%, color-mix(in srgb, var(--tint) 7%, transparent), transparent 70%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+  body { background-image:
+    radial-gradient(75vw 65vh at 0% 0%, color-mix(in srgb, var(--tint) 20%, transparent), transparent 70%),
+    radial-gradient(70vw 70vh at 100% 100%, color-mix(in srgb, var(--tint) 9%, transparent), transparent 70%); }
+}
+button, input, select { font: inherit; color: inherit; }
+a { color: var(--tint); }
+.hidden { display: none !important; }
+
+/* ---------- glass surfaces ---------- */
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* ---------- login ---------- */
+#login { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+#login .card { width: 380px; max-width: 100%; padding: 36px 36px 28px; }
+#login img { width: 48px; height: 48px; }
+#login h1 { font-size: 22px; font-weight: 600; margin: 14px 0 2px; }
+#login p.sub { color: var(--muted); margin: 0 0 22px; }
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.field label { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.field input, .field select {
+  height: 34px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-solid); outline: none; border-bottom: 2px solid transparent;
+}
+.field input:focus, .field select:focus { border-bottom-color: var(--tint); }
+.check { display: flex; align-items: center; gap: 8px; margin: 6px 0 12px; }
+.error { color: var(--danger); min-height: 20px; margin: 2px 0 8px; font-size: 13px; }
+
+.btn {
+  height: 32px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-solid); cursor: pointer; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+}
+.btn:hover { background: color-mix(in srgb, var(--surface-solid) 85%, var(--tint) 15%); }
+.btn.primary { background: var(--tint); border-color: var(--tint); color: #fff; }
+.btn.primary:hover { background: var(--tint-strong); }
+.btn.danger { color: var(--danger); }
+.btn.ghost { background: transparent; border-color: transparent; }
+.btn.ghost:hover { background: var(--surface-hover); }
+.btn:disabled { opacity: .5; cursor: default; }
+.btn svg { width: 16px; height: 16px; }
+
+/* ---------- shell ---------- */
+#app { display: grid; grid-template-rows: 48px 1fr; height: 100%; }
+header.top {
+  display: flex; align-items: center; gap: 12px; padding: 0 16px;
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  backdrop-filter: blur(24px); -webkit-backdrop-filter: blur(24px);
+  border-bottom: 1px solid var(--border);
+}
+header.top img { width: 26px; height: 26px; }
+header.top .title { font-weight: 600; font-size: 15px; }
+header.top .title span { color: var(--muted); font-weight: 400; margin-left: 6px; }
+header.top .spacer { flex: 1; }
+header.top .host { color: var(--muted); font-size: 12.5px; }
+.avatar {
+  width: 30px; height: 30px; border-radius: 50%; background: var(--tint); color: #fff;
+  display: grid; place-items: center; font-weight: 600; font-size: 12px; cursor: pointer; border: none;
+}
+.menu { position: absolute; right: 12px; top: 46px; width: 240px; padding: 12px; z-index: 50; }
+.menu .who { font-weight: 600; }
+.menu .mail { color: var(--muted); font-size: 12.5px; margin-bottom: 10px; word-break: break-all; }
+.lang { display: flex; gap: 4px; margin-bottom: 10px; }
+.lang button { flex: 1; }
+.lang button.on { background: var(--tint-soft); border-color: var(--tint); }
+
+.body { display: grid; grid-template-columns: 228px 1fr; min-height: 0; }
+nav.side { padding: 12px 8px; overflow-y: auto; }
+nav.side a {
+  display: flex; align-items: center; gap: 12px; padding: 8px 12px; border-radius: 6px;
+  color: var(--text); text-decoration: none; position: relative; margin-bottom: 2px;
+}
+nav.side a:hover { background: var(--surface-hover); }
+nav.side a.active { background: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+nav.side a.active::before { content: ""; position: absolute; left: 0; top: 9px; bottom: 9px; width: 3px; border-radius: 3px; background: var(--tint); }
+nav.side svg { width: 18px; height: 18px; color: var(--tint); flex: none; }
+nav.side .group { font-size: 11.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 14px 12px 6px; }
+main { overflow-y: auto; padding: 22px 28px 40px; min-width: 0; }
+main h1 { font-size: 24px; font-weight: 600; margin: 0 0 4px; }
+main .lead { color: var(--muted); margin: 0 0 18px; }
+
+.toolbar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap; }
+.toolbar .search { margin-left: auto; position: relative; }
+.toolbar .search input { height: 32px; width: 260px; padding: 0 10px 0 32px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-solid); }
+.toolbar .search svg { position: absolute; left: 9px; top: 8px; width: 16px; height: 16px; color: var(--muted); }
+.pills { display: flex; gap: 4px; }
+.pill { height: 28px; padding: 0 12px; border-radius: 14px; border: 1px solid var(--border); background: transparent; cursor: pointer; font-size: 13px; }
+.pill.on { background: var(--tint-soft); border-color: var(--tint); color: var(--tint); font-weight: 600; }
+
+table.list { width: 100%; border-collapse: collapse; }
+.tablecard { overflow: hidden; }
+table.list th { text-align: left; font-weight: 600; font-size: 12.5px; color: var(--muted); padding: 10px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+table.list td { padding: 10px 14px; border-bottom: 1px solid var(--border); vertical-align: middle; }
+table.list tr:last-child td { border-bottom: none; }
+table.list tbody tr.click { cursor: pointer; }
+table.list tbody tr.click:hover { background: var(--surface-hover); }
+td .name { font-weight: 600; }
+td .sub, .muted { color: var(--muted); font-size: 12.5px; }
+.empty { padding: 40px; text-align: center; color: var(--muted); }
+.badge { display: inline-block; padding: 1px 8px; border-radius: 10px; font-size: 12px; background: var(--surface-hover); border: 1px solid var(--border); }
+.badge.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+.badge.bad { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, transparent); }
+.badge.warn { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 40%, transparent); }
+.badge.tint { color: var(--tint); border-color: color-mix(in srgb, var(--tint) 40%, transparent); }
+.bar { height: 6px; border-radius: 3px; background: var(--surface-hover); width: 120px; overflow: hidden; margin-top: 4px; }
+.bar > div { height: 100%; background: var(--tint); }
+.bar.full > div { background: var(--danger); }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 14px; margin-bottom: 22px; }
+.tile { padding: 16px 18px; }
+.tile .label { color: var(--muted); font-size: 12.5px; }
+.tile .value { font-size: 28px; font-weight: 600; margin-top: 4px; }
+.tile .note { color: var(--muted); font-size: 12.5px; }
+.card { padding: 18px 20px; margin-bottom: 16px; }
+.card h2 { font-size: 16px; font-weight: 600; margin: 0 0 10px; }
+.kv { display: grid; grid-template-columns: 200px 1fr; gap: 8px 16px; }
+.kv div:nth-child(odd) { color: var(--muted); }
+code, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospace; font-size: 12.5px; }
+.copy { display: inline-flex; align-items: center; gap: 6px; }
+.copy button { border: none; background: transparent; cursor: pointer; color: var(--muted); padding: 2px; border-radius: 4px; }
+.copy button:hover { background: var(--surface-hover); color: var(--tint); }
+.copy button svg { width: 14px; height: 14px; }
+.dns td { font-size: 12.5px; }
+.dns td.value { word-break: break-all; max-width: 520px; }
+
+/* ---------- flyout panel (like the Exchange Admin Center) ---------- */
+.scrim { position: fixed; inset: 0; background: rgba(0,0,0,.18); z-index: 80; }
+.panel {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 560px; max-width: 100vw; z-index: 90;
+  background: var(--surface-solid); box-shadow: -8px 0 32px rgba(0,0,0,.18); display: flex; flex-direction: column;
+  animation: slide .18s ease-out;
+}
+@keyframes slide { from { transform: translateX(30px); opacity: 0; } }
+.panel .head { padding: 20px 24px 8px; display: flex; gap: 12px; align-items: flex-start; }
+.panel .head h2 { margin: 0; font-size: 20px; font-weight: 600; word-break: break-all; }
+.panel .head .close { margin-left: auto; }
+.panel .tabs { display: flex; gap: 4px; padding: 0 20px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.panel .tabs button { border: none; background: none; padding: 10px 10px; cursor: pointer; position: relative; white-space: nowrap; color: var(--muted); }
+.panel .tabs button.on { color: var(--text); font-weight: 600; }
+.panel .tabs button.on::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: -1px; height: 2px; background: var(--tint); border-radius: 2px; }
+.panel .content { padding: 18px 24px; overflow-y: auto; flex: 1; }
+.panel .foot { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; gap: 8px; }
+.panel .foot:empty { display: none; }
+.section { margin-bottom: 22px; }
+.section h3 { font-size: 14px; margin: 0 0 8px; font-weight: 600; }
+.row { display: flex; gap: 8px; align-items: center; }
+.row .field { flex: 1; margin-bottom: 0; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0 10px; }
+.chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 10px; border-radius: 14px; background: var(--surface-hover); border: 1px solid var(--border); font-size: 13px; }
+.chip button { border: none; background: transparent; cursor: pointer; color: var(--muted); width: 20px; height: 20px; border-radius: 10px; }
+.chip button:hover { background: var(--border); color: var(--danger); }
+.secret { padding: 12px 14px; border-radius: 8px; background: var(--tint-soft); border: 1px solid color-mix(in srgb, var(--tint) 30%, transparent); margin: 10px 0; }
+.secret code { font-size: 15px; user-select: all; }
+
+.toast { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); padding: 10px 18px; z-index: 200; background: #1b1f27; color: #fff; border-radius: 8px; box-shadow: var(--shadow); }
+.toast.bad { background: var(--danger); }
+
+@media (max-width: 860px) {
+  .body { grid-template-columns: 1fr; }
+  nav.side { display: flex; overflow-x: auto; padding: 6px; border-bottom: 1px solid var(--border); }
+  nav.side .group { display: none; }
+  nav.side a { white-space: nowrap; }
+  main { padding: 16px; }
+  .hide-sm { display: none; }
+  .kv { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div id="login" class="hidden">
+  <form class="card glass" id="loginForm" autocomplete="on">
+    <img src="/admin/logo.svg" alt="">
+    <h1 data-t="adminCenter"></h1>
+    <p class="sub" data-t="signInLead"></p>
+    <div class="field"><label for="le" data-t="email"></label><input id="le" type="email" autocomplete="username" required></div>
+    <div class="field"><label for="lp" data-t="password"></label><input id="lp" type="password" autocomplete="current-password" required></div>
+    <div class="error" id="loginError"></div>
+    <button class="btn primary" style="width:100%;justify-content:center" data-t="signIn"></button>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+  <header class="top">
+    <img src="/admin/logo.svg" alt="">
+    <div class="title">Ondura Server<span data-t="adminCenter"></span></div>
+    <div class="spacer"></div>
+    <div class="host hide-sm" id="hostName"></div>
+    <button class="avatar" id="avatar" aria-label="Account"></button>
+  </header>
+  <div class="menu glass hidden" id="menu">
+    <div class="who" id="menuName"></div>
+    <div class="mail" id="menuMail"></div>
+    <div class="lang"><button class="btn" data-lang="de">Deutsch</button><button class="btn" data-lang="en">English</button></div>
+    <button class="btn" style="width:100%;justify-content:center" id="logout" data-t="signOut"></button>
+  </div>
+  <div class="body">
+    <nav class="side" id="nav"></nav>
+    <main id="main"></main>
+  </div>
+</div>
+
+<div id="overlay"></div>
+
+<script>
+"use strict";
+// ------------------------------------------------------------ texts
+const T = {
+  de: {
+    dns_mx: "E-Mail für die Domäne wird an diesen Server zugestellt", dns_spf: "SPF: Dieser Server darf für die Domäne senden", dns_dkim: "DKIM-Signaturschlüssel",
+    dns_dmarc: "DMARC-Richtlinie", dns_autodiscover: "Autodiscover für Outlook, Smartphones und Ondura", dns_autodiscoverSrv: "Autodiscover (Alternative zum CNAME)",
+    dns_submission: "Versand für andere Mail-Programme", hostText: "{host} braucht A-/AAAA-Einträge auf diesen Server. Der Reverse-DNS-Eintrag (PTR) dieser Adressen sollte {host} lauten.",
+    inTotal: "insgesamt", sharedCount: "freigegebene", roomCount: "Räume",
+    adminCenter: "Admin Center", signInLead: "Melde dich mit einem Administrator-Postfach an.", email: "E-Mail-Adresse", password: "Kennwort",
+    signIn: "Anmelden", signOut: "Abmelden", home: "Übersicht", recipients: "Empfänger", mailboxes: "Postfächer", aliases: "Aliase",
+    mailflow: "Nachrichtenfluss", queue: "Warteschlange", domains: "Domänen", devices: "Mobile Geräte", settings: "Einstellungen", audit: "Überwachungsprotokoll",
+    overviewLead: "Zustand des Servers und die wichtigsten Kennzahlen.", users: "Benutzerpostfächer", shared: "Freigegebene Postfächer", rooms: "Raumpostfächer",
+    storage: "Belegter Speicher", activeDevices: "Aktive Geräte (7 Tage)", queued: "In der Warteschlange", deferred: "davon verzögert", endpoints: "Verbindungsdaten",
+    endpointsLead: "Diese Adressen tragen Clients ein, wenn Autodiscover nicht verfügbar ist.", server: "Server", version: "Version", uptime: "Laufzeit", tls: "TLS",
+    spam: "Spamfilter", on: "aktiv", off: "aus", mailboxesLead: "Postfächer für Benutzer, Teams und Besprechungsräume.", add: "Hinzufügen", addMailbox: "Postfach hinzufügen",
+    search: "Suchen", all: "Alle", typeUser: "Benutzer", typeShared: "Freigegeben", typeRoom: "Raum", name: "Anzeigename", type: "Typ", used: "Belegt", status: "Status",
+    enabled: "Aktiv", disabled: "Deaktiviert", admin: "Administrator", none: "Keine Einträge.", general: "Allgemein", passwordTab: "Kennwort", forwarding: "Weiterleitung",
+    permissions: "Berechtigungen", folders: "Ordner", save: "Speichern", cancel: "Abbrechen", close: "Schließen", delete: "Löschen", deleteMailbox: "Postfach löschen",
+    quotaMb: "Kontingent (MB, 0 = unbegrenzt)", isAdmin: "Darf das Admin Center verwenden", mailboxEnabled: "Postfach aktiv (Anmeldung und Empfang)",
+    emailAddresses: "E-Mail-Adressen", primary: "primär", addAlias: "Adresse hinzufügen", aliasHint: "Weitere Adresse, z. B. info@domain.de oder @domain.de für alle übrigen Adressen.",
+    newPassword: "Neues Kennwort", setPassword: "Kennwort festlegen", generatePassword: "Kennwort erzeugen", passwordShown: "Das Kennwort wird nur jetzt angezeigt:",
+    forwardTo: "Weiterleiten an", keepCopy: "Kopie im Postfach behalten", fullAccess: "Vollzugriff", sendAs: "Senden als", grant: "Berechtigung erteilen",
+    grantee: "Benutzer", permsLead: "Wer darf dieses Postfach öffnen oder in seinem Namen senden?", items: "Elemente", unread: "Ungelesen", size: "Größe",
+    confirmDelete: "Wirklich löschen? Alle Inhalte gehen verloren.", saved: "Gespeichert", deleted: "Gelöscht", passwordOptional: "Kennwort (leer = erzeugen)",
+    addDomain: "Domäne hinzufügen", domainsLead: "Domänen, für die der Server E-Mail annimmt. Trage die DNS-Einträge bei deinem DNS-Anbieter ein.",
+    domainName: "Domänenname", dnsRecords: "DNS-Einträge", record: "Eintrag", value: "Wert", purpose: "Zweck", regenerateDkim: "DKIM-Schlüssel neu erzeugen",
+    deleteDomain: "Domäne löschen", queueLead: "Nachrichten an externe Empfänger, die noch zugestellt werden.", sender: "Absender", recipientsCol: "Empfänger",
+    subject: "Betreff", attempts: "Versuche", nextAttempt: "Nächster Versuch", lastError: "Letzter Fehler", retry: "Erneut versuchen", devicesLead: "Smartphones und Tablets, die per Exchange ActiveSync synchronisieren.",
+    user: "Benutzer", device: "Gerät", lastSync: "Letzte Synchronisierung", wipe: "Remote löschen", block: "Sperren", unblock: "Entsperren", remove: "Entfernen",
+    confirmWipe: "Das Gerät wird bei der nächsten Verbindung auf Werkseinstellungen zurückgesetzt. Fortfahren?", wipePending: "Löschung ausstehend", wiped: "Gelöscht", blocked: "Gesperrt",
+    auditLead: "Änderungen im Admin Center und Anmeldungen.", time: "Zeit", actor: "Benutzer", action: "Aktion", details: "Details", copied: "Kopiert",
+    copy: "Kopieren", mailboxCreated: "Postfach erstellt", refresh: "Aktualisieren", kind: "Art", hostHint: "Hinweis zum Server", outOfOffice: "Abwesenheit",
+    oofOn: "Automatische Antworten aktiv", oofOff: "Keine automatischen Antworten", timeZone: "Zeitzone (leer = Server-Standard)", unlimited: "unbegrenzt",
+    days: "T", hours: "Std", minutes: "Min", folderCount: "Ordner", noForward: "Leer lassen, um nicht weiterzuleiten.", setupTitle: "Clients einrichten",
+    setupText: "Ondura Mail, Outlook für iOS und Android, die Mail-Apps von iOS und Android sowie EWS-Clients finden den Server über Autodiscover. Es reicht die E-Mail-Adresse und das Kennwort.",
+  },
+  en: {
+    dns_mx: "Mail for the domain is delivered to this server", dns_spf: "SPF: this server may send mail for the domain", dns_dkim: "DKIM signature key",
+    dns_dmarc: "DMARC policy", dns_autodiscover: "Autodiscover for Outlook, phones and Ondura", dns_autodiscoverSrv: "Autodiscover (alternative to the CNAME)",
+    dns_submission: "Mail submission for other clients", hostText: "{host} needs A/AAAA records pointing to this server, and the reverse DNS (PTR) of these addresses should be {host}.",
+    inTotal: "in total", sharedCount: "shared", roomCount: "rooms",
+    adminCenter: "Admin Center", signInLead: "Sign in with an administrator mailbox.", email: "E-mail address", password: "Password",
+    signIn: "Sign in", signOut: "Sign out", home: "Home", recipients: "Recipients", mailboxes: "Mailboxes", aliases: "Aliases",
+    mailflow: "Mail flow", queue: "Queue", domains: "Domains", devices: "Mobile devices", settings: "Settings", audit: "Audit log",
+    overviewLead: "Server health and key figures.", users: "User mailboxes", shared: "Shared mailboxes", rooms: "Room mailboxes",
+    storage: "Storage used", activeDevices: "Active devices (7 days)", queued: "Queued messages", deferred: "deferred", endpoints: "Connection details",
+    endpointsLead: "Clients use these addresses when Autodiscover is not available.", server: "Server", version: "Version", uptime: "Uptime", tls: "TLS",
+    spam: "Spam filter", on: "on", off: "off", mailboxesLead: "Mailboxes for people, teams and meeting rooms.", add: "Add", addMailbox: "Add mailbox",
+    search: "Search", all: "All", typeUser: "User", typeShared: "Shared", typeRoom: "Room", name: "Display name", type: "Type", used: "Used", status: "Status",
+    enabled: "Enabled", disabled: "Disabled", admin: "Administrator", none: "Nothing here yet.", general: "General", passwordTab: "Password", forwarding: "Forwarding",
+    permissions: "Permissions", folders: "Folders", save: "Save", cancel: "Cancel", close: "Close", delete: "Delete", deleteMailbox: "Delete mailbox",
+    quotaMb: "Quota (MB, 0 = unlimited)", isAdmin: "May use the Admin Center", mailboxEnabled: "Mailbox enabled (sign-in and delivery)",
+    emailAddresses: "E-mail addresses", primary: "primary", addAlias: "Add address", aliasHint: "Another address, e.g. info@example.com, or @example.com to catch all other addresses.",
+    newPassword: "New password", setPassword: "Set password", generatePassword: "Generate password", passwordShown: "The password is only shown now:",
+    forwardTo: "Forward to", keepCopy: "Keep a copy in the mailbox", fullAccess: "Full access", sendAs: "Send as", grant: "Grant permission",
+    grantee: "User", permsLead: "Who may open this mailbox or send on its behalf?", items: "Items", unread: "Unread", size: "Size",
+    confirmDelete: "Delete for good? All content will be lost.", saved: "Saved", deleted: "Deleted", passwordOptional: "Password (empty = generate)",
+    addDomain: "Add domain", domainsLead: "Domains the server accepts mail for. Add the DNS records at your DNS provider.",
+    domainName: "Domain name", dnsRecords: "DNS records", record: "Record", value: "Value", purpose: "Purpose", regenerateDkim: "Regenerate DKIM key",
+    deleteDomain: "Delete domain", queueLead: "Messages to external recipients that are still being delivered.", sender: "Sender", recipientsCol: "Recipients",
+    subject: "Subject", attempts: "Attempts", nextAttempt: "Next attempt", lastError: "Last error", retry: "Retry now", devicesLead: "Phones and tablets that sync with Exchange ActiveSync.",
+    user: "User", device: "Device", lastSync: "Last sync", wipe: "Remote wipe", block: "Block", unblock: "Unblock", remove: "Remove",
+    confirmWipe: "The device will be reset to factory settings the next time it connects. Continue?", wipePending: "Wipe pending", wiped: "Wiped", blocked: "Blocked",
+    auditLead: "Changes made in the Admin Center and sign-ins.", time: "Time", actor: "User", action: "Action", details: "Details", copied: "Copied",
+    copy: "Copy", mailboxCreated: "Mailbox created", refresh: "Refresh", kind: "Kind", hostHint: "Server note", outOfOffice: "Automatic replies",
+    oofOn: "Automatic replies are on", oofOff: "No automatic replies", timeZone: "Time zone (empty = server default)", unlimited: "unlimited",
+    days: "d", hours: "h", minutes: "min", folderCount: "Folders", noForward: "Leave empty to stop forwarding.", setupTitle: "Setting up clients",
+    setupText: "Ondura Mail, Outlook for iOS and Android, the mail apps of iOS and Android and EWS clients find the server through Autodiscover. The e-mail address and password are enough.",
+  },
+};
+let lang = "en";
+try { lang = localStorage.getItem("ondura-admin-lang") || (navigator.language || "en").slice(0, 2); } catch (e) { lang = (navigator.language || "en").slice(0, 2); }
+if (!T[lang]) lang = "en";
+const t = (k) => (T[lang] && T[lang][k]) || T.en[k] || k;
+function applyTexts(root) {
+  (root || document).querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
+  document.documentElement.lang = lang;
+}
+
+// ------------------------------------------------------------ helpers
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtBytes = (b) => { if (!b) return "0 KB"; const u = ["B", "KB", "MB", "GB", "TB"]; let i = Math.floor(Math.log(b) / Math.log(1024)); i = Math.min(i, 4); return (b / Math.pow(1024, i)).toFixed(i ? 1 : 0) + " " + u[i]; };
+const fmtTime = (s) => s ? new Date(s * 1000).toLocaleString(lang === "de" ? "de-DE" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) : "–";
+const fmtUptime = (s) => { const d = Math.floor(s / 86400), h = Math.floor(s % 86400 / 3600), m = Math.floor(s % 3600 / 60); return (d ? d + " " + t("days") + " " : "") + h + " " + t("hours") + " " + m + " " + t("minutes"); };
+const ICON = {
+  home: '<path d="M3 10.5 12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  at: '<circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M16 12v1.5a2.5 2.5 0 0 0 5 0V12a9 9 0 1 0-3.5 7.1" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  globe: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  queue: '<path d="M4 6h16M4 12h16M4 18h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  phone: '<rect x="7" y="2.5" width="10" height="19" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M11 18.5h2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  log: '<path d="M7 3h8l4 4v14H7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 11h6M10 15h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  search: '<circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  copy: '<rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" stroke-width="1.8"/>',
+  close: '<path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+};
+const icon = (n) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + ICON[n] + "</svg>";
+const copyable = (v) => '<span class="copy"><span class="mono">' + esc(v) + '</span><button title="' + esc(t("copy")) + '" data-copy="' + esc(v) + '">' + icon("copy") + "</button></span>";
+
+function toast(msg, bad) {
+  const el = document.createElement("div");
+  el.className = "toast" + (bad ? " bad" : "");
+  el.textContent = msg;
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), bad ? 5000 : 2200);
+}
+
+async function api(method, path, body) {
+  const res = await fetch("/admin/api" + path, {
+    method, credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-Ondura-Admin": "1" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  let data = null;
+  try { data = await res.json(); } catch (e) { data = null; }
+  if (res.status === 401 && path !== "/login") { showLogin(); throw new Error("unauthorized"); }
+  if (!res.ok) { const msg = (data && data.error) || res.statusText; throw new Error(msg); }
+  return data;
+}
+const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { if (e.message !== "unauthorized") toast(e.message, true); } };
+
+document.addEventListener("click", (e) => {
+  const c = e.target.closest("[data-copy]");
+  if (c) { navigator.clipboard && navigator.clipboard.writeText(c.dataset.copy).then(() => toast(t("copied"))); }
+});
+
+// ------------------------------------------------------------ login
+function showLogin() {
+  $("#app").classList.add("hidden");
+  $("#login").classList.remove("hidden");
+  closePanel();
+  $("#le").focus();
+}
+$("#loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  $("#loginError").textContent = "";
+  try {
+    await api("POST", "/login", { email: $("#le").value, password: $("#lp").value });
+    $("#lp").value = "";
+    start();
+  } catch (err) { $("#loginError").textContent = err.message; }
+});
+
+// ------------------------------------------------------------ shell
+const PAGES = [
+  { id: "home", icon: "home", label: "home" },
+  { group: "recipients" },
+  { id: "mailboxes", icon: "mail", label: "mailboxes" },
+  { id: "aliases", icon: "at", label: "aliases" },
+  { group: "mailflow" },
+  { id: "domains", icon: "globe", label: "domains" },
+  { id: "queue", icon: "queue", label: "queue" },
+  { group: "settings" },
+  { id: "devices", icon: "phone", label: "devices" },
+  { id: "audit", icon: "log", label: "audit" },
+];
+let me = null;
+function renderNav() {
+  const cur = location.hash.slice(1) || "home";
+  $("#nav").innerHTML = PAGES.map((p) => p.group ? '<div class="group">' + esc(t(p.group)) + "</div>" :
+    '<a href="#' + p.id + '" class="' + (p.id === cur.split("/")[0] ? "active" : "") + '">' + icon(p.icon) + "<span>" + esc(t(p.label)) + "</span></a>").join("");
+}
+async function start() {
+  try { me = await api("GET", "/me"); } catch (e) { showLogin(); return; }
+  $("#login").classList.add("hidden");
+  $("#app").classList.remove("hidden");
+  $("#hostName").textContent = me.hostname;
+  $("#menuName").textContent = me.name || me.email;
+  $("#menuMail").textContent = me.email;
+  $("#avatar").textContent = (me.name || me.email).split(/\s+/).map((w) => w[0]).slice(0, 2).join("").toUpperCase();
+  route();
+}
+$("#avatar").addEventListener("click", (e) => { e.stopPropagation(); $("#menu").classList.toggle("hidden"); markLang(); });
+document.addEventListener("click", (e) => { if (!e.target.closest("#menu")) $("#menu").classList.add("hidden"); });
+$("#logout").addEventListener("click", guard(async () => { await api("POST", "/logout", {}); showLogin(); }));
+function markLang() { document.querySelectorAll("[data-lang]").forEach((b) => b.classList.toggle("on", b.dataset.lang === lang)); }
+document.querySelectorAll("[data-lang]").forEach((b) => b.addEventListener("click", () => {
+  lang = b.dataset.lang;
+  try { localStorage.setItem("ondura-admin-lang", lang); } catch (e) { /* private mode */ }
+  applyTexts(); markLang(); route();
+}));
+window.addEventListener("hashchange", route);
+
+function route() {
+  renderNav();
+  closePanel();
+  const page = (location.hash.slice(1) || "home").split("/")[0];
+  const fn = { home: pageHome, mailboxes: pageMailboxes, aliases: pageAliases, domains: pageDomains, queue: pageQueue, devices: pageDevices, audit: pageAudit }[page] || pageHome;
+  guard(fn)();
+}
+const main = () => $("#main");
+const heading = (title, lead) => "<h1>" + esc(title) + '</h1><p class="lead">' + esc(lead) + "</p>";
+
+// ------------------------------------------------------------ home
+async function pageHome() {
+  const o = await api("GET", "/overview");
+  const tile = (label, value, note) => '<div class="tile glass"><div class="label">' + esc(label) + '</div><div class="value">' + esc(value) + "</div>" + (note ? '<div class="note">' + esc(note) + "</div>" : "") + "</div>";
+  main().innerHTML = heading(t("home"), t("overviewLead")) +
+    '<div class="tiles">' + tile(t("users"), o.mailboxes, o.shared + " " + t("sharedCount") + " · " + o.rooms + " " + t("roomCount")) +
+    tile(t("storage"), fmtBytes(o.storage)) + tile(t("activeDevices"), o.activeDevices, o.devices + " " + t("inTotal")) +
+    tile(t("queued"), o.queue, o.queueDeferred + " " + t("deferred")) + tile(t("domains"), o.domains) + "</div>" +
+    '<div class="card glass"><h2>' + esc(t("server")) + '</h2><div class="kv">' +
+    "<div>" + esc(t("server")) + "</div><div>" + copyable(o.hostname) + "</div>" +
+    "<div>" + esc(t("version")) + "</div><div>" + esc(o.version) + "</div>" +
+    "<div>" + esc(t("uptime")) + "</div><div>" + esc(fmtUptime(o.uptime)) + "</div>" +
+    "<div>" + esc(t("tls")) + "</div><div>" + (o.tls ? '<span class="badge ok">' + esc(t("on")) + "</span>" : '<span class="badge bad">' + esc(t("off")) + "</span>") + "</div>" +
+    "<div>" + esc(t("spam")) + "</div><div>" + (o.spamFilter ? '<span class="badge ok">rspamd</span>' : '<span class="badge">' + esc(t("off")) + "</span>") + "</div>" +
+    "</div></div>" +
+    '<div class="card glass"><h2>' + esc(t("endpoints")) + '</h2><p class="muted" style="margin-top:0">' + esc(t("endpointsLead")) + '</p><div class="kv">' +
+    "<div>Exchange ActiveSync</div><div>" + copyable(o.endpoints.activesync) + "</div>" +
+    "<div>Exchange Web Services</div><div>" + copyable(o.endpoints.ews) + "</div>" +
+    "<div>Autodiscover</div><div>" + copyable(o.endpoints.autodiscover) + "</div>" +
+    "<div>SMTP</div><div>" + copyable(o.endpoints.smtp) + "</div>" +
+    "</div></div>" +
+    '<div class="card glass"><h2>' + esc(t("setupTitle")) + '</h2><p style="margin:0">' + esc(t("setupText")) + "</p></div>";
+}
+
+// ------------------------------------------------------------ mailboxes
+let mailboxFilter = "all";
+let mailboxSearch = "";
+let mailboxCache = [];
+async function pageMailboxes() {
+  mailboxCache = await api("GET", "/mailboxes");
+  main().innerHTML = heading(t("mailboxes"), t("mailboxesLead")) +
+    '<div class="toolbar"><button class="btn primary" id="addMb">' + icon("plus") + esc(t("addMailbox")) + "</button>" +
+    '<button class="btn ghost" id="refreshMb">' + icon("refresh") + esc(t("refresh")) + "</button>" +
+    '<div class="pills">' + ["all", "user", "shared", "room"].map((f) => '<button class="pill' + (f === mailboxFilter ? " on" : "") + '" data-f="' + f + '">' +
+      esc(t(f === "all" ? "all" : f === "user" ? "typeUser" : f === "shared" ? "typeShared" : "typeRoom")) + "</button>").join("") + "</div>" +
+    '<div class="search">' + icon("search") + '<input id="mbSearch" placeholder="' + esc(t("search")) + '" value="' + esc(mailboxSearch) + '"></div></div>' +
+    '<div class="glass tablecard"><table class="list"><thead><tr><th>' + esc(t("name")) + '</th><th class="hide-sm">' + esc(t("type")) + "</th><th>" + esc(t("used")) + "</th><th>" + esc(t("status")) + '</th></tr></thead><tbody id="mbRows"></tbody></table></div>';
+  renderMailboxRows();
+  $("#addMb").onclick = openNewMailbox;
+  $("#refreshMb").onclick = guard(pageMailboxes);
+  document.querySelectorAll(".pill").forEach((p) => p.onclick = () => { mailboxFilter = p.dataset.f; document.querySelectorAll(".pill").forEach((x) => x.classList.toggle("on", x === p)); renderMailboxRows(); });
+  $("#mbSearch").oninput = (e) => { mailboxSearch = e.target.value; renderMailboxRows(); };
+}
+function kindLabel(k) { return t(k === "room" ? "typeRoom" : k === "shared" ? "typeShared" : "typeUser"); }
+function renderMailboxRows() {
+  const q = mailboxSearch.toLowerCase();
+  const rows = mailboxCache.filter((m) => (mailboxFilter === "all" || m.kind === mailboxFilter) &&
+    (!q || (m.name + " " + m.email + " " + m.aliases.join(" ")).toLowerCase().includes(q)));
+  $("#mbRows").innerHTML = rows.length ? rows.map((m) => {
+    const pct = m.quota ? Math.min(100, Math.round(m.used / m.quota * 100)) : 0;
+    return '<tr class="click" data-id="' + m.id + '"><td><div class="name">' + esc(m.name || m.email) + '</div><div class="sub">' + esc(m.email) + "</div></td>" +
+      '<td class="hide-sm">' + esc(kindLabel(m.kind)) + (m.isAdmin ? ' <span class="badge tint">' + esc(t("admin")) + "</span>" : "") + "</td>" +
+      "<td>" + esc(fmtBytes(m.used)) + (m.quota ? " / " + esc(fmtBytes(m.quota)) + '<div class="bar' + (pct > 90 ? " full" : "") + '"><div style="width:' + pct + '%"></div></div>' : "") + "</td>" +
+      "<td>" + (m.enabled ? '<span class="badge ok">' + esc(t("enabled")) + "</span>" : '<span class="badge bad">' + esc(t("disabled")) + "</span>") + "</td></tr>";
+  }).join("") : '<tr><td colspan="4" class="empty">' + esc(t("none")) + "</td></tr>";
+  document.querySelectorAll("#mbRows tr.click").forEach((r) => r.onclick = () => guard(openMailbox)(r.dataset.id));
+}
+
+// ------------------------------------------------------------ panels
+function closePanel() { $("#overlay").innerHTML = ""; }
+function openPanel(title, sub, tabs, foot) {
+  $("#overlay").innerHTML = '<div class="scrim"></div><aside class="panel" role="dialog" aria-modal="true"><div class="head"><div><h2>' + esc(title) + "</h2>" +
+    (sub ? '<div class="muted">' + esc(sub) + "</div>" : "") + '</div><button class="btn ghost close" aria-label="' + esc(t("close")) + '">' + icon("close") + "</button></div>" +
+    (tabs ? '<div class="tabs">' + tabs.map((x, i) => '<button data-tab="' + i + '" class="' + (i ? "" : "on") + '">' + esc(x) + "</button>").join("") + "</div>" : "") +
+    '<div class="content" id="panelContent"></div><div class="foot">' + (foot || "") + "</div></aside>";
+  $(".scrim").onclick = closePanel;
+  $(".panel .close").onclick = closePanel;
+  document.onkeydown = (e) => { if (e.key === "Escape") closePanel(); };
+  return $("#panelContent");
+}
+
+function openNewMailbox() {
+  const c = openPanel(t("addMailbox"), "", null, '<button class="btn primary" id="createMb">' + esc(t("save")) + '</button><button class="btn" id="cancelMb">' + esc(t("cancel")) + "</button>");
+  c.innerHTML = '<div class="field"><label>' + esc(t("kind")) + '</label><select id="nmKind"><option value="user">' + esc(t("typeUser")) + '</option><option value="shared">' + esc(t("typeShared")) + '</option><option value="room">' + esc(t("typeRoom")) + "</option></select></div>" +
+    '<div class="field"><label>' + esc(t("name")) + '</label><input id="nmName"></div>' +
+    '<div class="field"><label>' + esc(t("email")) + '</label><input id="nmEmail" type="email" placeholder="name@domain"></div>' +
+    '<div class="field" id="nmPwRow"><label>' + esc(t("passwordOptional")) + '</label><input id="nmPw" type="password" autocomplete="new-password"></div>' +
+    '<div class="field"><label>' + esc(t("quotaMb")) + '</label><input id="nmQuota" type="number" min="0" value="0"></div>' +
+    '<label class="check" id="nmAdminRow"><input type="checkbox" id="nmAdmin">' + esc(t("isAdmin")) + "</label><div id=\"nmResult\"></div>";
+  $("#nmKind").onchange = () => { const u = $("#nmKind").value === "user"; $("#nmPwRow").classList.toggle("hidden", !u); $("#nmAdminRow").classList.toggle("hidden", !u); };
+  $("#nmName").oninput = () => {
+    const em = $("#nmEmail");
+    if (!em.dataset.touched && me && me.email.includes("@")) {
+      const local = $("#nmName").value.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/\s+/g, ".").replace(/[^a-z0-9.\-_]/g, "");
+      em.value = local ? local + "@" + me.email.split("@")[1] : "";
+    }
+  };
+  $("#nmEmail").oninput = (e) => { e.target.dataset.touched = "1"; };
+  $("#cancelMb").onclick = closePanel;
+  $("#createMb").onclick = guard(async () => {
+    const r = await api("POST", "/mailboxes", { email: $("#nmEmail").value, name: $("#nmName").value, password: $("#nmPw").value || null, kind: $("#nmKind").value, quota: (+$("#nmQuota").value || 0) * 1048576, isAdmin: $("#nmAdmin").checked });
+    toast(t("mailboxCreated"));
+    if (r.password) {
+      $("#panelContent").innerHTML = "<p>" + esc(t("mailboxCreated")) + ": <b>" + esc(r.email) + "</b></p><div class=\"secret\">" + esc(t("passwordShown")) + "<br>" + copyable(r.password) + "</div>";
+      $(".panel .foot").innerHTML = '<button class="btn primary" id="doneMb">' + esc(t("close")) + "</button>";
+      $("#doneMb").onclick = () => { closePanel(); pageMailboxes(); };
+    } else { closePanel(); pageMailboxes(); }
+  });
+  $("#nmName").focus();
+}
+
+async function openMailbox(id) {
+  const m = await api("GET", "/mailboxes/" + id);
+  const tabs = [t("general"), t("emailAddresses"), t("passwordTab"), t("forwarding"), t("permissions"), t("folders"), t("devices")];
+  const c = openPanel(m.name || m.email, m.email + " · " + kindLabel(m.kind), tabs, "");
+  const foot = $(".panel .foot");
+  const show = (i) => {
+    document.querySelectorAll(".panel .tabs button").forEach((b) => b.classList.toggle("on", +b.dataset.tab === i));
+    foot.innerHTML = "";
+    [tabGeneral, tabAddresses, tabPassword, tabForward, tabPerms, tabFolders, tabDevices][i](c, m, foot);
+  };
+  document.querySelectorAll(".panel .tabs button").forEach((b) => b.onclick = () => show(+b.dataset.tab));
+  show(0);
+}
+function tabGeneral(c, m, foot) {
+  c.innerHTML = '<div class="field"><label>' + esc(t("name")) + '</label><input id="mbName" value="' + esc(m.name) + '"></div>' +
+    '<div class="field"><label>' + esc(t("quotaMb")) + '</label><input id="mbQuota" type="number" min="0" value="' + Math.round(m.quota / 1048576) + '"></div>' +
+    '<div class="field"><label>' + esc(t("timeZone")) + '</label><input id="mbTz" placeholder="Europe/Berlin" value="' + esc(m.timeZone || "") + '"></div>' +
+    '<label class="check"><input type="checkbox" id="mbEnabled"' + (m.enabled ? " checked" : "") + ">" + esc(t("mailboxEnabled")) + "</label>" +
+    (m.kind === "user" ? '<label class="check"><input type="checkbox" id="mbAdmin"' + (m.isAdmin ? " checked" : "") + ">" + esc(t("isAdmin")) + "</label>" : "") +
+    '<div class="section"><h3>' + esc(t("outOfOffice")) + '</h3><div class="muted">' + esc(m.oof && m.oof.state && m.oof.state !== "Disabled" ? t("oofOn") + " (" + m.oof.state + ")" : t("oofOff")) + "</div></div>" +
+    '<div class="section"><h3>' + esc(t("used")) + "</h3><div>" + esc(fmtBytes(m.used)) + " · " + esc(m.items) + " " + esc(t("items")) + "</div></div>";
+  foot.innerHTML = '<button class="btn primary" id="saveGen">' + esc(t("save")) + '</button><span style="flex:1"></span><button class="btn danger" id="delMb">' + esc(t("deleteMailbox")) + "</button>";
+  $("#saveGen").onclick = guard(async () => {
+    await api("PATCH", "/mailboxes/" + m.id, { name: $("#mbName").value, quota: (+$("#mbQuota").value || 0) * 1048576, enabled: $("#mbEnabled").checked, isAdmin: m.kind === "user" ? $("#mbAdmin").checked : undefined, timeZone: $("#mbTz").value.trim() });
+    toast(t("saved")); pageMailboxes();
+  });
+  $("#delMb").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("DELETE", "/mailboxes/" + m.id); toast(t("deleted")); closePanel(); pageMailboxes(); });
+}
+function tabAddresses(c, m) {
+  c.innerHTML = '<div class="section"><h3>' + esc(t("emailAddresses")) + '</h3><div class="chips"><span class="chip">' + esc(m.email) + ' <span class="badge tint">' + esc(t("primary")) + "</span>&nbsp;</span>" +
+    m.aliases.map((a) => '<span class="chip">' + esc(a) + '<button data-del="' + esc(a) + '" aria-label="' + esc(t("remove")) + '">✕</button></span>').join("") + "</div>" +
+    '<div class="row"><div class="field"><input id="newAlias" placeholder="info@' + esc(m.email.split("@")[1]) + '"></div><button class="btn" id="addAlias">' + esc(t("addAlias")) + "</button></div>" +
+    '<p class="muted">' + esc(t("aliasHint")) + "</p></div>";
+  $("#addAlias").onclick = guard(async () => { await api("POST", "/aliases", { address: $("#newAlias").value.trim(), mailboxId: m.id }); m.aliases.push($("#newAlias").value.trim().toLowerCase()); tabAddresses(c, m); toast(t("saved")); });
+  c.querySelectorAll("[data-del]").forEach((b) => b.onclick = guard(async () => { await api("DELETE", "/aliases/" + encodeURIComponent(b.dataset.del)); m.aliases = m.aliases.filter((a) => a !== b.dataset.del); tabAddresses(c, m); }));
+}
+function tabPassword(c, m, foot) {
+  if (m.kind !== "user") { c.innerHTML = '<p class="muted">' + esc(kindLabel(m.kind)) + ": " + esc(t("permsLead")) + "</p>"; return; }
+  c.innerHTML = '<div class="field"><label>' + esc(t("newPassword")) + '</label><input id="pw1" type="password" autocomplete="new-password"></div><div id="pwOut"></div>';
+  foot.innerHTML = '<button class="btn primary" id="setPw">' + esc(t("setPassword")) + '</button><button class="btn" id="genPw">' + esc(t("generatePassword")) + "</button>";
+  $("#setPw").onclick = guard(async () => { await api("POST", "/mailboxes/" + m.id + "/password", { password: $("#pw1").value }); $("#pw1").value = ""; toast(t("saved")); });
+  $("#genPw").onclick = guard(async () => { const r = await api("POST", "/mailboxes/" + m.id + "/password", {}); $("#pwOut").innerHTML = '<div class="secret">' + esc(t("passwordShown")) + "<br>" + copyable(r.password) + "</div>"; });
+}
+function tabForward(c, m, foot) {
+  c.innerHTML = '<div class="field"><label>' + esc(t("forwardTo")) + '</label><input id="fwd" type="email" value="' + esc(m.forwardTo || "") + '"></div><p class="muted">' + esc(t("noForward")) + "</p>" +
+    '<label class="check"><input type="checkbox" id="fwdKeep"' + (m.keepForwardedCopy ? " checked" : "") + ">" + esc(t("keepCopy")) + "</label>";
+  foot.innerHTML = '<button class="btn primary" id="saveFwd">' + esc(t("save")) + "</button>";
+  $("#saveFwd").onclick = guard(async () => { await api("PATCH", "/mailboxes/" + m.id, { forwardTo: $("#fwd").value, keepForwardedCopy: $("#fwdKeep").checked }); m.forwardTo = $("#fwd").value; m.keepForwardedCopy = $("#fwdKeep").checked; toast(t("saved")); });
+}
+function tabPerms(c, m) {
+  const others = mailboxCache.filter((x) => x.id !== m.id && x.kind === "user");
+  const mine = m.permissions.filter((p) => p.ownerId === m.id);
+  c.innerHTML = '<p class="muted" style="margin-top:0">' + esc(t("permsLead")) + "</p>" +
+    '<table class="list"><thead><tr><th>' + esc(t("grantee")) + "</th><th>" + esc(t("fullAccess")) + "</th><th>" + esc(t("sendAs")) + "</th><th></th></tr></thead><tbody>" +
+    (mine.length ? mine.map((p) => '<tr><td>' + esc(p.grantee) + '</td><td><input type="checkbox" data-g="' + p.granteeId + '" data-k="full"' + (p.fullAccess ? " checked" : "") + '></td><td><input type="checkbox" data-g="' + p.granteeId + '" data-k="send"' + (p.sendAs ? " checked" : "") + '></td><td><button class="btn ghost danger" data-rm="' + p.granteeId + '">' + esc(t("remove")) + "</button></td></tr>").join("") :
+      '<tr><td colspan="4" class="empty">' + esc(t("none")) + "</td></tr>") + "</tbody></table>" +
+    '<div class="row" style="margin-top:14px"><div class="field"><select id="permUser">' + others.map((o) => '<option value="' + o.id + '">' + esc((o.name || o.email) + " <" + o.email + ">") + "</option>").join("") + '</select></div><button class="btn" id="grantBtn"' + (others.length ? "" : " disabled") + ">" + esc(t("grant")) + "</button></div>";
+  const set = async (g, full, send) => { await api("POST", "/permissions", { ownerId: m.id, granteeId: +g, fullAccess: full, sendAs: send }); const fresh = await api("GET", "/mailboxes/" + m.id); m.permissions = fresh.permissions; tabPerms(c, m); toast(t("saved")); };
+  $("#grantBtn").onclick = guard(() => set($("#permUser").value, true, false));
+  c.querySelectorAll("input[data-g]").forEach((cb) => cb.onchange = guard(() => {
+    const g = cb.dataset.g; const full = c.querySelector('input[data-g="' + g + '"][data-k="full"]').checked; const send = c.querySelector('input[data-g="' + g + '"][data-k="send"]').checked; return set(g, full, send);
+  }));
+  c.querySelectorAll("[data-rm]").forEach((b) => b.onclick = guard(() => set(b.dataset.rm, false, false)));
+}
+function tabFolders(c, m) {
+  c.innerHTML = '<table class="list"><thead><tr><th>' + esc(t("folders")) + "</th><th>" + esc(t("items")) + "</th><th>" + esc(t("unread")) + "</th><th>" + esc(t("size")) + "</th></tr></thead><tbody>" +
+    m.folders.map((f) => "<tr><td>" + esc(f.name) + '<div class="sub">' + esc(f.class) + "</div></td><td>" + f.total + "</td><td>" + (f.class === "mail" ? f.unread : "–") + "</td><td>" + esc(fmtBytes(f.size)) + "</td></tr>").join("") + "</tbody></table>";
+}
+function tabDevices(c, m) {
+  c.innerHTML = m.devices.length ? m.devices.map(deviceCard).join("") : '<p class="empty">' + esc(t("none")) + "</p>";
+  bindDeviceActions(c, () => openMailbox(m.id));
+}
+function deviceLabel(d) { const i = d.info || {}; return i.FriendlyName || i.Model || d.device_type || d.device_id; }
+function deviceState(d) { return d.wipe === 1 ? '<span class="badge warn">' + esc(t("wipePending")) + "</span>" : d.wipe === 2 ? '<span class="badge bad">' + esc(t("wiped")) + "</span>" : d.blocked ? '<span class="badge bad">' + esc(t("blocked")) + "</span>" : '<span class="badge ok">' + esc(t("enabled")) + "</span>"; }
+function deviceCard(d) {
+  const i = d.info || {};
+  return '<div class="card glass"><div class="row"><div style="flex:1"><b>' + esc(deviceLabel(d)) + '</b><div class="sub muted">' + esc([i.OS, d.device_type, d.user_agent].filter(Boolean).join(" · ")) + "</div></div>" + deviceState(d) + "</div>" +
+    '<div class="muted" style="margin:6px 0 10px">' + esc(t("lastSync")) + ": " + esc(fmtTime(d.last_seen)) + " · ID " + esc(d.device_id) + "</div>" + deviceButtons(d) + "</div>";
+}
+function deviceButtons(d) {
+  const a = 'data-u="' + d.user_id + '" data-d="' + esc(d.device_id) + '"';
+  return '<div class="row"><button class="btn" data-act="block" ' + a + ">" + esc(t(d.blocked ? "unblock" : "block")) + '</button><button class="btn danger" data-act="wipe" ' + a + ">" + esc(t("wipe")) + '</button><button class="btn ghost" data-act="remove" ' + a + ">" + esc(t("remove")) + "</button></div>";
+}
+function bindDeviceActions(root, reload) {
+  root.querySelectorAll("[data-act]").forEach((b) => b.onclick = guard(async () => {
+    const body = { userId: +b.dataset.u, deviceId: b.dataset.d };
+    if (b.dataset.act === "wipe" && !confirm(t("confirmWipe"))) return;
+    await api("POST", "/devices/" + b.dataset.act, body);
+    toast(t("saved")); reload();
+  }));
+}
+
+// ------------------------------------------------------------ aliases
+async function pageAliases() {
+  const [list, boxes] = await Promise.all([api("GET", "/aliases"), api("GET", "/mailboxes")]);
+  mailboxCache = boxes;
+  main().innerHTML = heading(t("aliases"), t("aliasHint")) +
+    '<div class="toolbar"><div class="field" style="margin:0;min-width:240px"><input id="alAddr" placeholder="info@domain"></div><div class="field" style="margin:0;min-width:240px"><select id="alBox">' +
+    boxes.map((b) => '<option value="' + b.id + '">' + esc(b.email) + "</option>").join("") + '</select></div><button class="btn primary" id="alAdd">' + icon("plus") + esc(t("add")) + "</button></div>" +
+    '<div class="glass tablecard"><table class="list"><thead><tr><th>' + esc(t("email")) + "</th><th>" + esc(t("mailboxes")) + "</th><th></th></tr></thead><tbody>" +
+    (list.length ? list.map((a) => "<tr><td><b>" + esc(a.address) + "</b></td><td>" + esc(a.mailbox) + '</td><td style="text-align:right"><button class="btn ghost danger" data-rm="' + esc(a.address) + '">' + esc(t("remove")) + "</button></td></tr>").join("") :
+      '<tr><td colspan="3" class="empty">' + esc(t("none")) + "</td></tr>") + "</tbody></table></div>";
+  $("#alAdd").onclick = guard(async () => { await api("POST", "/aliases", { address: $("#alAddr").value.trim(), mailboxId: +$("#alBox").value }); toast(t("saved")); pageAliases(); });
+  document.querySelectorAll("[data-rm]").forEach((b) => b.onclick = guard(async () => { await api("DELETE", "/aliases/" + encodeURIComponent(b.dataset.rm)); pageAliases(); }));
+}
+
+// ------------------------------------------------------------ domains
+async function pageDomains() {
+  const r = await api("GET", "/domains");
+  main().innerHTML = heading(t("domains"), t("domainsLead")) +
+    '<div class="toolbar"><div class="field" style="margin:0;min-width:260px"><input id="newDomain" placeholder="example.com"></div><button class="btn primary" id="addDomain">' + icon("plus") + esc(t("addDomain")) + "</button></div>" +
+    (r.domains.length ? r.domains.map((d) => '<div class="card glass"><div class="row"><h2 style="flex:1;margin:0">' + esc(d.name) + '</h2><span class="muted">' + d.mailboxes + " " + esc(t("mailboxes")) + "</span></div>" +
+      '<h3 style="margin:14px 0 6px;font-size:14px">' + esc(t("dnsRecords")) + '</h3><table class="list dns"><thead><tr><th>' + esc(t("record")) + "</th><th>" + esc(t("type")) + "</th><th>" + esc(t("value")) + '</th><th class="hide-sm">' + esc(t("purpose")) + "</th></tr></thead><tbody>" +
+      d.records.map((x) => "<tr><td>" + copyable(x.name) + "</td><td><b>" + esc(x.kind) + '</b></td><td class="value">' + copyable(x.value) + '</td><td class="hide-sm muted">' + esc(t("dns_" + x.key)) + "</td></tr>").join("") +
+      '</tbody></table><div class="row" style="margin-top:12px"><button class="btn" data-dkim="' + esc(d.name) + '">' + esc(t("regenerateDkim")) + '</button><span style="flex:1"></span><button class="btn danger" data-del="' + esc(d.name) + '">' + esc(t("deleteDomain")) + "</button></div></div>").join("") :
+      '<div class="card glass empty">' + esc(t("none")) + "</div>") +
+    '<div class="card glass"><h2>' + esc(t("hostHint")) + "</h2><p style=\"margin:0\">" + esc(t("hostText").split("{host}").join(me.hostname)) + "</p></div>";
+  $("#addDomain").onclick = guard(async () => { await api("POST", "/domains", { name: $("#newDomain").value }); toast(t("saved")); pageDomains(); });
+  document.querySelectorAll("[data-dkim]").forEach((b) => b.onclick = guard(async () => { await api("POST", "/domains/" + encodeURIComponent(b.dataset.dkim) + "/dkim", {}); toast(t("saved")); pageDomains(); }));
+  document.querySelectorAll("[data-del]").forEach((b) => b.onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("DELETE", "/domains/" + encodeURIComponent(b.dataset.del)); toast(t("deleted")); pageDomains(); }));
+}
+
+// ------------------------------------------------------------ queue
+async function pageQueue() {
+  const list = await api("GET", "/queue");
+  main().innerHTML = heading(t("queue"), t("queueLead")) + '<div class="toolbar"><button class="btn ghost" id="qRefresh">' + icon("refresh") + esc(t("refresh")) + "</button></div>" +
+    '<div class="glass tablecard"><table class="list"><thead><tr><th>' + esc(t("subject")) + "</th><th>" + esc(t("recipientsCol")) + '</th><th class="hide-sm">' + esc(t("attempts")) + '</th><th class="hide-sm">' + esc(t("nextAttempt")) + "</th><th></th></tr></thead><tbody>" +
+    (list.length ? list.map((q) => "<tr><td><div class=\"name\">" + esc(q.subject || "–") + '</div><div class="sub">' + esc(q.sender || "<>") + " · " + esc(fmtBytes(q.size)) + "</div>" + (q.lastError ? '<div class="sub" style="color:var(--danger)">' + esc(q.lastError) + "</div>" : "") +
+      "</td><td>" + esc(q.recipients.join(", ")) + '</td><td class="hide-sm">' + q.attempts + '</td><td class="hide-sm">' + esc(fmtTime(q.nextAttempt)) +
+      '</td><td style="text-align:right;white-space:nowrap"><button class="btn" data-retry="' + q.id + '">' + esc(t("retry")) + '</button> <button class="btn ghost danger" data-del="' + q.id + '">' + esc(t("delete")) + "</button></td></tr>").join("") :
+      '<tr><td colspan="5" class="empty">' + esc(t("none")) + "</td></tr>") + "</tbody></table></div>";
+  $("#qRefresh").onclick = guard(pageQueue);
+  document.querySelectorAll("[data-retry]").forEach((b) => b.onclick = guard(async () => { await api("POST", "/queue/" + b.dataset.retry + "/retry", {}); toast(t("saved")); setTimeout(pageQueue, 1500); }));
+  document.querySelectorAll("[data-del]").forEach((b) => b.onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("DELETE", "/queue/" + b.dataset.del); pageQueue(); }));
+}
+
+// ------------------------------------------------------------ devices
+async function pageDevices() {
+  const list = await api("GET", "/devices");
+  main().innerHTML = heading(t("devices"), t("devicesLead")) +
+    '<div class="glass tablecard"><table class="list"><thead><tr><th>' + esc(t("device")) + "</th><th>" + esc(t("user")) + '</th><th class="hide-sm">' + esc(t("lastSync")) + "</th><th>" + esc(t("status")) + "</th><th></th></tr></thead><tbody>" +
+    (list.length ? list.map((d) => "<tr><td><div class=\"name\">" + esc(deviceLabel(d)) + '</div><div class="sub">' + esc((d.info && d.info.OS) || d.device_type) + "</div></td><td>" + esc(d.user) + '</td><td class="hide-sm">' + esc(fmtTime(d.last_seen)) + "</td><td>" + deviceState(d) + '</td><td style="text-align:right">' + deviceButtons(d) + "</td></tr>").join("") :
+      '<tr><td colspan="5" class="empty">' + esc(t("none")) + "</td></tr>") + "</tbody></table></div>";
+  bindDeviceActions(main(), pageDevices);
+}
+
+// ------------------------------------------------------------ audit
+async function pageAudit() {
+  const list = await api("GET", "/audit");
+  main().innerHTML = heading(t("audit"), t("auditLead")) +
+    '<div class="glass tablecard"><table class="list"><thead><tr><th>' + esc(t("time")) + "</th><th>" + esc(t("actor")) + "</th><th>" + esc(t("action")) + '</th><th class="hide-sm">' + esc(t("details")) + "</th></tr></thead><tbody>" +
+    (list.length ? list.map((a) => "<tr><td>" + esc(fmtTime(a.time)) + "</td><td>" + esc(a.actor) + '</td><td><span class="badge">' + esc(a.action) + '</span></td><td class="hide-sm muted">' + esc(a.detail) + "</td></tr>").join("") :
+      '<tr><td colspan="4" class="empty">' + esc(t("none")) + "</td></tr>") + "</tbody></table></div>";
+}
+
+applyTexts();
+start();
+</script>
+</body>
+</html>
