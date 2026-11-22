@@ -42,6 +42,14 @@ Everything runs as one program with one database: no separate mail transfer agen
 - Device overview, blocking and remote wipe
 - Automatic setup through Autodiscover
 
+**Webmail**
+
+- **Webmail** in the browser at `/mail`: sign in with any mailbox and read, write and organise mail, calendar and contacts – no extra client needed, in German and English, light and dark
+- Compose with attachments, reply and forward, flag, move and delete; month calendar with invitations; contact management
+- Shares the same storage as ActiveSync and EWS, so changes appear everywhere at once
+
+![Webmail](docs/screenshots/webmail.png)
+
 **Administration**
 
 - **Admin Center** in the browser: mailboxes, aliases, permissions, domains with the DNS records to enter, DKIM keys, the delivery queue, mobile devices and an audit log – in German and English, light and dark
@@ -76,7 +84,9 @@ Then open `https://<your host name>/admin` and sign in with the mailbox you just
 ## Documentation
 
 - [Admin guide](docs/admin.md) – installation, configuration, DNS, certificates, clients, backups
+- [Webmail](docs/webmail.md) – browser access to mail, calendar and contacts at `/mail`
 - [Development](docs/development.md) – architecture, protocols, building and testing
+- [Security](SECURITY.md) and [fuzzing](docs/fuzzing.md)
 
 ## License
 

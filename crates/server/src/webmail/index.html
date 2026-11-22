@@ -1,1 +1,574 @@
-<!doctype html><title>Ondura Webmail</title><p>placeholder</p>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ondura Webmail</title>
+<link rel="icon" href="/mail/logo.svg">
+<style>
+:root {
+  --tint: #3b5bdb;
+  --tint-strong: #304bb4;
+  --tint-soft: rgba(59, 91, 219, 0.1);
+  --bg: #eceef2;
+  --surface: rgba(255, 255, 255, 0.72);
+  --surface-solid: #ffffff;
+  --surface-hover: rgba(15, 23, 42, 0.045);
+  --border: rgba(15, 23, 42, 0.09);
+  --text: #1b1f27;
+  --muted: #5d6573;
+  --danger: #c4314b;
+  --ok: #107c41;
+  --warn: #b7791f;
+  --shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 24px rgba(15, 23, 42, 0.06);
+  --radius: 10px;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #111216;
+    --surface: rgba(32, 34, 40, 0.72);
+    --surface-solid: #1d1f24;
+    --surface-hover: rgba(255, 255, 255, 0.05);
+    --border: rgba(255, 255, 255, 0.09);
+    --text: #e8eaef;
+    --muted: #9aa1ad;
+    --tint-soft: rgba(110, 138, 255, 0.16);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.25);
+    color-scheme: dark;
+  }
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font: 14px/1.45 "Segoe UI Variable", "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, "Helvetica Neue", "Noto Sans", sans-serif;
+  color: var(--text);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(180deg, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 40%),
+    radial-gradient(75vw 65vh at 0% 0%, color-mix(in srgb, var(--tint) 13%, transparent), transparent 70%),
+    radial-gradient(70vw 70vh at 100% 100%, color-mix(in srgb, var(--tint) 7%, transparent), transparent 70%);
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+@media (prefers-color-scheme: dark) {
+  body { background-image:
+    radial-gradient(75vw 65vh at 0% 0%, color-mix(in srgb, var(--tint) 20%, transparent), transparent 70%),
+    radial-gradient(70vw 70vh at 100% 100%, color-mix(in srgb, var(--tint) 9%, transparent), transparent 70%); }
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--tint); }
+.hidden { display: none !important; }
+svg { width: 18px; height: 18px; display: block; }
+
+.glass {
+  background: var(--surface);
+  backdrop-filter: blur(24px) saturate(1.4);
+  -webkit-backdrop-filter: blur(24px) saturate(1.4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+
+/* ---------- login ---------- */
+#login { min-height: 100%; display: grid; place-items: center; padding: 24px; }
+#login .card { width: 380px; max-width: 100%; padding: 36px 36px 28px; }
+#login img { width: 48px; height: 48px; }
+#login h1 { font-size: 22px; font-weight: 600; margin: 14px 0 2px; }
+#login p.sub { color: var(--muted); margin: 0 0 22px; }
+.field { display: flex; flex-direction: column; gap: 5px; margin-bottom: 14px; }
+.field label { font-size: 12.5px; color: var(--muted); font-weight: 500; }
+.field input, .field select, .field textarea {
+  padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-solid); outline: none; border-bottom: 2px solid transparent; width: 100%;
+}
+.field input, .field select { height: 34px; }
+.field input:focus, .field select:focus, .field textarea:focus { border-bottom-color: var(--tint); }
+.error { color: var(--danger); min-height: 20px; margin: 2px 0 8px; font-size: 13px; }
+
+.btn {
+  height: 32px; padding: 0 14px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--surface-solid); cursor: pointer; display: inline-flex; align-items: center; gap: 7px;
+}
+.btn:hover { background: var(--surface-hover); }
+.btn.primary { background: var(--tint); border-color: var(--tint); color: #fff; }
+.btn.primary:hover { background: var(--tint-strong); }
+.btn.ghost { border-color: transparent; background: transparent; }
+.btn.ghost:hover { background: var(--surface-hover); }
+.btn.danger { color: var(--danger); }
+.btn svg { width: 16px; height: 16px; }
+
+/* ---------- shell ---------- */
+#app { height: 100%; display: grid; grid-template-rows: 54px 1fr; }
+#top { display: flex; align-items: center; gap: 12px; padding: 0 14px; border-bottom: 1px solid var(--border); background: var(--surface); backdrop-filter: blur(24px); }
+#top .brand { display: flex; align-items: center; gap: 9px; font-weight: 600; }
+#top .brand img { width: 24px; height: 24px; }
+#top .search { flex: 0 1 420px; margin-left: 10px; position: relative; }
+#top .search input { width: 100%; height: 34px; padding: 0 10px 0 32px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-solid); outline: none; }
+#top .search svg { position: absolute; left: 9px; top: 8px; width: 16px; height: 16px; color: var(--muted); }
+#top .sp { flex: 1; }
+#top .who { color: var(--muted); font-size: 13px; }
+.iconbtn { width: 34px; height: 34px; border-radius: 8px; border: 1px solid transparent; background: transparent; cursor: pointer; display: grid; place-items: center; }
+.iconbtn:hover { background: var(--surface-hover); }
+
+#body { display: grid; grid-template-columns: 220px 1fr; min-height: 0; }
+#rail { border-right: 1px solid var(--border); padding: 10px 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
+.navitem { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--text); }
+.navitem:hover { background: var(--surface-hover); }
+.navitem.active { background: var(--tint-soft); color: var(--tint); font-weight: 600; }
+.railsep { height: 1px; background: var(--border); margin: 8px 4px; }
+.folder { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 8px; cursor: pointer; }
+.folder:hover { background: var(--surface-hover); }
+.folder.active { background: var(--tint-soft); color: var(--tint); font-weight: 600; }
+.folder .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.folder .ct { font-size: 12px; color: var(--muted); }
+.folder.active .ct { color: var(--tint); }
+
+#view { min-width: 0; min-height: 0; overflow: hidden; }
+
+/* ---------- mail ---------- */
+.mailgrid { height: 100%; display: grid; grid-template-columns: 380px 1fr; min-height: 0; }
+.list { border-right: 1px solid var(--border); overflow-y: auto; }
+.list .hd { padding: 12px 14px 8px; display: flex; align-items: center; gap: 8px; position: sticky; top: 0; background: var(--bg); z-index: 1; }
+.list .hd h2 { font-size: 16px; margin: 0; flex: 1; }
+.msg { padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.msg:hover { background: var(--surface-hover); }
+.msg.active { background: var(--tint-soft); }
+.msg.unread .mf { font-weight: 700; }
+.msg .top { display: flex; gap: 8px; align-items: baseline; }
+.msg .mf { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.msg .dt { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.msg .su { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: 1px; }
+.msg .pv { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dot { width: 7px; height: 7px; border-radius: 50%; background: var(--tint); display: inline-block; }
+.reader { overflow-y: auto; padding: 0; display: flex; flex-direction: column; min-height: 0; }
+.reader .rh { padding: 16px 20px 12px; border-bottom: 1px solid var(--border); }
+.reader h1 { font-size: 20px; margin: 0 0 8px; }
+.reader .meta { color: var(--muted); font-size: 13px; }
+.reader .acts { display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.reader .bodywrap { flex: 1; min-height: 0; }
+.reader iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.reader pre.text { margin: 0; padding: 18px 20px; white-space: pre-wrap; word-wrap: break-word; font: inherit; }
+.atts { padding: 10px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; }
+.att { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 20px; font-size: 12.5px; text-decoration: none; color: var(--text); }
+.att:hover { background: var(--surface-hover); }
+.empty { color: var(--muted); display: grid; place-items: center; height: 100%; text-align: center; padding: 20px; }
+
+/* ---------- panels ---------- */
+#overlay:not(:empty) { position: fixed; inset: 0; z-index: 50; }
+.scrim { position: absolute; inset: 0; background: rgba(15,23,42,.28); }
+.panel { position: absolute; top: 0; right: 0; height: 100%; width: 620px; max-width: 100%; background: var(--surface-solid); border-left: 1px solid var(--border); box-shadow: var(--shadow); display: flex; flex-direction: column; animation: slide .16s ease-out; }
+@keyframes slide { from { transform: translateX(16px); opacity: .6; } to { transform: none; opacity: 1; } }
+.panel .head { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.panel .head h2 { font-size: 17px; margin: 0; flex: 1; }
+.panel .cont { padding: 16px 18px; overflow-y: auto; flex: 1; }
+.panel .foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
+
+/* ---------- calendar ---------- */
+.cal { height: 100%; display: flex; flex-direction: column; }
+.cal .bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
+.cal .bar h2 { margin: 0; font-size: 18px; flex: 1; }
+.grid { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; gap: 1px; background: var(--border); border-top: 1px solid var(--border); min-height: 0; }
+.dow { background: var(--bg); text-align: center; padding: 6px 0; font-size: 12px; color: var(--muted); grid-row: 1; }
+.cell { background: var(--surface-solid); padding: 4px 6px; overflow: hidden; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-height: 0; }
+.cell:hover { background: var(--surface-hover); }
+.cell .n { font-size: 12px; color: var(--muted); align-self: flex-end; }
+.cell.other { opacity: .4; }
+.cell.today .n { background: var(--tint); color: #fff; border-radius: 50%; width: 20px; height: 20px; display: grid; place-items: center; }
+.ev { background: var(--tint-soft); color: var(--tint); border-radius: 5px; padding: 2px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+
+/* ---------- contacts ---------- */
+.cgrid { height: 100%; display: grid; grid-template-columns: 340px 1fr; min-height: 0; }
+.clist { border-right: 1px solid var(--border); overflow-y: auto; }
+.citem { padding: 11px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
+.citem:hover { background: var(--surface-hover); }
+.citem.active { background: var(--tint-soft); }
+.citem .cn { font-weight: 600; }
+.citem .ce { font-size: 12.5px; color: var(--muted); }
+.cdetail { padding: 28px; overflow-y: auto; }
+.avatar { width: 64px; height: 64px; border-radius: 50%; background: var(--tint-soft); color: var(--tint); display: grid; place-items: center; font-size: 26px; font-weight: 600; }
+.kv { display: grid; grid-template-columns: 140px 1fr; gap: 6px 14px; margin-top: 18px; }
+.kv .k { color: var(--muted); }
+
+.badge { font-size: 11px; padding: 1px 7px; border-radius: 10px; border: 1px solid var(--border); }
+.toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); background: var(--text); color: var(--bg); padding: 9px 16px; border-radius: 8px; z-index: 100; box-shadow: var(--shadow); }
+.toast.bad { background: var(--danger); color: #fff; }
+@media (max-width: 820px) {
+  #body { grid-template-columns: 1fr; }
+  #rail { display: none; }
+  .mailgrid, .cgrid, .cal .grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div id="login">
+  <form class="card glass" id="loginForm">
+    <img src="/mail/logo.svg" alt="Ondura">
+    <h1 data-t="webmail">Webmail</h1>
+    <p class="sub" data-t="signInSub">Sign in to your mailbox</p>
+    <div class="field"><label data-t="email">E-mail</label><input id="le" type="email" autocomplete="username" required></div>
+    <div class="field"><label data-t="password">Password</label><input id="lp" type="password" autocomplete="current-password" required></div>
+    <div class="error" id="loginError"></div>
+    <button class="btn primary" style="width:100%;justify-content:center" type="submit" data-t="signIn">Sign in</button>
+    <div style="text-align:center;margin-top:14px"><a href="#" id="langToggle" style="font-size:12.5px"></a></div>
+  </form>
+</div>
+
+<div id="app" class="hidden">
+  <div id="top">
+    <div class="brand"><img src="/mail/logo.svg" alt=""><span>Ondura</span></div>
+    <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input id="q" placeholder=""></div>
+    <div class="sp"></div>
+    <button class="btn primary" id="composeBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span data-t="compose">Compose</span></button>
+    <span class="who" id="who"></span>
+    <button class="iconbtn" id="langBtn" title="Language"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
+    <button class="iconbtn" id="logoutBtn" title=""><svg viewBox="0 0 24 24"><path d="M15 4h3a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1h-3M10 8l-4 4 4 4M6 12h11" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  </div>
+  <div id="body">
+    <div id="rail"></div>
+    <div id="view"></div>
+  </div>
+</div>
+
+<div id="overlay"></div>
+
+<script>
+const T = {
+  en: {
+    webmail: "Webmail", signInSub: "Sign in to your mailbox", email: "E-mail", password: "Password", signIn: "Sign in",
+    compose: "Compose", mail: "Mail", calendar: "Calendar", contacts: "Contacts", search: "Search mail",
+    inbox: "Inbox", drafts: "Drafts", sentitems: "Sent Items", deleteditems: "Deleted Items", junkemail: "Junk Email", outbox: "Outbox", archive: "Archive",
+    reply: "Reply", replyAll: "Reply all", forward: "Forward", delete: "Delete", move: "Move", markUnread: "Mark unread", markRead: "Mark read", flag: "Flag",
+    noMessages: "No messages", selectMessage: "Select a message to read", to: "To", cc: "Cc", subject: "Subject", send: "Send", saveDraft: "Save draft", attachments: "Attachments", addFiles: "Attach",
+    newEvent: "New event", editEvent: "Event", title: "Title", location: "Location", start: "Start", end: "End", allDay: "All day", save: "Save", cancel: "Cancel",
+    accept: "Accept", decline: "Decline", tentative: "Tentative", today: "Today",
+    newContact: "New contact", editContact: "Contact", firstName: "First name", lastName: "Last name", company: "Company", jobTitle: "Job title", phone: "Mobile", notes: "Notes", noContacts: "No contacts", selectContact: "Select a contact",
+    logout: "Sign out", confirmDelete: "Delete this item?", sent: "Sent", saved: "Saved", deleted: "Deleted", loading: "Loading…", langName: "Deutsch",
+    fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
+  },
+  de: {
+    webmail: "Webmail", signInSub: "Bei deinem Postfach anmelden", email: "E-Mail", password: "Passwort", signIn: "Anmelden",
+    compose: "Verfassen", mail: "E-Mail", calendar: "Kalender", contacts: "Kontakte", search: "E-Mail durchsuchen",
+    inbox: "Posteingang", drafts: "Entwürfe", sentitems: "Gesendet", deleteditems: "Gelöscht", junkemail: "Junk", outbox: "Postausgang", archive: "Archiv",
+    reply: "Antworten", replyAll: "Allen antworten", forward: "Weiterleiten", delete: "Löschen", move: "Verschieben", markUnread: "Als ungelesen", markRead: "Als gelesen", flag: "Kennzeichnen",
+    noMessages: "Keine Nachrichten", selectMessage: "Nachricht zum Lesen auswählen", to: "An", cc: "Cc", subject: "Betreff", send: "Senden", saveDraft: "Entwurf speichern", attachments: "Anhänge", addFiles: "Anhängen",
+    newEvent: "Neuer Termin", editEvent: "Termin", title: "Titel", location: "Ort", start: "Beginn", end: "Ende", allDay: "Ganztägig", save: "Speichern", cancel: "Abbrechen",
+    accept: "Zusagen", decline: "Absagen", tentative: "Vorbehalt", today: "Heute",
+    newContact: "Neuer Kontakt", editContact: "Kontakt", firstName: "Vorname", lastName: "Nachname", company: "Firma", jobTitle: "Position", phone: "Mobil", notes: "Notizen", noContacts: "Keine Kontakte", selectContact: "Kontakt auswählen",
+    logout: "Abmelden", confirmDelete: "Diesen Eintrag löschen?", sent: "Gesendet", saved: "Gespeichert", deleted: "Gelöscht", loading: "Lädt…", langName: "English",
+    fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
+  },
+};
+let lang;
+try { lang = localStorage.getItem("ondura-mail-lang") || (navigator.language || "en").slice(0, 2); } catch (e) { lang = (navigator.language || "en").slice(0, 2); }
+if (!T[lang]) lang = "en";
+const t = (k) => (T[lang] && T[lang][k]) || T.en[k] || k;
+function applyTexts(root) {
+  (root || document).querySelectorAll("[data-t]").forEach((el) => { el.textContent = t(el.dataset.t); });
+  document.documentElement.lang = lang;
+  $("#q").placeholder = t("search");
+  $("#logoutBtn").title = t("logout");
+  const lt = $("#langToggle"); if (lt) lt.textContent = t("langName");
+}
+
+const $ = (s, r) => (r || document).querySelector(s);
+const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtDate = (s) => s ? new Date(s * 1000).toLocaleString(lang === "de" ? "de-DE" : "en-GB", { dateStyle: "medium", timeStyle: "short" }) : "";
+const fmtShort = (s) => { if (!s) return ""; const d = new Date(s * 1000); const now = new Date(); const o = d.toDateString() === now.toDateString() ? { timeStyle: "short" } : { day: "2-digit", month: "short" }; return d.toLocaleString(lang === "de" ? "de-DE" : "en-GB", o); };
+const fmtBytes = (b) => { if (!b) return "0 KB"; const u = ["B", "KB", "MB", "GB"]; let i = Math.floor(Math.log(b) / Math.log(1024)); i = Math.min(i, 3); return (b / Math.pow(1024, i)).toFixed(i ? 1 : 0) + " " + u[i]; };
+const personStr = (p) => p ? (p.name || p.email) : "";
+
+const ICON = {
+  inbox: '<path d="M3 13l3-8h12l3 8v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 13h5l1 2h6l1-2h5" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  drafts: '<path d="M5 3h9l5 5v13H5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 13h8M8 16h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  sentitems: '<path d="M4 12 20 4l-6 16-3-7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  deleteditems: '<path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  junkemail: '<path d="M12 3 3 7v5c0 5 3.5 8 9 9 5.5-1 9-4 9-9V7z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  outbox: '<path d="M3 13l3-8h12l3 8v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 3v7m-3-3 3-3 3 3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  archive: '<rect x="3" y="4" width="18" height="4" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 8v11a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1V8M10 12h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  folder: '<path d="M3 7a1 1 0 0 1 1-1h5l2 2h9a1 1 0 0 1 1 1v10a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  mail: '<rect x="3" y="5" width="18" height="14" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m4 7 8 6 8-6" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  calendar: '<rect x="3" y="4.5" width="18" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 9h18M8 3v3M16 3v3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  contacts: '<circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 20a7 7 0 0 1 14 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  reply: '<path d="M9 7 4 12l5 5M4 12h9a7 7 0 0 1 7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  forward: '<path d="M15 7l5 5-5 5M20 12h-9a7 7 0 0 0-7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  trash: '<path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  flag: '<path d="M6 21V4h11l-2 4 2 4H6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  paperclip: '<path d="M8 12V7a4 4 0 0 1 8 0v9a2.5 2.5 0 0 1-5 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  chev: '<path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+};
+const icon = (n) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] || ICON.folder) + "</svg>";
+
+function toast(msg, bad) { const el = document.createElement("div"); el.className = "toast" + (bad ? " bad" : ""); el.textContent = msg; document.body.appendChild(el); setTimeout(() => el.remove(), bad ? 5000 : 2200); }
+
+async function api(method, path, body) {
+  const res = await fetch("/mail/api" + path, {
+    method, credentials: "same-origin",
+    headers: { "Content-Type": "application/json", "X-Ondura-Mail": "1" },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  let data = null; try { data = await res.json(); } catch (e) { data = null; }
+  if (res.status === 401 && path !== "/login") { showLogin(); throw new Error("unauthorized"); }
+  if (!res.ok) throw new Error((data && data.error) || res.statusText);
+  return data;
+}
+const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { if (e.message !== "unauthorized") toast(e.message, true); } };
+
+// ------------------------------------------------------------ state
+let me = null, view = "mail", folders = [], curFolder = null, curMsg = null, messages = [];
+
+function showLogin() { $("#app").classList.add("hidden"); $("#login").classList.remove("hidden"); $("#overlay").innerHTML = ""; $("#le").focus(); }
+
+$("#loginForm").addEventListener("submit", async (e) => {
+  e.preventDefault(); $("#loginError").textContent = "";
+  try { await api("POST", "/login", { email: $("#le").value, password: $("#lp").value }); $("#lp").value = ""; start(); }
+  catch (err) { $("#loginError").textContent = err.message; }
+});
+function setLang(l) { lang = l; try { localStorage.setItem("ondura-mail-lang", l); } catch (e) {} applyTexts(); if (!$("#app").classList.contains("hidden")) render(); }
+$("#langToggle").addEventListener("click", (e) => { e.preventDefault(); setLang(lang === "de" ? "en" : "de"); });
+$("#langBtn").addEventListener("click", () => setLang(lang === "de" ? "en" : "de"));
+$("#logoutBtn").addEventListener("click", guard(async () => { await api("POST", "/logout"); showLogin(); }));
+$("#composeBtn").addEventListener("click", () => openCompose());
+let searchTimer;
+$("#q").addEventListener("input", (e) => { clearTimeout(searchTimer); const v = e.target.value.trim(); searchTimer = setTimeout(() => { if (view !== "mail") { view = "mail"; renderRail(); } loadMessages(v); }, 250); });
+
+async function start() {
+  $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
+  me = await api("GET", "/me");
+  $("#who").textContent = me.email;
+  folders = me.folders.filter((f) => f.role !== "root");
+  curFolder = folders.find((f) => f.role === "inbox") || folders[0];
+  view = "mail"; render();
+}
+
+// ------------------------------------------------------------ rail + routing
+const FOLDER_ORDER = ["inbox", "drafts", "sentitems", "archive", "junkemail", "deleteditems", "outbox"];
+function folderLabel(f) { return f.role && T[lang][f.role] ? t(f.role) : f.name; }
+function mailFolders() {
+  const mail = folders.filter((f) => f.class === "mail");
+  return mail.sort((a, b) => (FOLDER_ORDER.indexOf(a.role) + 1 || 99) - (FOLDER_ORDER.indexOf(b.role) + 1 || 99));
+}
+function renderRail() {
+  const nav = [["mail", "mail"], ["calendar", "calendar"], ["contacts", "contacts"]].map(([k, ic]) =>
+    `<div class="navitem ${view === k ? "active" : ""}" data-view="${k}">${icon(ic)}<span>${esc(t(k))}</span></div>`).join("");
+  let html = nav;
+  if (view === "mail") {
+    html += '<div class="railsep"></div>';
+    html += mailFolders().map((f) =>
+      `<div class="folder ${curFolder && f.id === curFolder.id ? "active" : ""}" data-folder="${f.id}">${icon(f.role || "folder")}<span class="nm">${esc(folderLabel(f))}</span>${f.unread ? `<span class="ct">${f.unread}</span>` : ""}</div>`).join("");
+  }
+  $("#rail").innerHTML = html;
+  $("#rail").querySelectorAll("[data-view]").forEach((e) => e.onclick = () => { view = e.dataset.view; render(); });
+  $("#rail").querySelectorAll("[data-folder]").forEach((e) => e.onclick = () => { curFolder = folders.find((f) => f.id == e.dataset.folder); curMsg = null; $("#q").value = ""; render(); });
+}
+function render() { applyTexts(); renderRail(); if (view === "mail") renderMail(); else if (view === "calendar") renderCalendar(); else renderContacts(); }
+
+// ------------------------------------------------------------ MAIL
+async function loadMessages(search) {
+  const q = search ? `?search=${encodeURIComponent(search)}&limit=100` : `?folder=${curFolder.id}&limit=100`;
+  const r = await api("GET", "/messages" + q);
+  messages = r.messages; renderMsgList();
+}
+function renderMail() {
+  $("#view").innerHTML = `<div class="mailgrid"><div class="list"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0"><h2>${esc(curFolder ? folderLabel(curFolder) : t("inbox"))}</h2></div><div id="msgs"></div></div><div class="reader" id="reader"><div class="empty">${esc(t("selectMessage"))}</div></div></div>`;
+  guard(loadMessages)();
+  if (curMsg) openMessage(curMsg);
+}
+function renderMsgList() {
+  const box = $("#msgs"); if (!box) return;
+  if (!messages.length) { box.innerHTML = `<div class="empty" style="height:auto;padding:40px">${esc(t("noMessages"))}</div>`; return; }
+  box.innerHTML = messages.map((m) => {
+    const who = curFolder && (curFolder.role === "sentitems" || curFolder.role === "drafts") ? (m.to && m.to.length ? personStr(m.to[0]) : "") : personStr(m.from);
+    return `<div class="msg ${m.flags.read ? "" : "unread"} ${curMsg === m.id ? "active" : ""}" data-id="${m.id}">
+      <div class="top"><span class="mf">${m.flags.read ? "" : '<span class="dot"></span> '}${esc(who)}</span><span class="dt">${esc(fmtShort(m.date))}</span></div>
+      <div class="su">${m.flags.flagged ? "⚑ " : ""}${esc(m.subject || "(" + t("subject") + ")")}</div>
+      <div class="pv">${m.hasAttachments ? "📎 " : ""}${esc(m.preview)}</div></div>`;
+  }).join("");
+  box.querySelectorAll(".msg").forEach((e) => e.onclick = () => openMessage(+e.dataset.id));
+}
+async function openMessage(id) {
+  curMsg = id; renderMsgList();
+  const m = await api("GET", "/message/" + id);
+  if (!m.flags.read) { guard(async () => { await api("POST", "/flag", { id, read: true }); const it = messages.find((x) => x.id === id); if (it) { it.flags.read = true; renderMsgList(); } refreshFolders(); })(); }
+  const reader = $("#reader"); if (!reader) return;
+  const addr = (list) => list && list.length ? list.map(personStr).join(", ") : "";
+  let bodyHtml;
+  if (m.html) {
+    bodyHtml = `<iframe sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe>`;
+  } else {
+    bodyHtml = `<pre class="text">${esc(m.text || "")}</pre>`;
+  }
+  const atts = (m.attachments || []).map((a) => `<a class="att" href="/mail/api/message/${id}/attachment/${a.index}" download>${icon("paperclip")}${esc(a.name)} <span style="color:var(--muted)">${fmtBytes(a.size)}</span></a>`).join("");
+  reader.innerHTML = `
+    <div class="rh"><h1>${esc(m.subject || "")}</h1>
+      <div class="meta"><b>${esc(personStr(m.from))}</b> &lt;${esc(m.from ? m.from.email : "")}&gt; · ${esc(fmtDate(m.date))}<br>
+      ${esc(t("to"))}: ${esc(addr(m.to))}${m.cc && m.cc.length ? " · " + esc(t("cc")) + ": " + esc(addr(m.cc)) : ""}</div></div>
+    <div class="acts">
+      <button class="btn" data-a="reply">${icon("reply")}<span>${esc(t("reply"))}</span></button>
+      <button class="btn" data-a="forward">${icon("forward")}<span>${esc(t("forward"))}</span></button>
+      <button class="btn" data-a="flag">${icon("flag")}<span>${esc(t("flag"))}</span></button>
+      <button class="btn danger" data-a="delete">${icon("trash")}<span>${esc(t("delete"))}</span></button>
+    </div>
+    <div class="bodywrap">${bodyHtml}</div>
+    ${atts ? `<div class="atts">${atts}</div>` : ""}`;
+  if (m.html) { const f = reader.querySelector("iframe"); f.srcdoc = `<!doctype html><meta charset="utf-8"><base target="_blank"><style>body{font:14px/1.5 "Segoe UI",system-ui,sans-serif;color:#1b1f27;margin:16px}img{max-width:100%}</style>` + m.html; }
+  reader.querySelector('[data-a="reply"]').onclick = () => openCompose({ mode: "reply", msg: m });
+  reader.querySelector('[data-a="forward"]').onclick = () => openCompose({ mode: "forward", msg: m });
+  reader.querySelector('[data-a="flag"]').onclick = guard(async () => { await api("POST", "/flag", { id, flagged: !(messages.find((x) => x.id === id) || {}).flags?.flagged }); loadMessages(); });
+  reader.querySelector('[data-a="delete"]').onclick = guard(async () => { await api("POST", "/delete", { id }); curMsg = null; reader.innerHTML = `<div class="empty">${esc(t("selectMessage"))}</div>`; loadMessages(); refreshFolders(); toast(t("deleted")); });
+}
+async function refreshFolders() { try { const r = await api("GET", "/me"); folders = r.folders.filter((f) => f.role !== "root"); if (curFolder) curFolder = folders.find((f) => f.id === curFolder.id) || curFolder; renderRail(); } catch (e) {} }
+
+// ------------------------------------------------------------ COMPOSE
+function closePanel() { $("#overlay").innerHTML = ""; }
+function panel(title, contentHtml, footHtml) {
+  $("#overlay").innerHTML = `<div class="scrim"></div><aside class="panel"><div class="head"><h2>${esc(title)}</h2><button class="iconbtn" id="pc"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div><div class="cont">${contentHtml}</div><div class="foot">${footHtml}</div></aside>`;
+  $("#overlay .scrim").onclick = closePanel; $("#pc").onclick = closePanel;
+}
+let pendingFiles = [];
+function openCompose(opt) {
+  opt = opt || {}; pendingFiles = [];
+  let to = "", cc = "", subject = "", text = "", answering = null;
+  if (opt.mode === "reply" && opt.msg) {
+    to = opt.msg.from ? opt.msg.from.email : ""; answering = opt.msg.id;
+    subject = (/^(re|aw):/i.test(opt.msg.subject) ? "" : t("re") + ": ") + opt.msg.subject;
+    text = `\n\n${t("on")} ${fmtDate(opt.msg.date)} ${personStr(opt.msg.from)} ${t("wrote")}\n> ` + (opt.msg.text || "").split("\n").join("\n> ");
+  } else if (opt.mode === "forward" && opt.msg) {
+    subject = (/^(fwd|wg):/i.test(opt.msg.subject) ? "" : t("fwd") + ": ") + opt.msg.subject;
+    text = `\n\n--- ${personStr(opt.msg.from)}, ${fmtDate(opt.msg.date)} ---\n` + (opt.msg.text || "");
+  }
+  panel(t("compose"),
+    `<div class="field"><label>${esc(t("to"))}</label><input id="cto" value="${esc(to)}"></div>
+     <div class="field"><label>${esc(t("cc"))}</label><input id="ccc" value="${esc(cc)}"></div>
+     <div class="field"><label>${esc(t("subject"))}</label><input id="csub" value="${esc(subject)}"></div>
+     <div class="field"><label>${esc(t("message") || "")}</label><textarea id="cbody" class="body">${esc(text)}</textarea></div>
+     <div id="filelist" style="display:flex;gap:6px;flex-wrap:wrap"></div>`,
+    `<label class="btn" style="cursor:pointer">${icon("paperclip")}<span>${esc(t("addFiles"))}</span><input id="cfiles" type="file" multiple hidden></label>
+     <div style="flex:1"></div>
+     <button class="btn" id="cdraft">${esc(t("saveDraft"))}</button>
+     <button class="btn primary" id="csend">${esc(t("send"))}</button>`);
+  $("#cfiles").onchange = async (e) => { for (const f of e.target.files) { const b64 = await fileB64(f); pendingFiles.push({ name: f.name, contentType: f.type || "application/octet-stream", data: b64 }); } renderFileList(); };
+  $("#csend").onclick = guard(async () => {
+    const body = { to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").value, attachments: pendingFiles };
+    if (answering) body.answering = answering;
+    await api("POST", "/send", body); closePanel(); toast(t("sent")); if (view === "mail") loadMessages();
+  });
+  $("#cdraft").onclick = guard(async () => { await api("POST", "/draft", { to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").value }); closePanel(); toast(t("saved")); refreshFolders(); });
+}
+function renderFileList() { $("#filelist").innerHTML = pendingFiles.map((f, i) => `<span class="att">${esc(f.name)} <a href="#" data-rm="${i}" style="color:var(--danger)">✕</a></span>`).join(""); $("#filelist").querySelectorAll("[data-rm]").forEach((e) => e.onclick = (ev) => { ev.preventDefault(); pendingFiles.splice(+e.dataset.rm, 1); renderFileList(); }); }
+function fileB64(file) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result.split(",")[1]); r.readAsDataURL(file); }); }
+
+// ------------------------------------------------------------ CALENDAR
+let calRef = new Date();
+async function renderCalendar() {
+  calRef.setDate(1);
+  const y = calRef.getFullYear(), mo = calRef.getMonth();
+  const first = new Date(y, mo, 1), startDow = (first.getDay() + 6) % 7;
+  const gridStart = new Date(y, mo, 1 - startDow);
+  const from = Math.floor(gridStart.getTime() / 1000);
+  const to = from + 42 * 86400;
+  const title = calRef.toLocaleString(lang === "de" ? "de-DE" : "en-GB", { month: "long", year: "numeric" });
+  $("#view").innerHTML = `<div class="cal"><div class="bar"><h2>${esc(title)}</h2>
+    <button class="btn" id="calToday">${esc(t("today"))}</button>
+    <button class="iconbtn" id="calPrev"><svg viewBox="0 0 24 24" style="transform:rotate(180deg)">${ICON.chev}</svg></button>
+    <button class="iconbtn" id="calNext"><svg viewBox="0 0 24 24">${ICON.chev}</svg></button>
+    <button class="btn primary" id="calNew">${icon("calendar")}<span>${esc(t("newEvent"))}</span></button></div>
+    <div class="grid" id="calGrid"></div></div>`;
+  $("#calPrev").onclick = () => { calRef.setMonth(mo - 1); renderCalendar(); };
+  $("#calNext").onclick = () => { calRef.setMonth(mo + 1); renderCalendar(); };
+  $("#calToday").onclick = () => { calRef = new Date(); renderCalendar(); };
+  $("#calNew").onclick = () => openEvent();
+  const dows = lang === "de" ? ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  let events = [];
+  try { events = (await api("GET", `/calendar?from=${from}&to=${to}`)).events; } catch (e) {}
+  const byDay = {};
+  events.forEach((ev) => { const k = new Date(ev.start * 1000).toDateString(); (byDay[k] = byDay[k] || []).push(ev); });
+  let cells = dows.map((d) => `<div class="dow">${d}</div>`).join("");
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
+    const other = d.getMonth() !== mo, today = d.toDateString() === new Date().toDateString();
+    const evs = (byDay[d.toDateString()] || []).sort((a, b) => a.start - b.start);
+    cells += `<div class="cell ${other ? "other" : ""} ${today ? "today" : ""}" data-day="${Math.floor(d.getTime() / 1000)}">
+      <span class="n">${d.getDate()}</span>
+      ${evs.map((e) => `<div class="ev" data-ev='${esc(JSON.stringify({ id: e.id, occ: e.occurrenceStart }))}' title="${esc(e.subject)}">${e.allDay ? "" : new Date(e.start * 1000).toLocaleTimeString(lang === "de" ? "de-DE" : "en-GB", { hour: "2-digit", minute: "2-digit" }) + " "}${esc(e.subject)}</div>`).join("")}</div>`;
+  }
+  $("#calGrid").innerHTML = cells;
+  $("#calGrid").querySelectorAll(".cell").forEach((c) => c.onclick = (e) => { if (e.target.closest(".ev")) return; openEvent(null, +c.dataset.day); });
+  $("#calGrid").querySelectorAll(".ev").forEach((el) => el.onclick = () => { const d = JSON.parse(el.dataset.ev); const ev = events.find((x) => x.id === d.id && x.occurrenceStart === d.occ); openEvent(ev); });
+}
+function toLocalInput(ts) { const d = new Date(ts * 1000); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
+function fromLocalInput(v) { return Math.floor(new Date(v).getTime() / 1000); }
+async function openEvent(ev, dayTs) {
+  let full = ev;
+  const start = ev ? ev.start : (dayTs ? dayTs + 9 * 3600 : Math.floor(Date.now() / 1000));
+  const end = ev ? ev.end : start + 3600;
+  const isInvite = ev && ev.hasAttendees && ev.response && ev.response !== "organizer";
+  panel(ev ? t("editEvent") : t("newEvent"),
+    `<div class="field"><label>${esc(t("title"))}</label><input id="evTitle" value="${esc(ev ? ev.subject : "")}"></div>
+     <div class="field"><label>${esc(t("location"))}</label><input id="evLoc" value="${esc(ev ? ev.location : "")}"></div>
+     <div class="row2"><div class="field"><label>${esc(t("start"))}</label><input id="evStart" type="datetime-local" value="${toLocalInput(start)}"></div>
+     <div class="field"><label>${esc(t("end"))}</label><input id="evEnd" type="datetime-local" value="${toLocalInput(end)}"></div></div>
+     <div class="field"><label><input type="checkbox" id="evAllDay" ${ev && ev.allDay ? "checked" : ""}> ${esc(t("allDay"))}</label></div>`,
+    `${ev ? `<button class="btn danger" id="evDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div>
+     ${isInvite ? `<button class="btn" id="evTent">${esc(t("tentative"))}</button><button class="btn danger" id="evDecline">${esc(t("decline"))}</button><button class="btn primary" id="evAccept">${esc(t("accept"))}</button>`
+       : `<button class="btn primary" id="evSave">${esc(t("save"))}</button>`}`);
+  if ($("#evSave")) $("#evSave").onclick = guard(async () => {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+    const body = { event: { uid: ev ? ev.uid : "", subject: $("#evTitle").value, location: $("#evLoc").value, start: fromLocalInput($("#evStart").value), end: fromLocalInput($("#evEnd").value), all_day: $("#evAllDay").checked, tz } };
+    if (ev) body.id = ev.id;
+    await api("POST", "/event", body); closePanel(); toast(t("saved")); renderCalendar();
+  });
+  if ($("#evDel")) $("#evDel").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("POST", "/event/delete", { id: ev.id }); closePanel(); toast(t("deleted")); renderCalendar(); });
+  const respond = (r) => guard(async () => { await api("POST", "/event/respond", { id: ev.id, response: r, occurrence: ev.occurrenceStart }); closePanel(); toast(t("saved")); renderCalendar(); });
+  if ($("#evAccept")) $("#evAccept").onclick = respond("accepted");
+  if ($("#evDecline")) $("#evDecline").onclick = respond("declined");
+  if ($("#evTent")) $("#evTent").onclick = respond("tentative");
+}
+
+// ------------------------------------------------------------ CONTACTS
+let contacts = [], curContact = null;
+async function renderContacts() {
+  $("#view").innerHTML = `<div class="cgrid" style="height:100%;display:grid;grid-template-columns:340px 1fr;min-height:0"><div class="clist"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 14px;display:flex;gap:8px;position:sticky;top:0;background:var(--bg)"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("contacts"))}</h2><button class="btn primary" id="ctNew">${icon("contacts")}</button></div><div id="clist"></div></div><div class="cdetail" id="cdetail"><div class="empty">${esc(t("selectContact"))}</div></div></div>`;
+  $("#ctNew").onclick = () => openContact();
+  try { contacts = (await api("GET", "/contacts")).contacts; } catch (e) { contacts = []; }
+  const box = $("#clist");
+  box.innerHTML = contacts.length ? contacts.map((c) => `<div class="citem" data-id="${c.id}"><div class="cn">${esc(c.displayName)}</div><div class="ce">${esc((c.emails && c.emails[0]) || c.company || "")}</div></div>`).join("") : `<div class="empty" style="height:auto;padding:40px">${esc(t("noContacts"))}</div>`;
+  box.querySelectorAll(".citem").forEach((e) => e.onclick = () => showContact(+e.dataset.id));
+}
+function showContact(id) {
+  const c = contacts.find((x) => x.id === id); if (!c) return;
+  const ct = c.contact; const initials = (c.displayName || "?").split(/\s+/).map((s) => s[0]).slice(0, 2).join("").toUpperCase();
+  const row = (k, v) => v ? `<div class="k">${esc(k)}</div><div>${esc(v)}</div>` : "";
+  $("#cdetail").innerHTML = `<div style="display:flex;gap:16px;align-items:center"><div class="avatar">${esc(initials)}</div><div><h1 style="margin:0;font-size:22px">${esc(c.displayName)}</h1><div style="color:var(--muted)">${esc([ct.job_title, ct.company].filter(Boolean).join(" · "))}</div></div><div style="flex:1"></div><button class="btn" id="ctEdit">${esc(t("editContact"))}</button></div>
+    <div class="kv">${row(t("email"), (c.emails || []).join(", "))}${row(t("phone"), ct.mobile_phone)}${row(t("phone") + " 2", ct.business_phone)}${row(t("company"), ct.company)}${row(t("jobTitle"), ct.job_title)}${row(t("notes"), ct.notes)}</div>`;
+  $("#ctEdit").onclick = () => openContact(c);
+}
+function openContact(c) {
+  const ct = c ? c.contact : {};
+  panel(c ? t("editContact") : t("newContact"),
+    `<div class="row2"><div class="field"><label>${esc(t("firstName"))}</label><input id="ctFirst" value="${esc(ct.first_name || "")}"></div>
+     <div class="field"><label>${esc(t("lastName"))}</label><input id="ctLast" value="${esc(ct.last_name || "")}"></div></div>
+     <div class="field"><label>${esc(t("email"))}</label><input id="ctEmail" value="${esc((ct.emails && ct.emails[0]) || "")}"></div>
+     <div class="row2"><div class="field"><label>${esc(t("company"))}</label><input id="ctCompany" value="${esc(ct.company || "")}"></div>
+     <div class="field"><label>${esc(t("jobTitle"))}</label><input id="ctJob" value="${esc(ct.job_title || "")}"></div></div>
+     <div class="field"><label>${esc(t("phone"))}</label><input id="ctPhone" value="${esc(ct.mobile_phone || "")}"></div>
+     <div class="field"><label>${esc(t("notes"))}</label><textarea id="ctNotes" style="min-height:90px">${esc(ct.notes || "")}</textarea></div>`,
+    `${c ? `<button class="btn danger" id="ctDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div><button class="btn primary" id="ctSave">${esc(t("save"))}</button>`);
+  $("#ctSave").onclick = guard(async () => {
+    const email = $("#ctEmail").value.trim();
+    const contact = Object.assign({}, ct, { first_name: $("#ctFirst").value, last_name: $("#ctLast").value, emails: email ? [email] : [], company: $("#ctCompany").value, job_title: $("#ctJob").value, mobile_phone: $("#ctPhone").value, notes: $("#ctNotes").value, display_name: `${$("#ctFirst").value} ${$("#ctLast").value}`.trim() });
+    const body = { contact }; if (c) body.id = c.id;
+    await api("POST", "/contact", body); closePanel(); toast(t("saved")); renderContacts();
+  });
+  if ($("#ctDel")) $("#ctDel").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("POST", "/contact/delete", { id: c.id }); closePanel(); toast(t("deleted")); renderContacts(); });
+}
+
+// ------------------------------------------------------------ boot
+applyTexts();
+guard(start)();
+</script>
+</body>
+</html>

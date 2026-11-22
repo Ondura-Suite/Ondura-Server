@@ -23,6 +23,8 @@ use crate::store::User;
 mod calendar_api;
 mod contacts_api;
 mod mail_api;
+#[cfg(test)]
+mod tests;
 
 const INDEX: &str = include_str!("index.html");
 const LOGO: &str = include_str!("../admin/logo.svg");
