@@ -541,7 +541,7 @@ function openNewMailbox() {
   $("#nmName").oninput = () => {
     const em = $("#nmEmail");
     if (!em.dataset.touched && me && me.email.includes("@")) {
-      const local = $("#nmName").value.trim().toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").replace(/\s+/g, ".").replace(/[^a-z0-9.\-_]/g, "");
+      const local = $("#nmName").value.trim().toLowerCase().replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/\s+/g, ".").replace(/[^a-z0-9.\-_]/g, "");
       em.value = local ? local + "@" + me.email.split("@")[1] : "";
     }
   };
