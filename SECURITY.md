@@ -24,7 +24,9 @@ Ondura Server is a single multi-tenant daemon. The trust boundaries are:
   `is_admin` may manage the whole deployment.
 
 All request bodies — WBXML, SOAP XML, MIME, iCalendar — are parsed from
-untrusted input and are treated as hostile.
+untrusted input and are treated as hostile. These parsers are exercised by
+randomised smoke tests on every CI run and by coverage-guided fuzzers; see
+[docs/fuzzing.md](docs/fuzzing.md).
 
 ## Hardening in place
 
