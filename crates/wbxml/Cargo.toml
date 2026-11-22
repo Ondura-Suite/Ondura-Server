@@ -1,0 +1,10 @@
+[package]
+name = "ondura-wbxml"
+description = "WBXML codec with the Exchange ActiveSync code pages"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
