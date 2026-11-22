@@ -32,7 +32,7 @@ fn error_response(code: &str, message: &str) -> Response {
 pub async fn xml(app: &Shared, headers: &HeaderMap, body: &Bytes, ip: IpAddr) -> Response {
     let user = match basic_auth(app, headers, ip).await {
         Ok(u) => u,
-        Err(r) => return r,
+        Err(r) => return *r,
     };
     let text = String::from_utf8_lossy(body);
     let req = Node::parse(&text).unwrap_or_default();
