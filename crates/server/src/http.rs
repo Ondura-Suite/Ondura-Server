@@ -50,20 +50,20 @@ pub fn unauthorized() -> Response {
 }
 
 /// HTTP Basic authentication of a request.
-pub async fn basic_auth(app: &Shared, headers: &HeaderMap, ip: IpAddr) -> std::result::Result<User, Response> {
+pub async fn basic_auth(app: &Shared, headers: &HeaderMap, ip: IpAddr) -> std::result::Result<User, Box<Response>> {
     let Some((login, password)) = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(auth::parse_basic) else {
-        return Err(unauthorized());
+        return Err(Box::new(unauthorized()));
     };
     let store = app.store.clone();
     let res = tokio::task::spawn_blocking(move || auth::login(&store, &login, &password, Some(ip))).await;
     match res {
         Ok(Ok(u)) => Ok(u),
-        Ok(Err(LoginError::Locked)) => Err((StatusCode::TOO_MANY_REQUESTS, "Too many failed logins").into_response()),
+        Ok(Err(LoginError::Locked)) => Err(Box::new((StatusCode::TOO_MANY_REQUESTS, "Too many failed logins").into_response())),
         Ok(Err(LoginError::Internal(e))) => {
             warn!("login failed internally: {e:#}");
-            Err(StatusCode::INTERNAL_SERVER_ERROR.into_response())
+            Err(Box::new(StatusCode::INTERNAL_SERVER_ERROR.into_response()))
         }
-        _ => Err(unauthorized()),
+        _ => Err(Box::new(unauthorized())),
     }
 }
 
@@ -88,12 +88,12 @@ async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
             }
             match basic_auth(&app, &headers, ip).await {
                 Ok(user) => eas::handle(app.clone(), user, method, &query, &headers, body).await,
-                Err(r) => r,
+                Err(r) => *r,
             }
         }
         "/ews/exchange.asmx" | "/ews/services.wsdl" => match basic_auth(&app, &headers, ip).await {
             Ok(user) => ews::handle(app.clone(), user, &headers, body).await,
-            Err(r) => r,
+            Err(r) => *r,
         },
         p if p.starts_with("/autodiscover/autodiscover.json") => autodiscover::json(&app, &path, &query),
         "/autodiscover/autodiscover.xml" => autodiscover::xml(&app, &headers, &body, ip).await,
