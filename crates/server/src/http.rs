@@ -20,7 +20,7 @@ use tracing::{debug, info, warn};
 use crate::app::Shared;
 use crate::auth::{self, LoginError};
 use crate::store::User;
-use crate::{admin, autodiscover, eas, ews};
+use crate::{admin, autodiscover, eas, ews, webmail};
 
 /// Address of the client (after trusted proxies).
 #[derive(Debug, Clone, Copy)]
@@ -97,12 +97,21 @@ async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
         },
         p if p.starts_with("/autodiscover/autodiscover.json") => autodiscover::json(&app, &path, &query),
         "/autodiscover/autodiscover.xml" => autodiscover::xml(&app, &headers, &body, ip).await,
-        "" => Redirect::temporary("/admin/").into_response(),
+        "" => {
+            let to = if app.cfg.http.webmail { "/mail/" } else { "/admin/" };
+            Redirect::temporary(to).into_response()
+        }
         p if p.starts_with("/admin") => {
             if !app.cfg.http.admin_center {
                 return StatusCode::NOT_FOUND.into_response();
             }
             admin::handle(app.clone(), method, &path, &query, &headers, body, ip).await
+        }
+        p if p.starts_with("/mail") => {
+            if !app.cfg.http.webmail {
+                return StatusCode::NOT_FOUND.into_response();
+            }
+            webmail::handle(app.clone(), method, &path, &query, &headers, body, ip).await
         }
         _ => StatusCode::NOT_FOUND.into_response(),
     }
