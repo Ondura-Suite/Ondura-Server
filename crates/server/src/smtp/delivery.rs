@@ -47,7 +47,7 @@ async fn deliver_inner(app: &Shared, user_id: i64, raw: &[u8], opts: Options) ->
                     });
                 }
             } else {
-                app.store.enqueue(&user.email, &[target.clone()], &fwd)?;
+                app.store.enqueue(&user.email, std::slice::from_ref(&target), &fwd)?;
                 app.queue_wake.notify_one();
             }
             if !settings.keep_forwarded_copy {

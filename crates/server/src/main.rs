@@ -145,6 +145,24 @@ fn open_store(cfg: &Config) -> Result<Store> {
     Store::open(&cfg.database())
 }
 
+/// Administrative commands usually run as root while the service runs as
+/// its own user: hand files created by root over to the owner of the data
+/// directory.
+fn fix_ownership(cfg: &Config) {
+    use std::os::unix::fs::MetadataExt;
+    let Ok(dir) = std::fs::metadata(&cfg.data_dir) else { return };
+    if dir.uid() == 0 {
+        return;
+    }
+    let db = cfg.database();
+    for suffix in ["", "-wal", "-shm"] {
+        let path = std::path::PathBuf::from(format!("{}{suffix}", db.display()));
+        if std::fs::metadata(&path).is_ok_and(|m| m.uid() == 0) {
+            let _ = std::os::unix::fs::chown(&path, Some(dir.uid()), Some(dir.gid()));
+        }
+    }
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
     let filter = tracing_subscriber::EnvFilter::try_from_env("ONDURA_LOG").unwrap_or_else(|_| "info".into());
@@ -165,8 +183,19 @@ fn main() -> Result<()> {
     let cfg = Config::load(&cli.config)?;
     model::set_default_tz(cfg.time_zone.parse().map_err(|_| anyhow!("invalid time zone"))?);
 
-    match cli.command.unwrap_or(Command::Serve) {
-        Command::Serve => tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(cfg)),
+    let command = cli.command.unwrap_or(Command::Serve);
+    if matches!(command, Command::Serve) {
+        return tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(cfg));
+    }
+    let result = run_command(&cfg, command);
+    fix_ownership(&cfg);
+    result
+}
+
+fn run_command(cfg: &Config, command: Command) -> Result<()> {
+    let cfg = cfg.clone();
+    match command {
+        Command::Serve => unreachable!(),
         Command::Init { .. } => unreachable!(),
         Command::Domain { cmd } => {
             let s = open_store(&cfg)?;

@@ -114,9 +114,6 @@ impl Node {
         }
     }
 
-    pub fn path(&self, path: &str) -> Option<&Node> {
-        path.split('/').try_fold(self, |n, p| n.child(p))
-    }
 }
 
 pub fn escape(s: &str) -> String {
@@ -136,10 +133,6 @@ pub fn escape(s: &str) -> String {
     out
 }
 
-/// `<t:Name>text</t:Name>` with escaping.
-pub fn el(name: &str, text: &str) -> String {
-    format!("<{name}>{}</{name}>", escape(text))
-}
 
 #[cfg(test)]
 mod tests {

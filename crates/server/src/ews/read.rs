@@ -62,11 +62,10 @@ fn is_true(v: Option<&str>) -> Option<bool> {
 /// Zone named by StartTimeZone/MeetingTimeZone/TimeZone of an item.
 pub fn item_zone(n: &Node) -> Option<Tz> {
     for name in ["StartTimeZone", "MeetingTimeZone"] {
-        if let Some(z) = n.child(name) {
-            if let Some(tz) = z.attr("Id").and_then(tzinfo::from_windows_name).or_else(|| z.attr("TimeZoneName").and_then(tzinfo::from_windows_name)) {
+        if let Some(z) = n.child(name)
+            && let Some(tz) = z.attr("Id").and_then(tzinfo::from_windows_name).or_else(|| z.attr("TimeZoneName").and_then(tzinfo::from_windows_name)) {
                 return Some(tz);
             }
-        }
     }
     n.text_of("TimeZone").and_then(tzinfo::from_windows_name)
 }

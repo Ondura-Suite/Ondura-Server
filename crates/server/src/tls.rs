@@ -52,8 +52,10 @@ pub fn provider() -> Arc<rustls::crypto::CryptoProvider> {
     Arc::new(rustls::crypto::ring::default_provider())
 }
 
+pub type Reloader = Arc<dyn Fn() + Send + Sync>;
+
 /// Server TLS configuration with automatic reloading.
-pub fn server_config(cert: &Path, key: &Path, alpn: &[&[u8]]) -> Result<(Arc<ServerConfig>, Arc<dyn Fn() + Send + Sync>)> {
+pub fn server_config(cert: &Path, key: &Path, alpn: &[&[u8]]) -> Result<(Arc<ServerConfig>, Reloader)> {
     let ck = load(cert, key)?;
     let resolver = Arc::new(Reloading { cert: cert.to_path_buf(), key: key.to_path_buf(), current: RwLock::new((Arc::new(ck), mtime(cert))) });
     let mut cfg = ServerConfig::builder_with_provider(provider())
@@ -63,7 +65,7 @@ pub fn server_config(cert: &Path, key: &Path, alpn: &[&[u8]]) -> Result<(Arc<Ser
         .with_cert_resolver(resolver.clone());
     cfg.alpn_protocols = alpn.iter().map(|p| p.to_vec()).collect();
     let r = resolver.clone();
-    let reload: Arc<dyn Fn() + Send + Sync> = Arc::new(move || {
+    let reload: Reloader = Arc::new(move || {
         let changed = mtime(&r.cert);
         if changed == r.current.read().unwrap_or_else(|e| e.into_inner()).1 {
             return;
@@ -80,7 +82,7 @@ pub fn server_config(cert: &Path, key: &Path, alpn: &[&[u8]]) -> Result<(Arc<Ser
 }
 
 /// Check the certificate files every few minutes.
-pub fn spawn_reloader(reloaders: Vec<Arc<dyn Fn() + Send + Sync>>) {
+pub fn spawn_reloader(reloaders: Vec<Reloader>) {
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(Duration::from_secs(300));
         loop {

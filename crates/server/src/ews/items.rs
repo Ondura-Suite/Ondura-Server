@@ -210,16 +210,14 @@ pub fn sync_folder_items(ctx: &Ctx, op: &Node) -> EwsResult<String> {
             changes.retain(|c| !matches!(c, Change::Delete { .. }));
         }
         let mut out = String::new();
-        let mut count = 0;
         let mut last = base;
         let mut more = false;
-        for c in changes {
+        for (count, c) in changes.into_iter().enumerate() {
             if count >= max && c.modseq() != last {
                 more = true;
                 break;
             }
             last = c.modseq();
-            count += 1;
             match c {
                 Change::Add(i) => {
                     let _ = write!(out, "<t:Create>{}</t:Create>", item_xml(ctx, &i, &shape, true));
