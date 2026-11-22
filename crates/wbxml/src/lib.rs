@@ -27,7 +27,13 @@ pub enum Error {
     UnknownName(String),
     Unsupported(&'static str),
     InvalidUtf8,
+    TooDeep,
 }
+
+/// Maximum element nesting the decoder accepts. ActiveSync payloads are only a
+/// handful of levels deep; this cap keeps a hostile, deeply nested document from
+/// overflowing the stack during recursive decoding.
+const MAX_DEPTH: usize = 100;
 
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -37,6 +43,7 @@ impl fmt::Display for Error {
             Error::UnknownName(n) => write!(f, "no WBXML token for element {n}"),
             Error::Unsupported(what) => write!(f, "unsupported WBXML feature: {what}"),
             Error::InvalidUtf8 => write!(f, "invalid UTF-8 in WBXML string"),
+            Error::TooDeep => write!(f, "WBXML document nested beyond the depth limit"),
         }
     }
 }
@@ -295,7 +302,7 @@ impl Element {
                 break;
             }
         }
-        r.element(&mut page, &strtbl)
+        r.element(&mut page, &strtbl, 0)
     }
 
     /// Indented XML rendering, for logs and tests.
@@ -406,7 +413,10 @@ impl<'a> Reader<'a> {
         Ok(s)
     }
 
-    fn element(&mut self, page: &mut u8, strtbl: &[u8]) -> Result<Element> {
+    fn element(&mut self, page: &mut u8, strtbl: &[u8], depth: usize) -> Result<Element> {
+        if depth >= MAX_DEPTH {
+            return Err(Error::TooDeep);
+        }
         let b = self.byte()?;
         if b & 0x80 != 0 {
             return Err(Error::Unsupported("attributes"));
@@ -454,7 +464,7 @@ impl<'a> Reader<'a> {
                 LITERAL => return Err(Error::Unsupported("literal tags")),
                 0x40..=0x44 | 0x80..=0x82 | 0xc0..=0xc2 => return Err(Error::Unsupported("extension tokens")),
                 _ => {
-                    let child = self.element(page, strtbl)?;
+                    let child = self.element(page, strtbl, depth + 1)?;
                     el.children.push(Node::Element(child));
                 }
             }
@@ -500,6 +510,18 @@ mod tests {
         assert_eq!(col.find("Data").unwrap().content(), "<p>Hi</p>");
         assert!(col.child("AirSyncBase:Body").is_some());
         assert!(col.child("Email:Body").is_none());
+    }
+
+    #[test]
+    fn rejects_deeply_nested() {
+        // A hand-built document nested far past MAX_DEPTH must be refused rather
+        // than overflowing the stack. Each element is "FolderSync" with content
+        // (0x6a) followed by its single child; depth is closed with END bytes.
+        let mut bytes = vec![0x03u8, 0x01, 0x6a, 0x00, 0x00, 0x07];
+        let depth = MAX_DEPTH + 50;
+        bytes.resize(bytes.len() + depth, 0x56); // FolderSync, with content
+        bytes.resize(bytes.len() + depth, 0x01); // END
+        assert!(matches!(Element::decode(&bytes), Err(Error::TooDeep)));
     }
 
     #[test]

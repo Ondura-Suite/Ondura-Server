@@ -122,6 +122,11 @@ where
     }
 }
 
+/// Maximum simultaneous HTTP(S) connections across all clients.
+const MAX_CONNECTIONS: usize = 1024;
+/// Maximum simultaneous HTTP(S) connections from a single remote IP.
+const MAX_CONNECTIONS_PER_IP: usize = 64;
+
 pub async fn serve_https(app: Shared, addr: SocketAddr) -> Result<()> {
     let Some(tls) = app.https_tls.clone() else {
         warn!(%addr, "no TLS certificate configured, HTTPS listener disabled");
@@ -131,6 +136,7 @@ pub async fn serve_https(app: Shared, addr: SocketAddr) -> Result<()> {
     info!(%addr, "HTTPS listening");
     let acceptor = TlsAcceptor::from(tls);
     let router = router(app);
+    let limiter = crate::netlimit::ConnLimiter::new(MAX_CONNECTIONS, MAX_CONNECTIONS_PER_IP);
     loop {
         let (tcp, peer) = match listener.accept().await {
             Ok(x) => x,
@@ -138,6 +144,10 @@ pub async fn serve_https(app: Shared, addr: SocketAddr) -> Result<()> {
                 warn!("HTTPS accept: {e}");
                 continue;
             }
+        };
+        let Some(guard) = limiter.admit(peer.ip()) else {
+            debug!(%peer, "HTTPS connection refused: limit reached");
+            continue;
         };
         let acceptor = acceptor.clone();
         let router = router.clone();
@@ -147,6 +157,7 @@ pub async fn serve_https(app: Shared, addr: SocketAddr) -> Result<()> {
                 Ok(Err(e)) => debug!(%peer, "TLS handshake failed: {e}"),
                 Err(_) => debug!(%peer, "TLS handshake timeout"),
             }
+            drop(guard);
         });
     }
 }
@@ -169,6 +180,10 @@ pub async fn serve_http(app: Shared, addr: SocketAddr) -> Result<()> {
         })
     };
     let _ = Arc::strong_count(&app);
+    // Behind a reverse proxy every connection shares the proxy's IP, so a
+    // per-IP cap would throttle all users together; fall back to the global cap.
+    let per_ip = if app.cfg.http.behind_proxy { MAX_CONNECTIONS } else { MAX_CONNECTIONS_PER_IP };
+    let limiter = crate::netlimit::ConnLimiter::new(MAX_CONNECTIONS, per_ip);
     loop {
         let (tcp, peer) = match listener.accept().await {
             Ok(x) => x,
@@ -177,7 +192,14 @@ pub async fn serve_http(app: Shared, addr: SocketAddr) -> Result<()> {
                 continue;
             }
         };
+        let Some(guard) = limiter.admit(peer.ip()) else {
+            debug!(%peer, "HTTP connection refused: limit reached");
+            continue;
+        };
         let router = router.clone();
-        tokio::spawn(serve_conn(router, tcp, peer));
+        tokio::spawn(async move {
+            serve_conn(router, tcp, peer).await;
+            drop(guard);
+        });
     }
 }
