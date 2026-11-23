@@ -696,6 +696,35 @@ impl Store {
         Ok(())
     }
 
+    /// Make `address` the mailbox's primary address. It must currently be one of
+    /// the mailbox's aliases; the old primary address becomes an alias, so mail
+    /// to it still arrives and the user can still sign in with it.
+    pub fn set_primary_address(&self, user_id: i64, address: &str) -> Result<()> {
+        let address = address.trim().to_ascii_lowercase();
+        if address.starts_with('@') || !address.contains('@') {
+            bail!("a catch-all cannot be the primary address");
+        }
+        let current: String = self.db().query_row("SELECT email FROM users WHERE id = ?1", [user_id], |r| r.get(0))?;
+        if current.eq_ignore_ascii_case(&address) {
+            return Ok(());
+        }
+        let owns_alias = self
+            .db()
+            .query_row("SELECT 1 FROM aliases WHERE address = ?1 AND user_id = ?2", params![address, user_id], |_| Ok(()))
+            .optional()?
+            .is_some();
+        if !owns_alias {
+            bail!("{address} is not an alias of this mailbox");
+        }
+        let mut db = self.db();
+        let tx = db.transaction()?;
+        tx.execute("DELETE FROM aliases WHERE address = ?1", [&address])?;
+        tx.execute("UPDATE users SET email = ?1 WHERE id = ?2", params![address, user_id])?;
+        tx.execute("INSERT INTO aliases (address, user_id) VALUES (?1, ?2) ON CONFLICT(address) DO UPDATE SET user_id = excluded.user_id", params![current, user_id])?;
+        tx.commit()?;
+        Ok(())
+    }
+
     pub fn aliases(&self) -> Result<Vec<(String, i64)>> {
         let db = self.db();
         let mut st = db.prepare("SELECT address, user_id FROM aliases ORDER BY address")?;
@@ -1602,6 +1631,23 @@ mod tests {
         assert!(s.create_user("x@other.org", "", "pw", "user").is_err());
         assert_eq!(s.user_for_login("niklas").unwrap().unwrap().id, u.id);
         assert_eq!(s.user_for_login("CORP\\niklas@example.com").unwrap().unwrap().id, u.id);
+    }
+
+    #[test]
+    fn switch_primary_address() {
+        let (s, u) = test_store();
+        s.add_alias("sales@example.com", u.id).unwrap();
+        s.set_primary_address(u.id, "sales@example.com").unwrap();
+        // The new address is primary, the old one is now an alias.
+        assert_eq!(s.user(u.id).unwrap().unwrap().email, "sales@example.com");
+        assert!(s.aliases_of(u.id).unwrap().iter().any(|a| a == "niklas@example.com"));
+        // Both addresses still resolve to the same mailbox, so neither sign-in breaks.
+        assert_eq!(s.resolve_address("niklas@example.com").unwrap(), Some((u.id, true)));
+        assert_eq!(s.resolve_address("sales@example.com").unwrap(), Some((u.id, true)));
+        // A catch-all or a non-alias cannot become primary.
+        s.add_alias("@example.com", u.id).unwrap();
+        assert!(s.set_primary_address(u.id, "@example.com").is_err());
+        assert!(s.set_primary_address(u.id, "stranger@example.com").is_err());
     }
 
     #[test]
