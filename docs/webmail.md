@@ -40,6 +40,12 @@ simple notes.
 out-of-office auto-reply (with separate texts for internal and external
 senders), and change your password.
 
+**Multiple addresses** — a mailbox can have several e-mail addresses
+(aliases); mail to any of them arrives in the one inbox. An administrator
+assigns aliases in the Admin Center or with `ondura-server alias add`. When a
+mailbox has more than one address, the composer shows a **From** picker so you
+can choose which address a message is sent from.
+
 ## Turning it off
 
 Webmail is on by default. To disable it, set `webmail = false` in the `[http]`
