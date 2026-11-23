@@ -26,8 +26,39 @@ use crate::{admin, autodiscover, eas, ews, webmail};
 #[derive(Debug, Clone, Copy)]
 pub struct Peer(pub IpAddr);
 
+/// Identifies the product and version. The Ondura Mail app uses this header to
+/// recognise that it is talking to an Ondura Server rather than Exchange.
+pub const SERVER_ID: &str = concat!("Ondura-Server/", env!("CARGO_PKG_VERSION"));
+
 pub fn router(app: Shared) -> Router {
-    Router::new().fallback(dispatch).with_state(app)
+    Router::new().fallback(dispatch).layer(axum::middleware::map_response(stamp_server)).with_state(app)
+}
+
+/// Add the Ondura identification header to every response.
+async fn stamp_server(mut res: Response) -> Response {
+    res.headers_mut().insert("X-Ondura-Server", HeaderValue::from_static(SERVER_ID));
+    res
+}
+
+/// Unauthenticated server-identification document, so a client can confirm this
+/// is an Ondura Server and learn its endpoints before signing in.
+fn ondura_identity(app: &Shared) -> Response {
+    let host = &app.cfg.hostname;
+    let body = serde_json::json!({
+        "product": "Ondura Server",
+        "vendor": "Ondura",
+        "identifier": "ondura-server",
+        "version": env!("CARGO_PKG_VERSION"),
+        "hostname": host,
+        "protocols": ["EWS", "ActiveSync", "Autodiscover", "SMTP"],
+        "endpoints": {
+            "ews": format!("https://{host}/EWS/Exchange.asmx"),
+            "activesync": format!("https://{host}/Microsoft-Server-ActiveSync"),
+            "autodiscover": format!("https://{host}/autodiscover/autodiscover.xml"),
+            "webmail": if app.cfg.http.webmail { Some(format!("https://{host}/mail")) } else { None },
+        },
+    });
+    axum::Json(body).into_response()
 }
 
 fn client_ip(app: &Shared, peer: IpAddr, headers: &HeaderMap) -> IpAddr {
@@ -97,6 +128,7 @@ async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
         },
         p if p.starts_with("/autodiscover/autodiscover.json") => autodiscover::json(&app, &path, &query),
         "/autodiscover/autodiscover.xml" => autodiscover::xml(&app, &headers, &body, ip).await,
+        "/.well-known/ondura-server" | "/ondura-server" => ondura_identity(&app),
         "" => {
             let to = if app.cfg.http.webmail { "/mail/" } else { "/admin/" };
             Redirect::temporary(to).into_response()
@@ -210,5 +242,38 @@ pub async fn serve_http(app: Shared, addr: SocketAddr) -> Result<()> {
             serve_conn(router, tcp, peer).await;
             drop(guard);
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::body::Body;
+    use tower::ServiceExt;
+
+    #[tokio::test]
+    async fn identifies_as_ondura() {
+        let (app, _u) = crate::app::App::test();
+        let res = router(app)
+            .oneshot(Request::builder().uri("/.well-known/ondura-server").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(res.status(), StatusCode::OK);
+        assert_eq!(res.headers().get("X-Ondura-Server").unwrap(), SERVER_ID);
+        let bytes = axum::body::to_bytes(res.into_body(), 64 * 1024).await.unwrap();
+        let v: serde_json::Value = serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(v["identifier"], "ondura-server");
+        assert_eq!(v["product"], "Ondura Server");
+    }
+
+    #[tokio::test]
+    async fn server_header_on_every_response() {
+        let (app, _u) = crate::app::App::test();
+        // Even an unknown path (404) carries the identification header.
+        let res = router(app)
+            .oneshot(Request::builder().uri("/nope").body(Body::empty()).unwrap())
+            .await
+            .unwrap();
+        assert_eq!(res.headers().get("X-Ondura-Server").unwrap(), SERVER_ID);
     }
 }
