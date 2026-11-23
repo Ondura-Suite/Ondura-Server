@@ -224,12 +224,14 @@ fn me(app: &Shared, user: &User) -> ApiResult {
         }));
     }
     let signature = app.store.settings(user.id).map(|s| s.signature).unwrap_or_default();
+    let addresses = app.store.send_as_addresses(user.id).unwrap_or_default();
     Ok(json!({
         "email": user.email,
         "name": user.name,
         "quota": user.quota,
         "used": app.store.used_bytes(user.id).unwrap_or(0),
         "signature": signature,
+        "addresses": addresses,
         "folders": list,
     }))
 }

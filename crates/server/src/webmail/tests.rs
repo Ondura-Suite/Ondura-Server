@@ -90,6 +90,25 @@ fn calendar_save_and_list() {
     assert_eq!(events[0]["location"], "Clinic");
 }
 
+#[tokio::test]
+async fn send_as_rejects_foreign_address() {
+    let (app, user) = App::test();
+    // No alias set up, so only the primary address is allowed.
+    let err = mail_api::send(&app, &user, &body(serde_json::json!({
+        "from": "foreign@example.com", "to": "x@example.com", "subject": "s", "text": "t"
+    }))).await.unwrap_err();
+    assert_eq!(err.0, axum::http::StatusCode::FORBIDDEN);
+}
+
+#[test]
+fn send_as_lists_primary_and_aliases() {
+    let (app, user) = App::test();
+    app.store.add_alias("sales@example.com", user.id).unwrap();
+    let addrs = app.store.send_as_addresses(user.id).unwrap();
+    assert!(addrs.contains(&user.email));
+    assert!(addrs.iter().any(|a| a == "sales@example.com"));
+}
+
 #[test]
 fn tasks_crud_and_complete() {
     let (app, user) = App::test();

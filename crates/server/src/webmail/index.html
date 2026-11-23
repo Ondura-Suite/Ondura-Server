@@ -263,7 +263,7 @@ const T = {
     compose: "Compose", mail: "Mail", calendar: "Calendar", contacts: "Contacts", search: "Search mail",
     inbox: "Inbox", drafts: "Drafts", sentitems: "Sent Items", deleteditems: "Deleted Items", junkemail: "Junk Email", outbox: "Outbox", archive: "Archive",
     reply: "Reply", replyAll: "Reply all", forward: "Forward", delete: "Delete", move: "Move", markUnread: "Mark unread", markRead: "Mark read", flag: "Flag",
-    noMessages: "No messages", selectMessage: "Select a message to read", to: "To", cc: "Cc", subject: "Subject", send: "Send", saveDraft: "Save draft", attachments: "Attachments", addFiles: "Attach",
+    noMessages: "No messages", selectMessage: "Select a message to read", from: "From", to: "To", cc: "Cc", subject: "Subject", send: "Send", saveDraft: "Save draft", attachments: "Attachments", addFiles: "Attach",
     newEvent: "New event", editEvent: "Event", title: "Title", location: "Location", start: "Start", end: "End", allDay: "All day", save: "Save", cancel: "Cancel",
     accept: "Accept", decline: "Decline", tentative: "Tentative", today: "Today",
     newContact: "New contact", editContact: "Contact", firstName: "First name", lastName: "Last name", company: "Company", jobTitle: "Job title", phone: "Mobile", notes: "Notes", noContacts: "No contacts", selectContact: "Select a contact",
@@ -278,7 +278,7 @@ const T = {
     compose: "Verfassen", mail: "E-Mail", calendar: "Kalender", contacts: "Kontakte", search: "E-Mail durchsuchen",
     inbox: "Posteingang", drafts: "Entwürfe", sentitems: "Gesendet", deleteditems: "Gelöscht", junkemail: "Junk", outbox: "Postausgang", archive: "Archiv",
     reply: "Antworten", replyAll: "Allen antworten", forward: "Weiterleiten", delete: "Löschen", move: "Verschieben", markUnread: "Als ungelesen", markRead: "Als gelesen", flag: "Kennzeichnen",
-    noMessages: "Keine Nachrichten", selectMessage: "Nachricht zum Lesen auswählen", to: "An", cc: "Cc", subject: "Betreff", send: "Senden", saveDraft: "Entwurf speichern", attachments: "Anhänge", addFiles: "Anhängen",
+    noMessages: "Keine Nachrichten", selectMessage: "Nachricht zum Lesen auswählen", from: "Von", to: "An", cc: "Cc", subject: "Betreff", send: "Senden", saveDraft: "Entwurf speichern", attachments: "Anhänge", addFiles: "Anhängen",
     newEvent: "Neuer Termin", editEvent: "Termin", title: "Titel", location: "Ort", start: "Beginn", end: "Ende", allDay: "Ganztägig", save: "Speichern", cancel: "Abbrechen",
     accept: "Zusagen", decline: "Absagen", tentative: "Vorbehalt", today: "Heute",
     newContact: "Neuer Kontakt", editContact: "Kontakt", firstName: "Vorname", lastName: "Nachname", company: "Firma", jobTitle: "Position", phone: "Mobil", notes: "Notizen", noContacts: "Keine Kontakte", selectContact: "Kontakt auswählen",
@@ -543,8 +543,12 @@ function openCompose(opt) {
     text = opt.msg.text || "";
   }
   if (opt.mode !== "draft" && me && me.signature) { text += `\n\n-- \n${me.signature}`; }
+  const addrs = (me && me.addresses) || [];
+  const fromField = addrs.length > 1
+    ? `<div class="field"><label>${esc(t("from"))}</label><select id="cfrom">${addrs.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join("")}</select></div>`
+    : "";
   panel(t("compose"),
-    `<div class="field"><label>${esc(t("to"))}</label><input id="cto" value="${esc(to)}"></div>
+    `${fromField}<div class="field"><label>${esc(t("to"))}</label><input id="cto" value="${esc(to)}"></div>
      <div class="field"><label>${esc(t("cc"))}</label><input id="ccc" value="${esc(cc)}"></div>
      <div class="field"><label>${esc(t("subject"))}</label><input id="csub" value="${esc(subject)}"></div>
      <div class="field"><label>${esc(t("message") || "")}</label><textarea id="cbody" class="body">${esc(text)}</textarea></div>
@@ -556,6 +560,7 @@ function openCompose(opt) {
   $("#cfiles").onchange = async (e) => { for (const f of e.target.files) { const b64 = await fileB64(f); pendingFiles.push({ name: f.name, contentType: f.type || "application/octet-stream", data: b64 }); } renderFileList(); };
   $("#csend").onclick = guard(async () => {
     const body = { to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").value, attachments: pendingFiles };
+    if ($("#cfrom")) body.from = $("#cfrom").value;
     if (answering) body.answering = answering;
     if (draftId) body.draftId = draftId;
     await api("POST", "/send", body); closePanel(); toast(t("sent")); if (view === "mail") loadMessages(); refreshFolders();

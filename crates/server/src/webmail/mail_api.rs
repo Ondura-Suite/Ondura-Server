@@ -196,6 +196,9 @@ struct Compose {
     html: Option<String>,
     #[serde(default)]
     in_reply_to: Option<String>,
+    /// Address to send from; must be the user's own or one of their aliases.
+    #[serde(default)]
+    from: Option<String>,
     /// Id of a message being answered, so it can be flagged.
     #[serde(default)]
     answering: Option<i64>,
@@ -206,19 +209,32 @@ struct Compose {
     attachments: Vec<Attachment>,
 }
 
-fn build_outgoing(user: &User, c: &Compose) -> Result<Outgoing, (StatusCode, String)> {
+fn build_outgoing(app: &Shared, user: &User, c: &Compose) -> Result<Outgoing, (StatusCode, String)> {
     let to = parse_addresses(&c.to);
     let cc = parse_addresses(&c.cc);
     if to.is_empty() && cc.is_empty() {
         return Err(bad("at least one recipient is required"));
     }
+    // The From address defaults to the primary address; any other value must be
+    // one the user is allowed to send as (their own aliases or a delegation).
+    let from_email = match &c.from {
+        Some(f) if !f.trim().is_empty() => {
+            let f = f.trim().to_ascii_lowercase();
+            let allowed = app.store.send_as_addresses(user.id).map_err(internal)?;
+            if !allowed.iter().any(|a| a.to_ascii_lowercase() == f) {
+                return Err((StatusCode::FORBIDDEN, "You are not allowed to send from that address.".into()));
+            }
+            f
+        }
+        _ => user.email.clone(),
+    };
     let mut files = Vec::new();
     for a in &c.attachments {
         let data = B64.decode(a.data.as_bytes()).map_err(|_| bad("invalid attachment encoding"))?;
         files.push(File { name: a.name.clone(), content_type: a.content_type.clone(), data, content_id: None, inline: false });
     }
     Ok(Outgoing {
-        from: Person { name: user.name.clone(), email: user.email.clone() },
+        from: Person { name: user.name.clone(), email: from_email },
         to,
         cc,
         subject: c.subject.clone(),
@@ -236,7 +252,7 @@ fn build_outgoing(user: &User, c: &Compose) -> Result<Outgoing, (StatusCode, Str
 /// POST /send
 pub async fn send(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     let c: Compose = parse(body)?;
-    let out = build_outgoing(user, &c)?;
+    let out = build_outgoing(app, user, &c)?;
     crate::smtp::submit::send_generated(app, user, &out, true).await.map_err(internal)?;
     if let Some(aid) = c.answering
         && let Ok(item) = own_item(app, user, aid)
