@@ -9,6 +9,7 @@ cargo-fuzz = true
 
 [dependencies]
 libfuzzer-sys = "0.4"
+serde_json = "1"
 ondura-wbxml = { path = "../crates/wbxml" }
 ondura-server = { path = "../crates/server" }
 
@@ -42,6 +43,13 @@ bench = false
 [[bin]]
 name = "ical_parse"
 path = "fuzz_targets/ical_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "collab_ot"
+path = "fuzz_targets/collab_ot.rs"
 test = false
 doc = false
 bench = false

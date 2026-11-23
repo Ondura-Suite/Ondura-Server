@@ -7,10 +7,11 @@ so they are exercised two ways.
 
 ## 1. Randomised smoke tests (stable, run in CI)
 
-Each parser has a randomised smoke test that throws 100,000 random and mutated
-inputs at it and asserts it never panics, overflows the stack, or hangs — it may
-only return a value or an error. These run as ordinary tests on stable Rust, so
-they are part of `cargo test` and the CI pipeline:
+Each parser (and the collab OT operation path) has a randomised smoke test that
+throws many random and mutated inputs at it and asserts it never panics,
+overflows the stack, or hangs — it may only return a value or an error. These run
+as ordinary tests on stable Rust, so they are part of `cargo test` and the CI
+pipeline:
 
 ```sh
 cargo test --test fuzz_smoke
@@ -40,6 +41,7 @@ Available targets:
 | `ews_xml`       | `ondura_server::xml::Node::parse`         |
 | `mime_meta`     | `ondura_server::mime::parse_meta`         |
 | `ical_parse`    | `ondura_server::ical::parse`              |
+| `collab_ot`     | `ondura_server::collab::ot` (operation parse, apply, transform) |
 
 Run one (from the repository root):
 

@@ -153,6 +153,43 @@ fn random_op(rng: &mut Rng, len: u32) -> TextOp {
 }
 
 #[test]
+fn parse_path_never_panics() {
+    use std::panic::catch_unwind;
+    let mut rng = Rng(0x5EED_1234_5678_9AB0);
+    for _ in 0..20000 {
+        // Build a random JSON "operation": a mix of integers (including extreme
+        // and negative values) and short strings.
+        let n = rng.below(8);
+        let mut arr: Vec<serde_json::Value> = Vec::new();
+        for _ in 0..n {
+            match rng.below(5) {
+                0 => arr.push(serde_json::json!(rng.below(130) as i64 - 8)),
+                1 => arr.push(serde_json::json!(i64::MIN + rng.below(3) as i64)),
+                2 => arr.push(serde_json::json!(i64::MAX - rng.below(3) as i64)),
+                3 => arr.push(serde_json::json!("x".repeat(rng.below(4)))),
+                _ => arr.push(serde_json::json!(-(rng.below(130) as i64))),
+            }
+        }
+        let value = serde_json::Value::Array(arr);
+        let r = catch_unwind(|| {
+            for base in [0u32, 3, 64] {
+                if let Ok(op) = TextOp::from_json(&value, base) {
+                    let doc = to_u16(&"a".repeat(base as usize));
+                    if let Ok(after) = op.apply(&doc) {
+                        let mut noop = TextOp::new();
+                        noop.retain(base);
+                        if let Ok((_, b_prime)) = TextOp::transform(&op, &noop) {
+                            let _ = b_prime.apply(&after);
+                        }
+                    }
+                }
+            }
+        });
+        assert!(r.is_ok(), "parse path panicked on {value:?}");
+    }
+}
+
+#[test]
 fn randomised_convergence() {
     let mut rng = Rng(0x0CAB_1234_5678_9ABC);
     for _ in 0..5000 {
