@@ -62,6 +62,29 @@ fn concurrent_edits_converge_on_server() {
 }
 
 #[test]
+fn history_and_content_at_revision() {
+    let (app, user) = App::test();
+    let store = &app.store;
+    let doc = store.create_doc(user.id, "x").unwrap();
+    store.apply_op(doc, user.id, 0, &json!(["hello"])).unwrap(); // +5
+    store.apply_op(doc, user.id, 1, &json!([5, " world"])).unwrap(); // +6
+    store.apply_op(doc, user.id, 2, &json!([-6, 5])).unwrap(); // delete "hello ", -6
+
+    let hist = store.doc_history(doc, 100).unwrap();
+    assert_eq!(hist.len(), 3);
+    // newest first
+    assert_eq!(hist[0].0, 3);
+    assert_eq!(hist[0].5, 6); // removed 6
+    assert_eq!(hist[2].0, 1);
+    assert_eq!(hist[2].4, 5); // added 5
+
+    // content at each revision via replay
+    assert_eq!(store.doc_content_at(doc, 1).unwrap(), "hello");
+    assert_eq!(store.doc_content_at(doc, 2).unwrap(), "hello world");
+    assert_eq!(store.doc_content_at(doc, 3).unwrap(), "world");
+}
+
+#[test]
 fn rejects_out_of_range_base() {
     let (app, user) = App::test();
     let store = &app.store;
