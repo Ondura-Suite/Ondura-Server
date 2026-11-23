@@ -156,6 +156,32 @@ CREATE TABLE IF NOT EXISTS audit (
     action TEXT NOT NULL,
     detail TEXT NOT NULL DEFAULT ''
 );
+CREATE TABLE IF NOT EXISTS collab_docs (
+    id INTEGER PRIMARY KEY,
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    content TEXT NOT NULL DEFAULT '',
+    revision INTEGER NOT NULL DEFAULT 0,
+    created INTEGER NOT NULL,
+    updated INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS collab_docs_owner ON collab_docs(owner_id);
+CREATE TABLE IF NOT EXISTS collab_ops (
+    doc_id INTEGER NOT NULL REFERENCES collab_docs(id) ON DELETE CASCADE,
+    revision INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    op TEXT NOT NULL,
+    base_len INTEGER NOT NULL,
+    ts INTEGER NOT NULL,
+    PRIMARY KEY (doc_id, revision)
+);
+CREATE TABLE IF NOT EXISTS collab_shares (
+    doc_id INTEGER NOT NULL REFERENCES collab_docs(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    can_write INTEGER NOT NULL DEFAULT 1,
+    PRIMARY KEY (doc_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS collab_shares_user ON collab_shares(user_id);
 "#;
 
 pub fn now() -> i64 {
@@ -474,7 +500,7 @@ impl Store {
         Ok(Store { conn: Arc::new(Mutex::new(conn)), notify })
     }
 
-    fn db(&self) -> MutexGuard<'_, Connection> {
+    pub(crate) fn db(&self) -> MutexGuard<'_, Connection> {
         self.conn.lock().unwrap_or_else(|e| e.into_inner())
     }
 

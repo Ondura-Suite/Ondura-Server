@@ -31,7 +31,11 @@ pub struct Peer(pub IpAddr);
 pub const SERVER_ID: &str = concat!("Ondura-Server/", env!("CARGO_PKG_VERSION"));
 
 pub fn router(app: Shared) -> Router {
-    Router::new().fallback(dispatch).layer(axum::middleware::map_response(stamp_server)).with_state(app)
+    Router::new()
+        .route("/collab/ws", axum::routing::get(crate::collab::server::ws_route))
+        .fallback(dispatch)
+        .layer(axum::middleware::map_response(stamp_server))
+        .with_state(app)
 }
 
 /// Add the Ondura identification header to every response.
@@ -44,18 +48,29 @@ async fn stamp_server(mut res: Response) -> Response {
 /// is an Ondura Server and learn its endpoints before signing in.
 fn ondura_identity(app: &Shared) -> Response {
     let host = &app.cfg.hostname;
+    let mut protocols = vec!["EWS", "ActiveSync", "Autodiscover", "SMTP"];
+    if app.cfg.collab.enabled {
+        protocols.push("Collab");
+    }
     let body = serde_json::json!({
         "product": "Ondura Server",
         "vendor": "Ondura",
         "identifier": "ondura-server",
         "version": env!("CARGO_PKG_VERSION"),
         "hostname": host,
-        "protocols": ["EWS", "ActiveSync", "Autodiscover", "SMTP"],
+        "protocols": protocols,
+        "features": {
+            "webmail": app.cfg.http.webmail,
+            "adminCenter": app.cfg.http.admin_center,
+            "collab": app.cfg.collab.enabled,
+        },
         "endpoints": {
             "ews": format!("https://{host}/EWS/Exchange.asmx"),
             "activesync": format!("https://{host}/Microsoft-Server-ActiveSync"),
             "autodiscover": format!("https://{host}/autodiscover/autodiscover.xml"),
             "webmail": if app.cfg.http.webmail { Some(format!("https://{host}/mail")) } else { None },
+            "collab": if app.cfg.collab.enabled { Some(format!("https://{host}/collab")) } else { None },
+            "collabWebsocket": if app.cfg.collab.enabled { Some(format!("wss://{host}/collab/ws")) } else { None },
         },
     });
     axum::Json(body).into_response()
@@ -145,6 +160,7 @@ async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
             }
             webmail::handle(app.clone(), method, &path, &query, &headers, body, ip).await
         }
+        p if p.starts_with("/collab/api") => crate::collab::server::handle(app.clone(), method, &path, &query, &headers, body).await,
         _ => StatusCode::NOT_FOUND.into_response(),
     }
 }
