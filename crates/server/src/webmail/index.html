@@ -978,6 +978,10 @@ function connectDoc(id, canWrite) {
     } else if (m.type === "cursor") {
       remote[m.by] = { pos: m.pos || 0, name: m.name || "", color: m.color || "#888", ts: Date.now() };
       renderCursors();
+    } else if (m.type === "reset") {
+      // The server signalled a desync (we lagged); reconnect for a fresh state.
+      try { ws.close(); } catch (e) {}
+      if (curDoc === id) connectDoc(id, canWrite);
     }
   };
   if (ta) {

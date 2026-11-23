@@ -83,6 +83,14 @@ fn transform_concurrent_delete_overlap() {
 }
 
 #[test]
+fn from_json_rejects_out_of_range_counts() {
+    // i64::MIN must not panic (it would overflow `-n`); huge counts are rejected.
+    assert!(TextOp::from_json(&json!([i64::MIN]), 0).is_err());
+    assert!(TextOp::from_json(&json!([5_000_000_000i64]), 0).is_err());
+    assert!(TextOp::from_json(&json!([-5_000_000_000i64]), 0).is_err());
+}
+
+#[test]
 fn roundtrip_json() {
     let o = op("hello", json!([2, "X", -1, 2]));
     let j = o.to_json();

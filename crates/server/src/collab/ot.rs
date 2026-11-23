@@ -241,10 +241,15 @@ impl TextOp {
         let mut op = TextOp::new();
         for item in arr {
             if let Some(n) = item.as_i64() {
+                // Reject counts outside u32 range rather than truncating or
+                // overflowing on a hostile value such as i64::MIN.
+                if n.unsigned_abs() > u32::MAX as u64 {
+                    return Err("operation count out of range".into());
+                }
                 if n > 0 {
                     op.retain(n as u32);
                 } else if n < 0 {
-                    op.delete((-n) as u32);
+                    op.delete(n.unsigned_abs() as u32);
                 }
             } else if let Some(s) = item.as_str() {
                 op.insert(&to_u16(s));

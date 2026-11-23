@@ -58,7 +58,7 @@ impl Hub {
         rooms
             .entry(doc_id)
             .or_insert_with(|| {
-                let (tx, _) = broadcast::channel(256);
+                let (tx, _) = broadcast::channel(1024);
                 Arc::new(Room { tx, participants: Mutex::new(HashMap::new()) })
             })
             .clone()
@@ -117,7 +117,11 @@ pub async fn ws_route(ws: WebSocketUpgrade, State(app): State<Shared>, headers: 
         _ => return (StatusCode::NOT_FOUND, "No such document").into_response(),
     };
     let doc_id = q.doc;
-    ws.on_upgrade(move |socket| handle_socket(app, socket, user, doc_id, access.write))
+    // Bound per-message memory: operations are small; a 1 MiB cap still allows a
+    // large paste but stops a hostile client allocating huge frames.
+    ws.max_message_size(1 << 20)
+        .max_frame_size(1 << 20)
+        .on_upgrade(move |socket| handle_socket(app, socket, user, doc_id, access.write))
 }
 
 async fn handle_socket(app: Shared, socket: WebSocket, user: User, doc_id: i64, can_write: bool) {
@@ -148,14 +152,27 @@ async fn handle_socket(app: Shared, socket: WebSocket, user: User, doc_id: i64, 
     // Forward room frames to this socket.
     let forward_room = room.clone();
     let mut forward = tokio::spawn(async move {
-        while let Ok(frame) = rx.recv().await {
-            let deliver = match frame.target {
-                Target::All => true,
-                Target::Others(src) => src != conn_id,
-                Target::Only(c) => c == conn_id,
-            };
-            if deliver && sender.send(Message::Text(frame.text.as_ref().to_string().into())).await.is_err() {
-                break;
+        loop {
+            match rx.recv().await {
+                Ok(frame) => {
+                    let deliver = match frame.target {
+                        Target::All => true,
+                        Target::Others(src) => src != conn_id,
+                        Target::Only(c) => c == conn_id,
+                    };
+                    if deliver && sender.send(Message::Text(frame.text.as_ref().to_string().into())).await.is_err() {
+                        break;
+                    }
+                }
+                // The client fell too far behind and missed broadcasts; tell it to
+                // reload so it does not diverge, instead of dropping it.
+                Err(broadcast::error::RecvError::Lagged(_)) => {
+                    let reset = json!({ "type": "reset" }).to_string();
+                    if sender.send(Message::Text(reset.into())).await.is_err() {
+                        break;
+                    }
+                }
+                Err(broadcast::error::RecvError::Closed) => break,
             }
         }
         let _ = forward_room; // keep the room alive for the task's lifetime

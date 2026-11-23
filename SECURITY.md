@@ -86,6 +86,35 @@ memory. Severities are the auditor's own estimate.
   512/20, HTTP 1024/64). Behind a reverse proxy the per-IP cap is relaxed, since
   all connections then share the proxy's address.
 
+### Collaboration audit (collab documents)
+
+Reviewed after the real-time collaboration feature was added.
+
+- **[Medium] WebSocket frame memory (DoS) — fixed.** An operation frame was
+  parsed in full before its size was checked, so a hostile client could allocate
+  large buffers. *Fix:* the collab WebSocket now caps message and frame size at
+  1 MiB; oversized frames close the connection. Document size is also bounded
+  (`MAX_DOC_LEN`, 2,000,000 units).
+- **[Medium] Lagged broadcast dropped and desynced clients — fixed.** A client
+  that fell behind the room's broadcast channel was disconnected and could
+  silently diverge. *Fix:* the channel was enlarged and a lag now sends the
+  client a `reset` so it reloads instead of diverging.
+- **[Low] Operation integer overflow (panic) — fixed.** A malicious operation
+  count such as `i64::MIN` could overflow during parsing. *Fix:* counts outside
+  the `u32` range are rejected; regression test added.
+- **Access control — verified.** Every collab REST path and the WebSocket check
+  `doc_access`; mutations (rename, delete, share) require the owner; a read-only
+  share cannot submit operations. Cross-site WebSocket hijacking is blocked by
+  the `SameSite=Strict` session cookie, and REST mutations require the
+  `X-Ondura-Collab` header. Server-side reconciliation runs inside the store
+  transaction, so concurrent submissions are serialised.
+- **[Low] Access revocation does not drop live sessions.** Un-sharing a document
+  does not close a participant's already-open WebSocket; their access ends on
+  reconnect. Acceptable for the threat model.
+- **[Low] Op-log growth / replay cost.** The operation log grows with every
+  edit, and reconstructing an old revision replays it from the start. Fine for
+  normal documents; a future snapshot/compaction step would bound both.
+
 ### Accepted risks / documented limitations
 
 - **[Medium] Outbound SMTP does not verify delivery-peer certificates.**
@@ -111,9 +140,12 @@ memory. Severities are the auditor's own estimate.
 - `rsa 0.9` — RUSTSEC-2023-0071 (Marvin timing side-channel). Transitive via
   `mail-auth`, used for DKIM signing. Network timing recovery of a signing key
   is impractical; low real-world risk.
-- `zip 8.6` — several advisories, all concerning `ZipArchive::extract` writing
-  to disk. Transitive via `mail-auth`; Ondura Server does not extract untrusted
-  archives to disk, so these do not apply at runtime.
+- `zip 8.6` — a number of advisories (as of this audit including one rated
+  critical), **all** concerning `ZipArchive::extract` / `ZipStreamReader::extract`
+  — writing extracted entries, symlinks or permissions to disk. `zip` is
+  transitive via `mail-auth`; Ondura Server never extracts archives, so no
+  runtime code path reaches the affected functions. Re-checked: the only
+  dependency edge is `mail-auth → zip`.
 - `chrono`, `chrono-tz`, `rustls-pemfile` — flagged *unmaintained*, no fixed
   version available. Informational.
 
