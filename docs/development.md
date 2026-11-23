@@ -50,6 +50,40 @@ All protocol work follows Microsoft's Open Specifications:
 
 The EWS implementation is tested with the exact requests Ondura Mail (Ondura-Core, `crates/mail-ews`) sends, see `src/ews/tests.rs`.
 
+## Server identification
+
+So the Ondura Mail app can tell it is talking to an Ondura Server (rather than
+Exchange), the server identifies itself two ways:
+
+- **Response header** — every HTTP response carries
+  `X-Ondura-Server: Ondura-Server/<version>` (e.g. `Ondura-Server/0.1.0`). It is
+  present on any request, including unauthenticated ones such as the `401` from
+  `EWS/Exchange.asmx`, so the app can detect the server on first contact without
+  signing in. The value is `http::SERVER_ID`.
+- **Discovery document** — `GET /.well-known/ondura-server` (also
+  `GET /ondura-server`), unauthenticated, returns JSON:
+
+  ```json
+  {
+    "product": "Ondura Server",
+    "vendor": "Ondura",
+    "identifier": "ondura-server",
+    "version": "0.1.0",
+    "hostname": "mail.example.com",
+    "protocols": ["EWS", "ActiveSync", "Autodiscover", "SMTP"],
+    "endpoints": {
+      "ews": "https://mail.example.com/EWS/Exchange.asmx",
+      "activesync": "https://mail.example.com/Microsoft-Server-ActiveSync",
+      "autodiscover": "https://mail.example.com/autodiscover/autodiscover.xml",
+      "webmail": "https://mail.example.com/mail"
+    }
+  }
+  ```
+
+  The stable field to match on is `identifier: "ondura-server"`. For a quick
+  check the `X-Ondura-Server` header is enough; the document is there when the
+  app wants the version or the endpoint URLs.
+
 ## Building and testing
 
 ```sh
