@@ -391,6 +391,13 @@ async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &By
             audit("alias.remove", &address);
             Ok(json!({}))
         }
+        ("POST", ["aliases", "primary"]) => {
+            let req: AliasBody = parse(body)?;
+            store.user(req.mailbox_id).map_err(internal)?.ok_or_else(not_found)?;
+            store.set_primary_address(req.mailbox_id, &req.address).map_err(|e| bad(e.to_string()))?;
+            audit("alias.primary", &req.address);
+            Ok(json!({}))
+        }
         ("GET", ["aliases"]) => {
             let users = store.users().map_err(internal)?;
             let list: Vec<Value> = store

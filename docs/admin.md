@@ -182,7 +182,7 @@ There are three kinds of mailbox:
 | `shared` | A team address (info@, support@): no own login, opened by users with *full access*. |
 | `room` | A meeting room or resource: no login, books itself – it accepts invitations when free and declines conflicts. |
 
-Further addresses go to the same mailbox as **aliases**; `@example.com` as alias catches every address of the domain that does not exist. Plus addressing (`name+anything@example.com`) always works.
+Further addresses go to the same mailbox as **aliases**; `@example.com` as alias catches every address of the domain that does not exist. Plus addressing (`name+anything@example.com`) always works. One address is the **primary** address — the default sender address and the one shown as the mailbox name. In the mailbox's *E-mail addresses* tab, the ★ next to an alias makes it the primary address; the former primary becomes an alias, so mail to it still arrives and the user can still sign in with either address.
 
 **Permissions**: *full access* lets a user open a shared or another person's mailbox (Ondura Mail and other EWS clients open it by its address). *Send as* lets them send with that address.
 

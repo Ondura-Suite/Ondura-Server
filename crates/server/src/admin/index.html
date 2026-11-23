@@ -281,7 +281,7 @@ const T = {
     enabled: "Aktiv", disabled: "Deaktiviert", admin: "Administrator", none: "Keine Einträge.", general: "Allgemein", passwordTab: "Kennwort", forwarding: "Weiterleitung",
     permissions: "Berechtigungen", folders: "Ordner", save: "Speichern", cancel: "Abbrechen", close: "Schließen", delete: "Löschen", deleteMailbox: "Postfach löschen",
     quotaMb: "Kontingent (MB, 0 = unbegrenzt)", isAdmin: "Darf das Admin Center verwenden", mailboxEnabled: "Postfach aktiv (Anmeldung und Empfang)",
-    emailAddresses: "E-Mail-Adressen", primary: "primär", addAlias: "Adresse hinzufügen", aliasHint: "Weitere Adresse, z. B. info@domain.de oder @domain.de für alle übrigen Adressen.",
+    emailAddresses: "E-Mail-Adressen", primary: "primär", addAlias: "Adresse hinzufügen", makePrimary: "Als primär festlegen", aliasHint: "Weitere Adresse, z. B. info@domain.de oder @domain.de für alle übrigen Adressen.",
     newPassword: "Neues Kennwort", setPassword: "Kennwort festlegen", generatePassword: "Kennwort erzeugen", passwordShown: "Das Kennwort wird nur jetzt angezeigt:",
     forwardTo: "Weiterleiten an", keepCopy: "Kopie im Postfach behalten", fullAccess: "Vollzugriff", sendAs: "Senden als", grant: "Berechtigung erteilen",
     grantee: "Benutzer", permsLead: "Wer darf dieses Postfach öffnen oder in seinem Namen senden?", items: "Elemente", unread: "Ungelesen", size: "Größe",
@@ -314,7 +314,7 @@ const T = {
     enabled: "Enabled", disabled: "Disabled", admin: "Administrator", none: "Nothing here yet.", general: "General", passwordTab: "Password", forwarding: "Forwarding",
     permissions: "Permissions", folders: "Folders", save: "Save", cancel: "Cancel", close: "Close", delete: "Delete", deleteMailbox: "Delete mailbox",
     quotaMb: "Quota (MB, 0 = unlimited)", isAdmin: "May use the Admin Center", mailboxEnabled: "Mailbox enabled (sign-in and delivery)",
-    emailAddresses: "E-mail addresses", primary: "primary", addAlias: "Add address", aliasHint: "Another address, e.g. info@example.com, or @example.com to catch all other addresses.",
+    emailAddresses: "E-mail addresses", primary: "primary", addAlias: "Add address", makePrimary: "Make primary", aliasHint: "Another address, e.g. info@example.com, or @example.com to catch all other addresses.",
     newPassword: "New password", setPassword: "Set password", generatePassword: "Generate password", passwordShown: "The password is only shown now:",
     forwardTo: "Forward to", keepCopy: "Keep a copy in the mailbox", fullAccess: "Full access", sendAs: "Send as", grant: "Grant permission",
     grantee: "User", permsLead: "Who may open this mailbox or send on its behalf?", items: "Items", unread: "Unread", size: "Size",
@@ -589,11 +589,12 @@ function tabGeneral(c, m, foot) {
 }
 function tabAddresses(c, m) {
   c.innerHTML = '<div class="section"><h3>' + esc(t("emailAddresses")) + '</h3><div class="chips"><span class="chip">' + esc(m.email) + ' <span class="badge tint">' + esc(t("primary")) + "</span>&nbsp;</span>" +
-    m.aliases.map((a) => '<span class="chip">' + esc(a) + '<button data-del="' + esc(a) + '" aria-label="' + esc(t("remove")) + '">✕</button></span>').join("") + "</div>" +
+    m.aliases.map((a) => '<span class="chip">' + esc(a) + (a.startsWith("@") ? "" : '<button data-prim="' + esc(a) + '" title="' + esc(t("makePrimary")) + '" aria-label="' + esc(t("makePrimary")) + '">★</button>') + '<button data-del="' + esc(a) + '" aria-label="' + esc(t("remove")) + '">✕</button></span>').join("") + "</div>" +
     '<div class="row"><div class="field"><input id="newAlias" placeholder="info@' + esc(m.email.split("@")[1]) + '"></div><button class="btn" id="addAlias">' + esc(t("addAlias")) + "</button></div>" +
     '<p class="muted">' + esc(t("aliasHint")) + "</p></div>";
   $("#addAlias").onclick = guard(async () => { await api("POST", "/aliases", { address: $("#newAlias").value.trim(), mailboxId: m.id }); m.aliases.push($("#newAlias").value.trim().toLowerCase()); tabAddresses(c, m); toast(t("saved")); });
   c.querySelectorAll("[data-del]").forEach((b) => b.onclick = guard(async () => { await api("DELETE", "/aliases/" + encodeURIComponent(b.dataset.del)); m.aliases = m.aliases.filter((a) => a !== b.dataset.del); tabAddresses(c, m); }));
+  c.querySelectorAll("[data-prim]").forEach((b) => b.onclick = guard(async () => { const chosen = b.dataset.prim; await api("POST", "/aliases/primary", { address: chosen, mailboxId: m.id }); m.aliases = m.aliases.filter((a) => a !== chosen); m.aliases.push(m.email); m.email = chosen; tabAddresses(c, m); toast(t("saved")); }));
 }
 function tabPassword(c, m, foot) {
   if (m.kind !== "user") { c.innerHTML = '<p class="muted">' + esc(kindLabel(m.kind)) + ": " + esc(t("permsLead")) + "</p>"; return; }
