@@ -252,6 +252,8 @@ fn route(app: &Shared, user: &User, method: &Method, api: &str, _query: &str, bo
         (&Method::POST, ["docs", id, "share"]) => share_doc(app, user, id, body),
         (&Method::POST, ["docs", id, "unshare"]) => unshare_doc(app, user, id, body),
         (&Method::GET, ["docs", id, "ops"]) => ops_since(app, user, id, _query),
+        (&Method::GET, ["docs", id, "history"]) => history(app, user, id),
+        (&Method::GET, ["docs", id, "at", rev]) => content_at(app, user, id, rev),
         _ => Err((StatusCode::NOT_FOUND, "Not found".into())),
     }
 }
@@ -366,6 +368,23 @@ fn unshare_doc(app: &Shared, user: &User, id: &str, body: &Bytes) -> ApiResult {
         app.store.unshare_doc(id, target.id).map_err(ise)?;
     }
     Ok(json!({ "ok": true }))
+}
+
+fn history(app: &Shared, user: &User, id: &str) -> ApiResult {
+    let id = owned_or_shared(app, user, id)?;
+    let rows = app.store.doc_history(id, 200).map_err(ise)?;
+    let list: Vec<Value> = rows
+        .into_iter()
+        .map(|(rev, email, name, ts, added, removed)| json!({ "rev": rev, "email": email, "name": name, "ts": ts, "added": added, "removed": removed }))
+        .collect();
+    Ok(json!({ "history": list }))
+}
+
+fn content_at(app: &Shared, user: &User, id: &str, rev: &str) -> ApiResult {
+    let id = owned_or_shared(app, user, id)?;
+    let rev: i64 = rev.parse().map_err(|_| (StatusCode::BAD_REQUEST, "bad revision".into()))?;
+    let content = app.store.doc_content_at(id, rev).map_err(ise)?;
+    Ok(json!({ "rev": rev, "content": content }))
 }
 
 fn ops_since(app: &Shared, user: &User, id: &str, query: &str) -> ApiResult {

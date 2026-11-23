@@ -10,6 +10,27 @@ use crate::store::{now, Store};
 /// Upper bound on a document's size, in UTF-16 units, to bound memory.
 const MAX_DOC_LEN: u32 = 2_000_000;
 
+/// One revision in a document's history: (revision, editor email, editor name,
+/// timestamp, units added, units removed).
+pub type HistoryEntry = (i64, String, String, i64, i64, i64);
+
+/// Count the UTF-16 units inserted and deleted by a stored operation.
+fn op_deltas(op_json: &str) -> (i64, i64) {
+    let Ok(Value::Array(items)) = serde_json::from_str::<Value>(op_json) else { return (0, 0) };
+    let mut added = 0i64;
+    let mut removed = 0i64;
+    for it in items {
+        if let Some(n) = it.as_i64() {
+            if n < 0 {
+                removed += -n;
+            }
+        } else if let Some(s) = it.as_str() {
+            added += s.encode_utf16().count() as i64;
+        }
+    }
+    (added, removed)
+}
+
 /// Metadata about a collaborative document (no content).
 #[derive(Debug, Clone)]
 pub struct DocMeta {
@@ -147,6 +168,55 @@ impl Store {
             .query_map([doc_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get::<_, i64>(3)? != 0)))?
             .collect::<std::result::Result<Vec<_>, _>>()?;
         Ok(rows)
+    }
+
+    /// Revision history, newest first: (revision, editor email, editor name,
+    /// timestamp, units added, units deleted).
+    pub fn doc_history(&self, doc_id: i64, limit: i64) -> Result<Vec<HistoryEntry>> {
+        let db = self.db();
+        let mut stmt = db.prepare(
+            "SELECT o.revision, COALESCE(u.email, '?'), COALESCE(u.name, ''), o.ts, o.op
+             FROM collab_ops o LEFT JOIN users u ON u.id = o.user_id
+             WHERE o.doc_id = ?1 ORDER BY o.revision DESC LIMIT ?2",
+        )?;
+        let rows = stmt
+            .query_map(params![doc_id, limit.clamp(1, 1000)], |r| {
+                let rev: i64 = r.get(0)?;
+                let email: String = r.get(1)?;
+                let name: String = r.get(2)?;
+                let ts: i64 = r.get(3)?;
+                let op: String = r.get(4)?;
+                Ok((rev, email, name, ts, op))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?;
+        rows.into_iter()
+            .map(|(rev, email, name, ts, op)| {
+                let (added, removed) = op_deltas(&op);
+                Ok((rev, email, name, ts, added, removed))
+            })
+            .collect()
+    }
+
+    /// Reconstruct the document content as it stood at `revision` by replaying
+    /// the operation log from the start.
+    pub fn doc_content_at(&self, doc_id: i64, revision: i64) -> Result<String> {
+        let ops = {
+            let db = self.db();
+            let mut stmt = db.prepare("SELECT op, base_len FROM collab_ops WHERE doc_id = ?1 AND revision <= ?2 ORDER BY revision")?;
+            stmt.query_map(params![doc_id, revision], |r| {
+                let op: String = r.get(0)?;
+                let bl: u32 = r.get(1)?;
+                Ok((op, bl))
+            })?
+            .collect::<std::result::Result<Vec<_>, _>>()?
+        };
+        let mut doc: Vec<u16> = Vec::new();
+        for (op_json, base_len) in ops {
+            let v: Value = serde_json::from_str(&op_json)?;
+            let op = TextOp::from_json(&v, base_len).map_err(|e| anyhow::anyhow!(e))?;
+            doc = op.apply(&doc).map_err(|e| anyhow::anyhow!(e))?;
+        }
+        Ok(super::ot::from_u16(&doc))
     }
 
     /// Operations with revision greater than `since`, for client catch-up.

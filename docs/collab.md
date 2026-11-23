@@ -35,6 +35,8 @@ Base path `…/collab/api`. Bodies and responses are JSON.
 | `POST /docs/{id}/share` | Owner only. Body `{ "email": "…", "canWrite": true }`. |
 | `POST /docs/{id}/unshare` | Owner only. Body `{ "email": "…" }`. |
 | `GET /docs/{id}/ops?since=R` | Operations committed after revision `R` (for reconnect/catch-up). |
+| `GET /docs/{id}/history` | Revision log: each entry has `rev`, editor `email`/`name`, `ts`, and `added`/`removed` unit counts. |
+| `GET /docs/{id}/at/{rev}` | The document content as it stood at revision `rev` (replayed from the log). |
 
 ## Real-time editing (WebSocket)
 
@@ -68,7 +70,8 @@ deletes 3. Positions are UTF-16 code units, matching JavaScript string offsets.
   revision `R` you last knew. The server transforms it over anything committed
   since and replies with `ack`.
 - `{"type":"cursor","pos":N,"anchor":M}` — report your caret (broadcast to
-  others).
+  others). The webmail shows each remote caret as a coloured marker with the
+  participant's name.
 
 ### Client algorithm
 

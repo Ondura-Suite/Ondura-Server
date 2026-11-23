@@ -167,7 +167,23 @@ svg { width: 18px; height: 18px; display: block; }
 .editor .status { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .editor .pres { display: flex; gap: -6px; align-items: center; }
 .editor .pres .av { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 600; border: 2px solid var(--surface-solid); margin-left: -6px; }
-.editor textarea { flex: 1; width: 100%; border: 0; outline: none; resize: none; padding: 22px 26px; font: 15px/1.6 "Segoe UI", system-ui, sans-serif; background: transparent; color: var(--text); }
+.editorwrap { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+.editorwrap textarea, .mirror { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; border: 0; outline: none; resize: none; padding: 22px 26px; margin: 0; font: 15px/1.6 "Segoe UI", system-ui, sans-serif; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; background: transparent; color: var(--text); }
+.editorwrap textarea { overflow-y: auto; }
+.mirror { visibility: hidden; overflow: hidden; pointer-events: none; color: transparent; }
+.cursors { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.rc { position: absolute; width: 2px; height: 22px; }
+.rc .lbl { position: absolute; top: -15px; left: -1px; font-size: 10px; line-height: 14px; padding: 0 4px; border-radius: 3px 3px 3px 0; color: #fff; white-space: nowrap; font-weight: 600; }
+.editor textarea:not(.editorwrap textarea) { flex: 1; }
+.histrow { padding: 10px 16px; border-bottom: 1px solid var(--border); cursor: pointer; display: flex; align-items: center; gap: 10px; }
+.histrow:hover { background: var(--surface-hover); }
+.histrow.active { background: var(--tint-soft); }
+.histrow .hr { flex: 1; }
+.histrow .hd { font-size: 12px; color: var(--muted); }
+.histrow .delta { font-size: 12px; font-variant-numeric: tabular-nums; }
+.histrow .add { color: var(--ok); }
+.histrow .rem { color: var(--danger); }
+.histprev { margin-top: 12px; padding: 12px 14px; border: 1px solid var(--border); border-radius: 8px; white-space: pre-wrap; word-break: break-word; font: 13px/1.5 ui-monospace, Menlo, Consolas, monospace; max-height: 40vh; overflow: auto; background: var(--surface-hover); }
 .dot-live { width: 8px; height: 8px; border-radius: 50%; background: var(--ok); display: inline-block; }
 .dot-off { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); display: inline-block; }
 .msg.unread .mf { font-weight: 700; }
@@ -287,7 +303,7 @@ const T = {
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
     tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
-    documents: "Documents", newDocument: "New document", noDocuments: "No documents", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add",
+    history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", noDocuments: "No documents", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add",
   },
   de: {
     webmail: "Webmail", signInSub: "Bei deinem Postfach anmelden", email: "E-Mail", password: "Passwort", signIn: "Anmelden",
@@ -302,7 +318,7 @@ const T = {
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
     tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
-    documents: "Dokumente", newDocument: "Neues Dokument", noDocuments: "Keine Dokumente", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen",
+    history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", noDocuments: "Keine Dokumente", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen",
   },
 };
 let lang;
@@ -350,6 +366,7 @@ const ICON = {
   plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
   doc: '<path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 3v4h4M9 12h6M9 15h6M9 18h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   share: '<circle cx="6" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.2 11l6.6-3.8M8.2 13l6.6 3.8" stroke="currentColor" stroke-width="1.6"/>',
+  clock: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 const icon = (n) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] || ICON.folder) + "</svg>";
 
@@ -894,12 +911,13 @@ async function openDoc(id) {
   const ed = $("#docEditor"); if (!ed) return;
   const shareBtn = meta.owned ? `<button class="btn" id="docShare">${icon("share")}<span>${esc(t("share"))}</span></button>` : "";
   const delBtn = meta.owned ? `<button class="iconbtn danger" id="docDel" title="${esc(t("delete"))}">${icon("trash")}</button>` : "";
-  ed.innerHTML = `<div class="eh"><h2 id="docTitle">${esc(meta.name)}</h2><div class="pres" id="docPres"></div><span class="status" id="docStatus"><span class="dot-off"></span>${esc(t("connecting"))}</span>${shareBtn}${delBtn}</div>
-    <textarea id="docArea" ${meta.canWrite ? "" : "readonly"} spellcheck="false" placeholder=""></textarea>
+  ed.innerHTML = `<div class="eh"><h2 id="docTitle">${esc(meta.name)}</h2><div class="pres" id="docPres"></div><span class="status" id="docStatus"><span class="dot-off"></span>${esc(t("connecting"))}</span><button class="iconbtn" id="docHist" title="${esc(t("history"))}">${icon("clock")}</button>${shareBtn}${delBtn}</div>
+    <div class="editorwrap"><div class="mirror" id="docMirror" aria-hidden="true"></div><textarea id="docArea" ${meta.canWrite ? "" : "readonly"} spellcheck="false" placeholder=""></textarea><div class="cursors" id="docCursors"></div></div>
     ${meta.canWrite ? "" : `<div style="padding:6px 16px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--border)">${esc(t("readOnlyDoc"))}</div>`}`;
   if (meta.owned && $("#docTitle")) $("#docTitle").onclick = guard(async () => { const name = prompt(t("rename"), meta.name); if (name && name.trim()) { await capi("POST", "/docs/" + id + "/rename", { name: name.trim() }); $("#docTitle").textContent = name.trim(); loadDocs(); } });
   if ($("#docDel")) $("#docDel").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await capi("DELETE", "/docs/" + id); if (docWs) docWs.close(); curDoc = null; renderDocuments(); });
   if ($("#docShare")) $("#docShare").onclick = () => openShare(id, meta);
+  $("#docHist").onclick = () => openHistory(id);
   connectDoc(id, meta.canWrite);
 }
 function connectDoc(id, canWrite) {
@@ -909,7 +927,28 @@ function connectDoc(id, canWrite) {
   docWs = ws;
   const ta = $("#docArea");
   const E = { ws, rev: 0, docText: "", state: "sync", pending: null, buffer: null, applying: false, canWrite };
+  const remote = {}; // conn id -> { pos, name, color, ts }
   const setStatus = (live) => { const s = $("#docStatus"); if (s) s.innerHTML = `<span class="${live ? "dot-live" : "dot-off"}"></span>${live ? esc(t("online")) : esc(t("connecting"))}`; };
+  function caretXY(pos) {
+    const mir = $("#docMirror"); if (!mir) return { x: 0, y: 0 };
+    mir.textContent = E.docText.slice(0, pos);
+    const span = document.createElement("span"); span.textContent = "​"; mir.appendChild(span);
+    const x = span.offsetLeft, y = span.offsetTop; mir.textContent = "";
+    return { x, y };
+  }
+  function renderCursors() {
+    const cont = $("#docCursors"); if (!cont || !ta) return;
+    const now = Date.now(); const html = [];
+    for (const [by, c] of Object.entries(remote)) {
+      if (now - c.ts > 9000) { delete remote[by]; continue; }
+      const { x, y } = caretXY(Math.min(c.pos, E.docText.length));
+      html.push(`<div class="rc" style="left:${x}px;top:${y - ta.scrollTop}px;background:${esc(c.color)}"><span class="lbl" style="background:${esc(c.color)}">${esc(c.name)}</span></div>`);
+    }
+    cont.innerHTML = html.join("");
+  }
+  let curTimer;
+  const sendCursor = () => { if (ws.readyState === 1 && ta) ws.send(JSON.stringify({ type: "cursor", pos: ta.selectionStart, anchor: ta.selectionEnd })); };
+  const queueCursor = () => { clearTimeout(curTimer); curTimer = setTimeout(sendCursor, 120); };
   ws.onclose = () => setStatus(false);
   ws.onerror = () => setStatus(false);
   ws.onmessage = (ev) => {
@@ -926,25 +965,57 @@ function connectDoc(id, canWrite) {
       if (E.state === "sync") toApply = m.op;
       else if (E.state === "await") { const [pp, o1] = transformOp(E.pending, m.op); E.pending = pp; toApply = o1; }
       else { const [pp, o1] = transformOp(E.pending, m.op); const [bb, o2] = transformOp(E.buffer, o1); E.pending = pp; E.buffer = bb; toApply = o2; }
+      // shift remote carets through the applied change
+      for (const c of Object.values(remote)) c.pos = transformCursor(c.pos, toApply);
       if (ta) {
         const a = ta.selectionStart, b = ta.selectionEnd;
         E.applying = true; const nv = applyOp(E.docText, toApply); ta.value = nv; E.docText = nv;
         ta.selectionStart = transformCursor(a, toApply); ta.selectionEnd = transformCursor(b, toApply); E.applying = false;
       } else { E.docText = applyOp(E.docText, toApply); }
+      renderCursors();
     } else if (m.type === "presence") {
       const box = $("#docPres"); if (box) box.innerHTML = (m.users || []).slice(0, 6).map((u) => `<span class="av" title="${esc(u.name)}" style="background:${esc(u.color)}">${esc((u.name || "?").trim()[0] || "?").toUpperCase()}</span>`).join("");
+    } else if (m.type === "cursor") {
+      remote[m.by] = { pos: m.pos || 0, name: m.name || "", color: m.color || "#888", ts: Date.now() };
+      renderCursors();
     }
   };
+  if (ta) {
+    const cursorEvents = () => queueCursor();
+    ta.addEventListener("keyup", cursorEvents);
+    ta.addEventListener("pointerup", cursorEvents);
+    ta.addEventListener("focus", cursorEvents);
+    ta.addEventListener("scroll", renderCursors);
+  }
   if (ta && canWrite) {
     ta.oninput = () => {
       if (E.applying) return;
       const op = diffOp(E.docText, ta.value); E.docText = ta.value;
       if (!op) return;
+      for (const c of Object.values(remote)) c.pos = transformCursor(c.pos, op);
       if (E.state === "sync") { E.pending = op; E.state = "await"; ws.send(JSON.stringify({ type: "op", rev: E.rev, op })); }
       else if (E.state === "await") { E.buffer = op; E.state = "awaitBuf"; }
       else { E.buffer = composeOp(E.buffer, op); }
+      renderCursors(); queueCursor();
     };
   }
+}
+async function openHistory(id) {
+  let hist = [];
+  try { hist = (await capi("GET", "/docs/" + id + "/history")).history; } catch (e) { return; }
+  panel(t("history"),
+    `<div id="histList"></div><div id="histPrev"></div>`,
+    `<div style="flex:1"></div><button class="btn primary" id="histClose">${esc(t("cancel"))}</button>`);
+  $("#histClose").onclick = closePanel;
+  const box = $("#histList");
+  box.innerHTML = hist.length ? hist.map((h) => `<div class="histrow" data-rev="${h.rev}"><div class="hr">${esc(h.name || h.email)}<div class="hd">v${h.rev} · ${esc(fmtDate(h.ts))}</div></div><div class="delta">${h.added ? `<span class="add">+${h.added}</span> ` : ""}${h.removed ? `<span class="rem">−${h.removed}</span>` : ""}</div></div>`).join("") : `<p style="color:var(--muted)">—</p>`;
+  box.querySelectorAll(".histrow").forEach((r) => r.onclick = guard(async () => {
+    box.querySelectorAll(".histrow").forEach((x) => x.classList.remove("active"));
+    r.classList.add("active");
+    const rev = +r.dataset.rev;
+    const res = await capi("GET", "/docs/" + id + "/at/" + rev);
+    $("#histPrev").innerHTML = `<div class="hd" style="margin-top:12px">${esc(t("preview"))} · v${rev}</div><div class="histprev">${esc(res.content) || "<span style='color:var(--muted)'>—</span>"}</div>`;
+  }));
 }
 function openShare(id, meta) {
   const shares = (meta.shares || []);
