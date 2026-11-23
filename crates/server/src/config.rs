@@ -26,6 +26,22 @@ pub struct Config {
     pub spam: Spam,
     #[serde(default)]
     pub activesync: ActiveSync,
+    #[serde(default)]
+    pub collab: Collab,
+}
+
+/// Optional real-time collaborative documents. Turn this off to run Ondura as a
+/// mail-only server.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(default)]
+pub struct Collab {
+    pub enabled: bool,
+}
+
+impl Default for Collab {
+    fn default() -> Self {
+        Collab { enabled: true }
+    }
 }
 
 #[derive(Debug, Clone, Default, Deserialize)]
@@ -250,6 +266,10 @@ verify_incoming = true
 [activesync]
 provisioning = true
 require_password = false
+
+# Real-time collaborative documents. Set enabled = false for a mail-only server.
+[collab]
+enabled = true
 "#
         )
     }
