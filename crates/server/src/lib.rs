@@ -3,6 +3,7 @@
 
 pub mod admin;
 pub mod app;
+pub mod collab;
 pub mod auth;
 pub mod autodiscover;
 pub mod calendar;
