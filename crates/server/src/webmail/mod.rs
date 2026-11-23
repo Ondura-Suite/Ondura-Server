@@ -202,7 +202,9 @@ async fn login(app: &Shared, body: &Bytes, ip: IpAddr, headers: &HeaderMap) -> R
     let mut r = axum::Json(json!({ "email": user.email, "name": user.name })).into_response();
     r.headers_mut().insert(
         header::SET_COOKIE,
-        HeaderValue::from_str(&format!("{COOKIE}={token}; Path=/mail; HttpOnly;{secure} SameSite=Strict; Max-Age={SESSION_LIFETIME}")).expect("cookie"),
+        // Path=/ so the same session also authorises the collab endpoints
+        // (/collab) that the webmail UI calls, not just /mail.
+        HeaderValue::from_str(&format!("{COOKIE}={token}; Path=/; HttpOnly;{secure} SameSite=Strict; Max-Age={SESSION_LIFETIME}")).expect("cookie"),
     );
     r
 }
@@ -232,6 +234,7 @@ fn me(app: &Shared, user: &User) -> ApiResult {
         "used": app.store.used_bytes(user.id).unwrap_or(0),
         "signature": signature,
         "addresses": addresses,
+        "collab": app.cfg.collab.enabled,
         "folders": list,
     }))
 }

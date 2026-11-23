@@ -42,6 +42,15 @@ Everything runs as one program with one database: no separate mail transfer agen
 - Device overview, blocking and remote wipe
 - Automatic setup through Autodiscover
 
+**Collaboration**
+
+- **Real-time collaborative documents**: several people signed in with their accounts edit the same text at once, with live presence, sharing per account (read-only or read-write), and conflict-free merging via Operational Transform
+- A document REST API and a WebSocket for editing, so the Ondura clients can integrate it — see [Collaborative documents](docs/collab.md)
+
+**Modular**
+
+- Features are toggles: webmail, the Admin Center and collaboration can each be turned off. With `[collab] enabled = false` (and the HTTP toggles) Ondura runs as a pure mail server
+
 **Webmail**
 
 - **Webmail** in the browser at `/mail`: sign in with any mailbox and read, write and organise mail, calendar and contacts – no extra client needed, in German and English, light and dark
@@ -85,6 +94,7 @@ Then open `https://<your host name>/admin` and sign in with the mailbox you just
 
 - [Admin guide](docs/admin.md) – installation, configuration, DNS, certificates, clients, backups
 - [Webmail](docs/webmail.md) – browser access to mail, calendar and contacts at `/mail`
+- [Collaborative documents](docs/collab.md) – real-time co-editing, sharing, and the client API
 - [Development](docs/development.md) – architecture, protocols, building and testing
 - [Security](SECURITY.md) and [fuzzing](docs/fuzzing.md)
 
