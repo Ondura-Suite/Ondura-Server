@@ -342,6 +342,13 @@ Not supported: MAPI/HTTP (classic Outlook for Windows), IMAP/POP3, CalDAV/CardDA
 
 ## Legal notes
 
-Exchange ActiveSync and Exchange Web Services are implemented from the protocol documentation Microsoft publishes free of charge as Open Specifications. The documentation states that Microsoft holds patents that may cover implementations of some of these protocols; some specifications fall under the Microsoft Open Specifications Promise, and for others Microsoft offers patent licenses (for example the Exchange ActiveSync and Exchange Server protocol patent licenses). Operators who distribute or run Ondura Server commercially should check whether such a license is needed for their use. This is not legal advice.
+Exchange ActiveSync and Exchange Web Services are implemented from the protocol documentation Microsoft publishes free of charge as Open Specifications. No Microsoft source code is used.
+
+Two points are worth separating:
+
+- **Which protocol.** The EWS-related specifications largely fall under the Microsoft Open Specifications Promise. The patents Microsoft actively licenses are chiefly around **Exchange ActiveSync (EAS)**, through its Exchange ActiveSync IP Licensing program; for servers that license is typically per server.
+- **Publishing vs. operating.** Publishing this source code (under the AGPL) is the common practice for open-source ActiveSync implementations — Z-Push, for one, has been public under the AGPL for over a decade. The patent-license question arises mainly for whoever **runs a server that offers the sync to others, or distributes or commercializes it**, and is primarily a matter of US patent law. Private or internal self-hosting carries low practical risk.
+
+If you intend to offer Ondura Server to third parties or sell it, clarify the EAS patent-license situation first — via Microsoft's Exchange ActiveSync licensing program or an IP lawyer. This is not legal advice.
 
 Microsoft, Exchange, ActiveSync and Outlook are trademarks of the Microsoft group of companies. They are used only to name the protocols and clients Ondura Server works with; Ondura Server is not affiliated with or endorsed by Microsoft.
