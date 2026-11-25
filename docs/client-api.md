@@ -64,6 +64,17 @@ These mirror the web front end exactly (same request and response shapes):
 (the time the avatar was last set, or `null`), so the client can build avatar
 URLs and cache-bust them. Avatars are PNG/JPEG/WebP/GIF up to 1 MiB.
 
+On top, for a client that renders and composes messages itself:
+
+| Method & path | Purpose |
+| --- | --- |
+| `GET /api/v1/message/<id>/raw` | Message source (RFC 5322, `message/rfc822`) |
+| `GET /api/v1/message/<id>/attachment/<index>` | One attachment (binary) |
+| `POST /api/v1/submit` | Send a message built by the client: `{ "mime": base64, "recipients": [..], "saveCopy": true }`. `recipients` is the envelope (include Bcc there; it is not in the message). The From address must be one the user may send as. A copy goes to Sent Items unless `saveCopy` is `false`. |
+| `POST /api/v1/import` | File a message into a folder: `{ "folder": id, "mime": base64, "read", "flagged", "draft", "received": unix }` → `{ "id" }` (drafts, imports) |
+| `POST /api/v1/categories` | `{ "id", "categories": [..] }` |
+| `POST /api/v1/destroy` | `{ "id" }` — delete permanently (`/delete` moves to Deleted Items) |
+
 ## Incremental sync
 
 The mailbox uses a per-user monotonic change counter (*modseq*). The client
@@ -83,6 +94,15 @@ GET /api/v1/sync?since=<modseq>
   ]
 }
 ```
+
+Feed items carry `id`, `folderId`, `kind`, `subject`, `from`, `to`, `cc`,
+`received`, `flags` (bits: 1 read, 2 flagged, 4 answered, 8 forwarded, 16
+draft, 32 complete), `categories`, `importance`, `messageId`, `preview`,
+`hasAttachments` and, for PIM items, `data`. A moved item appears as an
+`update` with its new folder (and a `delete` in the old one).
+
+`GET /api/v1/sync?since=9223372036854775807` returns only the current modseq,
+which a client takes before listing a folder for the first time.
 
 Apply the changes, then store the returned `modseq` as the next `since`. Start
 a fresh client at `since=0` to get the current state as a series of `add`s. PIM

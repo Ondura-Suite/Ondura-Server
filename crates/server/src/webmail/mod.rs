@@ -54,6 +54,11 @@ pub(crate) fn parse<T: for<'de> Deserialize<'de>>(body: &Bytes) -> Result<T, (St
     serde_json::from_slice(body).map_err(|e| bad(format!("invalid request: {e}")))
 }
 
+/// Attachment download, shared with the client API.
+pub(crate) fn attachment(app: &Shared, user: &User, id: &str, idx: &str) -> Response {
+    security_headers(mail_api::attachment(app, user, id, idx))
+}
+
 pub(crate) fn json_response(r: ApiResult) -> Response {
     match r {
         Ok(v) => axum::Json(v).into_response(),

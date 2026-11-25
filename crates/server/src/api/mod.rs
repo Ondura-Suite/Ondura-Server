@@ -24,9 +24,17 @@ use axum::response::{IntoResponse, Response};
 use futures::{SinkExt, StreamExt};
 use serde_json::{Value, json};
 
+use base64::Engine;
+use base64::engine::general_purpose::STANDARD as B64;
+use serde::Deserialize;
+
 use crate::app::Shared;
-use crate::store::{Change, Item};
-use crate::webmail;
+use crate::model::flags;
+use crate::store::{Change, Item, NewMail, User};
+use crate::webmail::{self, ApiResult, bad, internal, own_item};
+
+/// Writer tag of changes made through this API (see `webmail::WRITER`).
+const WRITER: &str = "ondura-client";
 
 /// The header an Ondura client sends to opt into the native API.
 const CLIENT_HEADER: &str = "X-Ondura-Client";
@@ -85,6 +93,20 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
                 Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
             }
         }
+        // Raw message source (RFC 5322), so the client renders and files
+        // exactly what the server stores (inline images, S/MIME, headers).
+        (&Method::GET, p) if p.starts_with("/message/") && p.ends_with("/raw") => {
+            let id = p.trim_start_matches("/message/").trim_end_matches("/raw");
+            raw_message(&app, &user, id)
+        }
+        (&Method::GET, p) if p.starts_with("/message/") && p.contains("/attachment/") => {
+            let (id, idx) = p.trim_start_matches("/message/").split_once("/attachment/").unwrap_or_default();
+            webmail::attachment(&app, &user, id, idx)
+        }
+        (&Method::POST, "/submit") => webmail::json_response(submit(&app, &user, &body).await),
+        (&Method::POST, "/import") => webmail::json_response(import(&app, &user, &body)),
+        (&Method::POST, "/categories") => webmail::json_response(categories(&app, &user, &body)),
+        (&Method::POST, "/destroy") => webmail::json_response(destroy(&app, &user, &body)),
         // Everything else reuses the shared PIM handlers (folders, messages,
         // send, flag, move, delete, calendar, contacts, tasks, notes, …).
         _ => webmail::json_response(webmail::dispatch(&app, &user, &method, rest, query, &body).await),
@@ -223,6 +245,112 @@ pub(crate) fn delete_avatar(app: &Shared, user_id: i64) -> Response {
     }
 }
 
+/// GET /message/<id>/raw — the stored message source.
+fn raw_message(app: &Shared, user: &User, id: &str) -> Response {
+    let Ok(id) = id.parse::<i64>() else { return StatusCode::NOT_FOUND.into_response() };
+    if own_item(app, user, id).is_err() {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    match app.store.mime(id) {
+        Ok(Some(raw)) => ([(axum::http::header::CONTENT_TYPE, "message/rfc822")], raw).into_response(),
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(e) => webmail::json_response(Err(internal(e))),
+    }
+}
+
+fn decode_mime(data: &str) -> Result<Vec<u8>, (StatusCode, String)> {
+    B64.decode(data.as_bytes()).map_err(|_| bad("invalid base64 in mime"))
+}
+
+/// POST /submit — send a message the client built itself.
+/// Body: `{ mime: base64, recipients?: [..], saveCopy?: true }`. `recipients`
+/// is the envelope (it carries Bcc, which the message itself does not).
+async fn submit(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct B {
+        mime: String,
+        #[serde(default)]
+        recipients: Option<Vec<String>>,
+        #[serde(default = "yes")]
+        save_copy: bool,
+    }
+    fn yes() -> bool {
+        true
+    }
+    let b: B = webmail::parse(body)?;
+    let raw = decode_mime(&b.mime)?;
+    let recipients = b.recipients.filter(|r| !r.is_empty());
+    crate::smtp::submit::send(app, user, raw, crate::smtp::submit::Options { recipients, save_copy: b.save_copy, ..Default::default() })
+        .await
+        .map_err(|e| bad(e.to_string()))?;
+    Ok(json!({ "ok": true }))
+}
+
+/// POST /import — file a message into a folder (drafts, imports).
+/// Body: `{ folder, mime: base64, read?, flagged?, draft?, received? }`.
+fn import(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        folder: i64,
+        mime: String,
+        #[serde(default)]
+        read: bool,
+        #[serde(default)]
+        flagged: bool,
+        #[serde(default)]
+        draft: bool,
+        /// Arrival time (Unix seconds); default now.
+        #[serde(default)]
+        received: Option<i64>,
+    }
+    let b: B = webmail::parse(body)?;
+    let folder = app.store.folder(b.folder).map_err(internal)?.filter(|f| f.user_id == user.id).ok_or_else(webmail::not_found)?;
+    let raw = decode_mime(&b.mime)?;
+    let raw = crate::mime::crlf(&raw);
+    let mut bits = 0;
+    if b.read {
+        bits |= flags::READ;
+    }
+    if b.flagged {
+        bits |= flags::FLAGGED;
+    }
+    if b.draft {
+        bits |= flags::DRAFT;
+    }
+    let id = app
+        .store
+        .insert_mail(NewMail { user_id: user.id, folder_id: folder.id, mime: &raw, flags: bits, received: b.received.unwrap_or_else(crate::store::now), writer: WRITER })
+        .map_err(internal)?;
+    Ok(json!({ "ok": true, "id": id }))
+}
+
+/// POST /categories — `{ id, categories: [..] }`.
+fn categories(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        id: i64,
+        categories: Vec<String>,
+    }
+    let b: B = webmail::parse(body)?;
+    let item = own_item(app, user, b.id)?;
+    app.store.update_flags(item.id, 0, 0, Some(&b.categories), WRITER).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// POST /destroy — delete a message permanently, wherever it is
+/// (`/delete` moves it to Deleted Items first).
+fn destroy(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        id: i64,
+    }
+    let b: B = webmail::parse(body)?;
+    let item = own_item(app, user, b.id)?;
+    app.store.delete_item(item.id, WRITER).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
 /// Compact wire form of an item for the sync feed.
 fn item_json(i: &Item) -> Value {
     json!({
@@ -236,6 +364,11 @@ fn item_json(i: &Item) -> Value {
         "flags": i.flags,
         "subject": i.subject,
         "from": i.sender,
+        "to": i.recipients.to,
+        "cc": i.recipients.cc,
+        "categories": i.categories,
+        "importance": i.importance,
+        "messageId": i.message_id,
         "preview": i.preview,
         "hasAttachments": i.has_attachments,
         "messageClass": i.message_class,
@@ -356,5 +489,67 @@ mod tests {
         assert!(v["modseq"].as_i64().unwrap() > 0);
         let changes = v["changes"].as_array().unwrap();
         assert!(changes.iter().any(|c| c["type"] == "add" && c["item"]["subject"] == "Hi"));
+    }
+
+    async fn call(app: &Shared, h: &HeaderMap, method: Method, path: &str, query: &str, body: Value) -> (StatusCode, Value, Vec<u8>) {
+        let body = if body.is_null() { Bytes::new() } else { Bytes::from(body.to_string()) };
+        let r = handle(app.clone(), method, path, query, h, body, ip()).await;
+        let status = r.status();
+        let bytes = axum::body::to_bytes(r.into_body(), 1 << 22).await.unwrap().to_vec();
+        (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null), bytes)
+    }
+
+    #[tokio::test]
+    async fn client_mail_operations() {
+        let (app, user) = App::test();
+        let mut h = HeaderMap::new();
+        h.insert(AUTHORIZATION, HeaderValue::from_str(&basic(&user.email, "secret")).unwrap());
+        h.insert(CLIENT_HEADER, HeaderValue::from_static("Ondura-Mail/test"));
+        let inbox = app.store.folder_by_role(user.id, "inbox").unwrap().unwrap();
+        let drafts = app.store.ensure_folder(user.id, "drafts").unwrap();
+        let mime = "From: Niklas <niklas@example.com>\r\nTo: anna@example.com\r\nCc: max@example.com\r\nSubject: Import\r\nMessage-ID: <imp@x>\r\n\r\nHallo";
+
+        // Import: filed with flags, listed in the feed with recipients.
+        let (st, v, _) = call(&app, &h, Method::POST, "/api/v1/import", "", json!({ "folder": drafts.id, "mime": B64.encode(mime), "draft": true, "read": true })).await;
+        assert_eq!(st, StatusCode::OK, "{v}");
+        let id = v["id"].as_i64().unwrap();
+        let (_, feed, _) = call(&app, &h, Method::GET, "/api/v1/sync", "since=0", Value::Null).await;
+        let item = feed["changes"].as_array().unwrap().iter().find(|c| c["item"]["id"] == id).unwrap()["item"].clone();
+        assert_eq!(item["flags"].as_i64().unwrap() & (flags::READ | flags::DRAFT), flags::READ | flags::DRAFT);
+        assert_eq!(item["to"][0]["email"], "anna@example.com");
+        assert_eq!(item["cc"][0]["email"], "max@example.com");
+        assert_eq!(item["messageId"], "<imp@x>");
+
+        // Raw source comes back unchanged.
+        let (st, _, raw) = call(&app, &h, Method::GET, &format!("/api/v1/message/{id}/raw"), "", Value::Null).await;
+        assert_eq!(st, StatusCode::OK);
+        assert!(String::from_utf8_lossy(&raw).contains("Subject: Import"));
+
+        // Categories.
+        let (st, _, _) = call(&app, &h, Method::POST, "/api/v1/categories", "", json!({ "id": id, "categories": ["Rot"] })).await;
+        assert_eq!(st, StatusCode::OK);
+        assert_eq!(app.store.item(id).unwrap().unwrap().categories, vec!["Rot".to_string()]);
+
+        // Destroy removes it permanently and the feed reports the deletion.
+        let (_, before, _) = call(&app, &h, Method::GET, "/api/v1/sync", "since=999999999", Value::Null).await;
+        let (st, _, _) = call(&app, &h, Method::POST, "/api/v1/destroy", "", json!({ "id": id })).await;
+        assert_eq!(st, StatusCode::OK);
+        assert!(app.store.item(id).unwrap().is_none());
+        let (_, after, _) = call(&app, &h, Method::GET, "/api/v1/sync", &format!("since={}", before["modseq"]), Value::Null).await;
+        assert!(after["changes"].as_array().unwrap().iter().any(|c| c["type"] == "delete" && c["id"] == id));
+
+        // Submit: a local recipient gets it, Bcc only via the envelope, a copy lands in Sent.
+        let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+        let send = format!("From: {}\r\nTo: max@other.org\r\nSubject: Senden\r\n\r\nText", user.email);
+        let (st, v, _) = call(&app, &h, Method::POST, "/api/v1/submit", "", json!({ "mime": B64.encode(&send), "recipients": ["max@other.org", "anna@example.com"] })).await;
+        assert_eq!(st, StatusCode::OK, "{v}");
+        let anna_inbox = app.store.folder_by_role(anna.id, "inbox").unwrap().unwrap();
+        assert_eq!(app.store.items(anna_inbox.id, 0, 10).unwrap().len(), 1);
+        let sent = app.store.folder_by_role(user.id, "sentitems").unwrap().unwrap();
+        assert_eq!(app.store.items(sent.id, 0, 10).unwrap().len(), 1);
+        // Sending as somebody else is refused.
+        let (st, _, _) = call(&app, &h, Method::POST, "/api/v1/submit", "", json!({ "mime": B64.encode("From: boss@example.com\r\nTo: anna@example.com\r\n\r\nx") })).await;
+        assert_eq!(st, StatusCode::BAD_REQUEST);
+        let _ = inbox;
     }
 }
