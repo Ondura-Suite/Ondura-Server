@@ -173,6 +173,11 @@ svg { width: 18px; height: 18px; display: block; }
 .swatch { width: 22px; height: 22px; border-radius: 6px; cursor: pointer; border: 2px solid transparent; }
 .swatch.sel { border-color: var(--text); }
 .catfilterbar { display: flex; align-items: center; gap: 8px; padding: 6px 12px; border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--muted); }
+.filterbar { display: flex; align-items: center; gap: 6px; padding: 6px 12px; border-bottom: 1px solid var(--border); }
+.filterbar .selall { display: flex; align-items: center; margin-right: 2px; }
+.fchip { border: 1px solid var(--border); background: none; color: var(--muted); font-size: 12px; padding: 3px 10px; border-radius: 999px; cursor: pointer; }
+.fchip:hover { background: var(--surface-hover); }
+.fchip.on { background: var(--tint-soft); color: var(--tint); border-color: transparent; font-weight: 600; }
 .iconbtn.danger { color: var(--danger); }
 .acts { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .acts .sep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--border); }
@@ -372,6 +377,7 @@ const T = {
     categories: "Categories", categorize: "Categorize", newCategory: "New category", manageCategories: "Manage categories", categoryName: "Category name", color: "Color", clearCategoryFilter: "Clear filter", noCategories: "No categories yet",
     rules: "Rules", newRule: "New rule", ruleName: "Rule name", conditionsTitle: "When a message arrives and", actionsTitle: "Do the following", matchAll: "all conditions match", matchAny: "any condition matches", contains: "contains", addCondition: "Add condition", addAction: "Add action", stopProcessing: "Stop processing more rules", enabled: "Enabled", noRules: "No rules yet", actMarkRead: "Mark as read", actDelete: "Move to Deleted Items", chooseFolder: "Choose folder", chooseCategory: "Choose category",
     sweep: "Sweep", sweepTitle: "Sweep messages from", sweepDeleteAll: "Delete all from this sender", sweepKeepLatest: "Keep the newest, delete the rest", sweepMoveAll: "Move all to…", swept: "Swept",
+    filterAll: "All", filterUnread: "Unread", filterFlagged: "Flagged", filterAttach: "Attachments", selectAll: "Select all",
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
     tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
@@ -393,6 +399,7 @@ const T = {
     categories: "Kategorien", categorize: "Kategorisieren", newCategory: "Neue Kategorie", manageCategories: "Kategorien verwalten", categoryName: "Kategoriename", color: "Farbe", clearCategoryFilter: "Filter aufheben", noCategories: "Noch keine Kategorien",
     rules: "Regeln", newRule: "Neue Regel", ruleName: "Regelname", conditionsTitle: "Wenn eine Nachricht eintrifft und", actionsTitle: "Dann", matchAll: "alle Bedingungen zutreffen", matchAny: "eine Bedingung zutrifft", contains: "enthält", addCondition: "Bedingung hinzufügen", addAction: "Aktion hinzufügen", stopProcessing: "Keine weiteren Regeln anwenden", enabled: "Aktiv", noRules: "Noch keine Regeln", actMarkRead: "Als gelesen markieren", actDelete: "In Gelöscht verschieben", chooseFolder: "Ordner wählen", chooseCategory: "Kategorie wählen",
     sweep: "Aufräumen", sweepTitle: "Nachrichten aufräumen von", sweepDeleteAll: "Alle von diesem Absender löschen", sweepKeepLatest: "Neueste behalten, Rest löschen", sweepMoveAll: "Alle verschieben nach…", swept: "Aufgeräumt",
+    filterAll: "Alle", filterUnread: "Ungelesen", filterFlagged: "Gekennzeichnet", filterAttach: "Anhänge", selectAll: "Alle auswählen",
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
     tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
@@ -483,7 +490,7 @@ async function capi(method, path, body) {
 // ------------------------------------------------------------ state
 let me = null, view = "mail", folders = [], curFolder = null, curMsg = null, messages = [];
 let selected = new Set();
-let categories = [], catFilter = null;
+let categories = [], catFilter = null, msgFilter = "all";
 // Fixed palette of category colours (name -> hex), OWA-like.
 const CATEGORY_COLORS = { red: "#e05260", orange: "#e8873b", yellow: "#e6b800", green: "#3aa655", teal: "#17a2a2", blue: "#3b82c4", purple: "#9b59b6", pink: "#e0559b", gray: "#8a93a2" };
 const CATEGORY_ORDER = ["red", "orange", "yellow", "green", "teal", "blue", "purple", "pink", "gray"];
@@ -634,8 +641,8 @@ function renderRail() {
     }).join("");
   }
   $("#rail").innerHTML = html;
-  $("#rail").querySelectorAll("[data-view]").forEach((e) => e.onclick = () => { view = e.dataset.view; curMsg = null; selected.clear(); catFilter = null; render(); });
-  $("#rail").querySelectorAll("[data-folder]").forEach((e) => e.onclick = (ev) => { if (ev.target.closest(".fmenu")) return; curFolder = folders.find((f) => f.id == e.dataset.folder); curMsg = null; selected.clear(); catFilter = null; $("#q").value = ""; render(); });
+  $("#rail").querySelectorAll("[data-view]").forEach((e) => e.onclick = () => { view = e.dataset.view; curMsg = null; selected.clear(); catFilter = null; msgFilter = "all"; render(); });
+  $("#rail").querySelectorAll("[data-folder]").forEach((e) => e.onclick = (ev) => { if (ev.target.closest(".fmenu")) return; curFolder = folders.find((f) => f.id == e.dataset.folder); curMsg = null; selected.clear(); catFilter = null; msgFilter = "all"; $("#q").value = ""; render(); });
   const af = $("#addFolder"); if (af) af.onclick = guard(async () => { const name = prompt(t("folderName")); if (!name || !name.trim()) return; await api("POST", "/folder", { name: name.trim() }); await refreshFolders(); renderRail(); toast(t("saved")); });
   $("#rail").querySelectorAll(".fmenu").forEach((b) => b.onclick = guard(async (ev) => {
     ev.stopPropagation();
@@ -981,19 +988,34 @@ function openSweep(fromEmail, fromName) {
   $("#swKeep").onclick = () => run("keepLatest");
   $("#swMove").onclick = () => { const v = $("#swTarget").value; if (v) run("move", +v); };
 }
-function renderCatFilterBar() {
-  const msgs = $("#msgs"); if (!msgs) return;
-  let bar = $("#catFilterBar");
-  if (!catFilter) { if (bar) bar.remove(); return; }
-  if (!bar) { bar = document.createElement("div"); bar.id = "catFilterBar"; bar.className = "catfilterbar"; msgs.parentElement.insertBefore(bar, msgs); }
-  bar.innerHTML = `<span class="cchip" style="background:${catColor(catFilter)}">${esc(catFilter)}</span><div style="flex:1"></div><button class="btn" id="catFilterClear">${esc(t("clearCategoryFilter"))}</button>`;
-  $("#catFilterClear").onclick = () => { catFilter = null; renderMsgList(); };
+function renderFilterBar() {
+  const msgsEl = $("#msgs"); if (!msgsEl) return;
+  let bar = $("#filterBar");
+  if (!bar) { bar = document.createElement("div"); bar.id = "filterBar"; bar.className = "filterbar"; msgsEl.parentElement.insertBefore(bar, msgsEl); }
+  const vis = visibleMessages();
+  const allSel = vis.length > 0 && vis.every((m) => selected.has(m.id));
+  const chip = (key, label) => `<button class="fchip ${msgFilter === key ? "on" : ""}" data-f="${key}">${label}</button>`;
+  bar.innerHTML =
+    `<label class="selall" title="${esc(t("selectAll"))}"><input type="checkbox" id="selAll" ${allSel ? "checked" : ""}></label>` +
+    chip("all", esc(t("filterAll"))) + chip("unread", esc(t("filterUnread"))) + chip("flagged", "⚑") + chip("attach", "📎") +
+    (catFilter ? `<span class="cchip" style="background:${catColor(catFilter)}">${esc(catFilter)}<span class="cchip-rm" id="catClear">×</span></span>` : "") +
+    `<div style="flex:1"></div><span style="color:var(--muted);font-size:12px">${vis.length}</span>`;
+  bar.querySelectorAll("[data-f]").forEach((b) => b.onclick = () => { msgFilter = b.dataset.f; renderMsgList(); });
+  $("#selAll").onclick = (e) => { if (e.target.checked) vis.forEach((m) => selected.add(m.id)); else vis.forEach((m) => selected.delete(m.id)); renderMsgList(); renderSelectionBar(); };
+  if (catFilter) $("#catClear").onclick = () => { catFilter = null; renderMsgList(); };
 }
-function visibleMessages() { return catFilter ? messages.filter((m) => (m.categories || []).includes(catFilter)) : messages; }
+function visibleMessages() {
+  let list = messages;
+  if (catFilter) list = list.filter((m) => (m.categories || []).includes(catFilter));
+  if (msgFilter === "unread") list = list.filter((m) => !m.flags.read);
+  else if (msgFilter === "flagged") list = list.filter((m) => m.flags.flagged);
+  else if (msgFilter === "attach") list = list.filter((m) => m.hasAttachments);
+  return list;
+}
 function renderMsgList() {
   const box = $("#msgs"); if (!box) return;
   const list = visibleMessages();
-  renderCatFilterBar();
+  renderFilterBar();
   if (!list.length) { box.innerHTML = `<div class="empty" style="height:auto;padding:40px">${esc(t("noMessages"))}</div>`; return; }
   box.innerHTML = list.map((m) => {
     const who = curFolder && (curFolder.role === "sentitems" || curFolder.role === "drafts") ? (m.to && m.to.length ? personStr(m.to[0]) : "") : personStr(m.from);
@@ -1007,7 +1029,7 @@ function renderMsgList() {
   box.querySelectorAll(".msgmain").forEach((e) => e.onclick = () => openMessage(+e.parentElement.dataset.id));
   box.querySelectorAll(".msg .cchip[data-cat]").forEach((e) => e.onclick = (ev) => { ev.stopPropagation(); catFilter = e.dataset.cat; renderMsgList(); });
   box.querySelectorAll(".msg").forEach((e) => e.oncontextmenu = (ev) => { ev.preventDefault(); openMsgContext(ev, +e.dataset.id); });
-  box.querySelectorAll(".msgchk").forEach((e) => e.onclick = (ev) => { ev.stopPropagation(); const id = +e.dataset.id; if (e.checked) selected.add(id); else selected.delete(id); e.closest(".msg").classList.toggle("sel", e.checked); renderSelectionBar(); });
+  box.querySelectorAll(".msgchk").forEach((e) => e.onclick = (ev) => { ev.stopPropagation(); const id = +e.dataset.id; if (e.checked) selected.add(id); else selected.delete(id); e.closest(".msg").classList.toggle("sel", e.checked); renderSelectionBar(); if (selected.size) renderFilterBar(); });
 }
 async function openMessage(id) {
   // In Drafts, clicking a message reopens it in the composer.
