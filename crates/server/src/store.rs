@@ -90,7 +90,9 @@ CREATE TABLE IF NOT EXISTS items (
     data TEXT,
     mime BLOB,
     range_start INTEGER,
-    range_end INTEGER
+    range_end INTEGER,
+    in_reply_to TEXT,
+    refs TEXT
 );
 CREATE INDEX IF NOT EXISTS items_folder ON items(folder_id, modseq);
 CREATE INDEX IF NOT EXISTS items_folder_received ON items(folder_id, received);
@@ -330,6 +332,10 @@ pub struct Item {
     pub message_class: String,
     /// JSON of the calendar/contact/task/note item.
     pub data: Option<String>,
+    /// Parent message-id (`In-Reply-To`) for conversation threading.
+    pub in_reply_to: Option<String>,
+    /// Space-joined `References` message-ids for conversation threading.
+    pub references: Option<String>,
 }
 
 /// One condition of an inbox rule: a case-insensitive substring match against
@@ -388,7 +394,7 @@ impl Item {
     }
 }
 
-const ITEM_COLUMNS: &str = "id, user_id, folder_id, kind, uid, modseq, created_modseq, received, size, flags, categories, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, data";
+const ITEM_COLUMNS: &str = "id, user_id, folder_id, kind, uid, modseq, created_modseq, received, size, flags, categories, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, data, in_reply_to, refs";
 
 /// Evaluate an inbox rule's conditions against a delivered item.
 fn rule_matches(rule: &Rule, item: &Item) -> bool {
@@ -440,6 +446,8 @@ fn item_from_row(r: &Row) -> Result<Item> {
         message_id: r.get(17)?,
         message_class: r.get(18)?,
         data: r.get(19)?,
+        in_reply_to: r.get(20)?,
+        references: r.get(21)?,
     })
 }
 
@@ -1345,8 +1353,8 @@ impl Store {
             let tx = db.transaction()?;
             let modseq = Self::next_modseq(&tx, m.user_id)?;
             let id: i64 = tx.query_row(
-                "INSERT INTO items (user_id, folder_id, kind, modseq, created_modseq, writer, received, size, flags, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, mime, data)
-                 VALUES (?1, ?2, 'mail', ?3, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17) RETURNING id",
+                "INSERT INTO items (user_id, folder_id, kind, modseq, created_modseq, writer, received, size, flags, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, mime, data, in_reply_to, refs)
+                 VALUES (?1, ?2, 'mail', ?3, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19) RETURNING id",
                 params![
                     m.user_id,
                     m.folder_id,
@@ -1365,6 +1373,8 @@ impl Store {
                     meta.message_class,
                     m.mime,
                     meta.calendar,
+                    meta.in_reply_to,
+                    meta.references,
                 ],
                 |r| r.get(0),
             )?;

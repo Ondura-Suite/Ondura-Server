@@ -68,6 +68,9 @@ fn summary(item: &crate::store::Item) -> Value {
         "hasAttachments": item.has_attachments,
         "flags": flags_json(item.flags),
         "categories": item.categories,
+        "messageId": item.message_id,
+        "inReplyTo": item.in_reply_to,
+        "references": item.references,
     })
 }
 

@@ -30,7 +30,8 @@ shown in a sandboxed frame so message content cannot run scripts. Drafts reopen
 in the composer and are kept up to date automatically while you write. A filter
 bar above the list narrows it to Unread, Flagged or messages with attachments,
 and a select-all box picks every message currently shown. A conversation-view
-toggle in the list header groups a folder's messages into threads (by subject),
+toggle in the list header groups a folder's messages into conversations by the
+Message-ID / In-Reply-To / References chain (with a shared-subject fallback),
 newest first, that expand and collapse; the choice is remembered.
 
 **Keyboard shortcuts** — the mail view is fully keyboard-drivable: arrow keys or

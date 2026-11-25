@@ -19,6 +19,8 @@ pub struct MailMeta {
     pub date: Option<i64>,
     pub message_id: Option<String>,
     pub in_reply_to: Option<String>,
+    /// Space-joined `References` message-ids, oldest first (threading).
+    pub references: Option<String>,
     pub importance: Importance,
     pub preview: String,
     pub has_attachments: bool,
@@ -109,6 +111,10 @@ pub fn parse_meta(raw: &[u8]) -> MailMeta {
         date: msg.date().map(|d| d.to_timestamp()),
         message_id: msg.message_id().map(|m| format!("<{}>", m.trim_matches(['<', '>']))),
         in_reply_to: text_list(msg.in_reply_to()).into_iter().next().map(|m| format!("<{}>", m.trim_matches(['<', '>']))),
+        references: {
+            let refs: Vec<String> = text_list(msg.references()).into_iter().map(|m| format!("<{}>", m.trim_matches(['<', '>']))).collect();
+            if refs.is_empty() { None } else { Some(refs.join(" ")) }
+        },
         importance,
         preview,
         has_attachments,

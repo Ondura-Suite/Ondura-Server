@@ -1039,17 +1039,33 @@ function msgRowHtml(m, child) {
     ${catChips(m.categories)}</div></div>`;
 }
 function normSubject(s) { return (s || "").replace(/^((re|aw|fwd|wg|fw)\s*:\s*)+/i, "").trim().toLowerCase(); }
+// Group a folder's messages into conversations by the Message-ID / In-Reply-To /
+// References graph (union-find), falling back to a shared normalized subject.
 function buildThreads(list) {
-  const map = new Map();
-  for (const m of list) {
-    const key = normSubject(m.subject) || ("__id" + m.id);
-    if (!map.has(key)) map.set(key, { key, msgs: [] });
-    map.get(key).msgs.push(m);
-  }
-  const groups = [...map.values()];
-  groups.forEach((g) => g.msgs.sort((a, b) => b.date - a.date));
-  groups.sort((a, b) => b.msgs[0].date - a.msgs[0].date);
-  return groups;
+  const parent = {};
+  const nodeKey = (m) => m.messageId || ("id:" + m.id);
+  const find = (x) => { while (parent[x] !== x) { parent[x] = parent[parent[x]]; x = parent[x]; } return x; };
+  const union = (a, b) => { const ra = find(a), rb = find(b); if (ra !== rb) parent[ra] = rb; };
+  list.forEach((m) => { const k = nodeKey(m); if (parent[k] === undefined) parent[k] = k; });
+  const byMsgId = new Map();
+  list.forEach((m) => { if (m.messageId) byMsgId.set(m.messageId, m); });
+  // Link each message to any referenced ancestor present in the folder.
+  list.forEach((m) => {
+    const refs = [];
+    if (m.inReplyTo) refs.push(m.inReplyTo);
+    if (m.references) m.references.split(/\s+/).forEach((r) => { if (r) refs.push(r); });
+    refs.forEach((rid) => { if (byMsgId.has(rid)) union(nodeKey(m), rid); });
+  });
+  // Fallback: messages sharing a normalized subject join the same conversation.
+  const bySubject = new Map();
+  list.forEach((m) => { const s = normSubject(m.subject); if (!s) return; if (!bySubject.has(s)) bySubject.set(s, []); bySubject.get(s).push(m); });
+  bySubject.forEach((ms) => { for (let i = 1; i < ms.length; i++) union(nodeKey(ms[0]), nodeKey(ms[i])); });
+  const groups = new Map();
+  list.forEach((m) => { const r = find(nodeKey(m)); if (!groups.has(r)) groups.set(r, { key: r, msgs: [] }); groups.get(r).msgs.push(m); });
+  const out = [...groups.values()];
+  out.forEach((g) => g.msgs.sort((a, b) => b.date - a.date));
+  out.sort((a, b) => b.msgs[0].date - a.msgs[0].date);
+  return out;
 }
 function threadHeadHtml(g) {
   const latest = g.msgs[0];

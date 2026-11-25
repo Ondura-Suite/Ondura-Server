@@ -234,6 +234,20 @@ fn system_folder_cannot_be_deleted() {
 }
 
 #[test]
+fn stores_and_exposes_threading_headers() {
+    use crate::store::{NewMail, now};
+    let (app, user) = App::test();
+    let inbox = app.store.folder_by_role(user.id, "inbox").unwrap().unwrap();
+    let raw = b"From: a@example.com\r\nSubject: Re: Hi\r\nMessage-ID: <child@x>\r\nIn-Reply-To: <parent@x>\r\nReferences: <root@x> <parent@x>\r\n\r\nbody";
+    app.store.insert_mail(NewMail { user_id: user.id, folder_id: inbox.id, mime: raw, flags: 0, received: now(), writer: "smtp" }).unwrap();
+    let list = mail_api::messages(&app, &user, &format!("folder={}", inbox.id)).unwrap();
+    let m = &list["messages"].as_array().unwrap()[0];
+    assert_eq!(m["messageId"], "<child@x>");
+    assert_eq!(m["inReplyTo"], "<parent@x>");
+    assert_eq!(m["references"], "<root@x> <parent@x>");
+}
+
+#[test]
 fn rule_moves_matching_mail() {
     use crate::store::{NewMail, RuleAction, RuleCondition, now};
     let (app, user) = App::test();
