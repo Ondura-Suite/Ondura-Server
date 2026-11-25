@@ -126,14 +126,15 @@ fn rewrite_backend(text: &str, url: &str) -> String {
             out.push(line.to_string());
             continue;
         }
-        if in_db {
-            let key = trimmed.trim_start_matches('#').trim_start();
-            if key.starts_with("backend") {
+        // Only rewrite real key lines, never comments — otherwise a commented
+        // `# backend = "sqlite"` would be turned into a second active backend.
+        if in_db && !trimmed.starts_with('#') {
+            if trimmed.starts_with("backend") {
                 out.push("backend = \"postgres\"".into());
                 wrote_backend = true;
                 continue;
             }
-            if key.starts_with("url") {
+            if trimmed.starts_with("url") {
                 out.push(format!("url = \"{url}\""));
                 wrote_url = true;
                 continue;
@@ -181,15 +182,30 @@ mod tests {
 
     #[test]
     fn rewrite_switches_the_template() {
-        let cfg = "hostname = \"mail.example.com\"\n\n[database]\nbackend = \"sqlite\"\n# url = \"host=/var/run/postgresql user=ondura dbname=ondura\"\n\n[tls]\ncert = \"x\"\n";
+        // The real default template ships with PostgreSQL active and a
+        // commented SQLite fallback line — the commented line must not be
+        // turned into a second active backend.
+        let cfg = "hostname = \"mail.example.com\"\n\n[database]\nbackend = \"postgres\"\nurl = \"old\"\n# For SQLite instead:\n# backend = \"sqlite\"\n\n[tls]\ncert = \"x\"\n";
         let out = rewrite_backend(cfg, "host=/var/run/postgresql user=ondura dbname=ondura");
-        assert!(out.contains("backend = \"postgres\""));
+        // Exactly one active backend line, and the commented one is preserved.
+        assert_eq!(out.matches("backend = \"postgres\"").count(), 1, "no duplicate backend line:\n{out}");
+        assert!(out.contains("# backend = \"sqlite\""));
         assert!(out.contains("url = \"host=/var/run/postgresql user=ondura dbname=ondura\""));
-        assert!(!out.contains("backend = \"sqlite\""));
+        assert_eq!(out.matches("url = ").count(), 1, "no duplicate url line:\n{out}");
         // Other sections survive.
         assert!(out.contains("[tls]"));
         assert!(out.contains("cert = \"x\""));
         assert!(out.ends_with('\n'));
+    }
+
+    #[test]
+    fn rewrite_from_sqlite_default() {
+        // A config that currently uses the SQLite backend switches cleanly.
+        let cfg = "[database]\nbackend = \"sqlite\"\n";
+        let out = rewrite_backend(cfg, "host=/x user=ondura dbname=ondura");
+        assert_eq!(out.matches("backend = \"postgres\"").count(), 1);
+        assert!(!out.contains("backend = \"sqlite\""));
+        assert!(out.contains("url = \"host=/x user=ondura dbname=ondura\""));
     }
 
     #[test]
