@@ -11,7 +11,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, MutexGuard};
 
 use anyhow::{Context, Result, anyhow, bail};
-use rusqlite::{Connection, OptionalExtension, Row, params};
+use crate::db::{Db, OptionalExtension, Row, params};
 use serde::{Deserialize, Serialize};
 use tokio::sync::broadcast;
 
@@ -328,7 +328,7 @@ impl Item {
 
 const ITEM_COLUMNS: &str = "id, user_id, folder_id, kind, uid, modseq, created_modseq, received, size, flags, categories, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, data";
 
-fn item_from_row(r: &Row<'_>) -> rusqlite::Result<Item> {
+fn item_from_row(r: &Row) -> Result<Item> {
     let kind: String = r.get(3)?;
     let categories: String = r.get(10)?;
     let sender: Option<String> = r.get(12)?;
@@ -362,7 +362,7 @@ fn item_from_row(r: &Row<'_>) -> rusqlite::Result<Item> {
     })
 }
 
-fn folder_from_row(r: &Row<'_>) -> rusqlite::Result<Folder> {
+fn folder_from_row(r: &Row) -> Result<Folder> {
     let class: String = r.get(4)?;
     Ok(Folder {
         id: r.get(0)?,
@@ -378,7 +378,7 @@ fn folder_from_row(r: &Row<'_>) -> rusqlite::Result<Folder> {
 
 const FOLDER_COLUMNS: &str = "id, user_id, parent_id, name, class, role, modseq, deleted";
 
-fn user_from_row(r: &Row<'_>) -> rusqlite::Result<User> {
+fn user_from_row(r: &Row) -> Result<User> {
     Ok(User {
         id: r.get(0)?,
         email: r.get(1)?,
@@ -475,32 +475,35 @@ pub struct NewMail<'a> {
 
 #[derive(Clone)]
 pub struct Store {
-    conn: Arc<Mutex<Connection>>,
+    conn: Arc<Mutex<Db>>,
     notify: broadcast::Sender<Notice>,
 }
 
 impl Store {
+    /// Open the embedded SQLite database at `path` (the default backend).
     pub fn open(path: &Path) -> Result<Store> {
-        if let Some(dir) = path.parent() {
-            std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
-        }
-        let conn = Connection::open(path).with_context(|| format!("open database {}", path.display()))?;
-        Self::init(conn)
+        let db = Db::open_sqlite(path).with_context(|| format!("open database {}", path.display()))?;
+        Self::init(db)
+    }
+
+    /// Connect to a PostgreSQL server with the given libpq connection string.
+    pub fn connect_postgres(url: &str) -> Result<Store> {
+        let db = Db::connect_postgres(url).context("connect PostgreSQL")?;
+        Self::init(db)
     }
 
     #[cfg(test)]
     pub fn open_memory() -> Result<Store> {
-        Self::init(Connection::open_in_memory()?)
+        Self::init(Db::open_sqlite_memory()?)
     }
 
-    fn init(conn: Connection) -> Result<Store> {
-        conn.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=NORMAL; PRAGMA foreign_keys=ON; PRAGMA busy_timeout=5000;")?;
-        conn.execute_batch(SCHEMA)?;
+    fn init(mut db: Db) -> Result<Store> {
+        db.execute_batch(SCHEMA)?;
         let (notify, _) = broadcast::channel(1024);
-        Ok(Store { conn: Arc::new(Mutex::new(conn)), notify })
+        Ok(Store { conn: Arc::new(Mutex::new(db)), notify })
     }
 
-    pub(crate) fn db(&self) -> MutexGuard<'_, Connection> {
+    pub(crate) fn db(&self) -> MutexGuard<'_, Db> {
         self.conn.lock().unwrap_or_else(|e| e.into_inner())
     }
 
@@ -512,12 +515,12 @@ impl Store {
         let _ = self.notify.send(Notice { user_id, folder_id });
     }
 
-    fn next_modseq(conn: &Connection, user_id: i64) -> Result<i64> {
-        Ok(conn.query_row("UPDATE users SET modseq = modseq + 1 WHERE id = ?1 RETURNING modseq", [user_id], |r| r.get(0))?)
+    fn next_modseq(tx: &crate::db::Tx<'_>, user_id: i64) -> Result<i64> {
+        tx.query_row("UPDATE users SET modseq = modseq + 1 WHERE id = ?1 RETURNING modseq", [user_id], |r| r.get(0))
     }
 
     pub fn current_modseq(&self, user_id: i64) -> Result<i64> {
-        Ok(self.db().query_row("SELECT modseq FROM users WHERE id = ?1", [user_id], |r| r.get(0))?)
+        self.db().query_row("SELECT modseq FROM users WHERE id = ?1", [user_id], |r| r.get(0))
     }
 
 
@@ -528,16 +531,16 @@ impl Store {
 
     pub fn audit_log(&self, limit: i64) -> Result<Vec<(i64, String, String, String)>> {
         let db = self.db();
-        let mut st = db.prepare("SELECT time, actor, action, detail FROM audit ORDER BY id DESC LIMIT ?1")?;
+        let st = db.prepare("SELECT time, actor, action, detail FROM audit ORDER BY id DESC LIMIT ?1")?;
         let rows = st.query_map([limit], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        Ok(rows)
     }
 
     // ------------------------------------------------------------ domains
 
     pub fn add_domain(&self, name: &str) -> Result<()> {
         let name = normalize_domain(name)?;
-        self.db().execute("INSERT OR IGNORE INTO domains (name, created) VALUES (?1, ?2)", params![name, now()])?;
+        self.db().execute("INSERT INTO domains (name, created) VALUES (?1, ?2) ON CONFLICT (name) DO NOTHING", params![name, now()])?;
         Ok(())
     }
 
@@ -555,9 +558,9 @@ impl Store {
 
     pub fn domains(&self) -> Result<Vec<String>> {
         let db = self.db();
-        let mut st = db.prepare("SELECT name FROM domains ORDER BY name")?;
-        let rows = st.query_map([], |r| r.get(0))?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        let st = db.prepare("SELECT name FROM domains ORDER BY name")?;
+        let rows = st.query_map(params![], |r| r.get(0))?;
+        Ok(rows)
     }
 
     pub fn is_local_domain(&self, domain: &str) -> bool {
@@ -584,17 +587,17 @@ impl Store {
         let hash = crate::auth::hash_password(password)?;
         let mut db = self.db();
         let tx = db.transaction()?;
-        tx.execute(
-            "INSERT INTO users (email, name, password, kind, created) VALUES (?1, ?2, ?3, ?4, ?5)",
+        let id: i64 = tx.query_row(
+            "INSERT INTO users (email, name, password, kind, created) VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id",
             params![email, name.trim(), hash, kind, now()],
+            |r| r.get(0),
         )?;
-        let id = tx.last_insert_rowid();
         let modseq = Self::next_modseq(&tx, id)?;
-        tx.execute(
-            "INSERT INTO folders (user_id, parent_id, name, class, role, modseq, created_modseq) VALUES (?1, NULL, 'Root', 'root', 'msgfolderroot', ?2, ?2)",
+        let root: i64 = tx.query_row(
+            "INSERT INTO folders (user_id, parent_id, name, class, role, modseq, created_modseq) VALUES (?1, NULL, 'Root', 'root', 'msgfolderroot', ?2, ?2) RETURNING id",
             params![id, modseq],
+            |r| r.get(0),
         )?;
-        let root = tx.last_insert_rowid();
         for (role, class, name) in DEFAULT_FOLDERS {
             tx.execute(
                 "INSERT INTO folders (user_id, parent_id, name, class, role, modseq, created_modseq) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?6)",
@@ -607,12 +610,12 @@ impl Store {
     }
 
     pub fn user(&self, id: i64) -> Result<Option<User>> {
-        Ok(self.db().query_row(&format!("SELECT {USER_COLUMNS} FROM users WHERE id = ?1"), [id], user_from_row).optional()?)
+        self.db().query_row(&format!("SELECT {USER_COLUMNS} FROM users WHERE id = ?1"), [id], user_from_row).optional()
     }
 
     pub fn user_by_email(&self, email: &str) -> Result<Option<User>> {
         let email = email.trim().to_ascii_lowercase();
-        Ok(self.db().query_row(&format!("SELECT {USER_COLUMNS} FROM users WHERE email = ?1"), [email], user_from_row).optional()?)
+        self.db().query_row(&format!("SELECT {USER_COLUMNS} FROM users WHERE email = ?1"), [email], user_from_row).optional()
     }
 
     /// Find the mailbox for a login name: the address, an alias, or a bare
@@ -628,16 +631,16 @@ impl Store {
             };
         }
         let db = self.db();
-        let mut st = db.prepare(&format!("SELECT {USER_COLUMNS} FROM users WHERE email LIKE ?1"))?;
-        let found: Vec<User> = st.query_map([format!("{login}@%")], user_from_row)?.collect::<rusqlite::Result<_>>()?;
+        let st = db.prepare(&format!("SELECT {USER_COLUMNS} FROM users WHERE email LIKE ?1"))?;
+        let found: Vec<User> = st.query_map([format!("{login}@%")], user_from_row)?;
         Ok(if found.len() == 1 { found.into_iter().next() } else { None })
     }
 
     pub fn users(&self) -> Result<Vec<User>> {
         let db = self.db();
-        let mut st = db.prepare(&format!("SELECT {USER_COLUMNS} FROM users ORDER BY email"))?;
-        let rows = st.query_map([], user_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        let st = db.prepare(&format!("SELECT {USER_COLUMNS} FROM users ORDER BY email"))?;
+        let rows = st.query_map(params![], user_from_row)?;
+        Ok(rows)
     }
 
     pub fn set_password(&self, id: i64, password: &str) -> Result<()> {
@@ -689,14 +692,14 @@ impl Store {
     }
 
     pub fn used_bytes(&self, user_id: i64) -> Result<i64> {
-        Ok(self.db().query_row("SELECT COALESCE(SUM(size), 0) FROM items WHERE user_id = ?1", [user_id], |r| r.get(0))?)
+        self.db().query_row("SELECT COALESCE(SUM(size), 0) FROM items WHERE user_id = ?1", [user_id], |r| r.get(0))
     }
 
     pub fn user_stats(&self) -> Result<HashMap<i64, (i64, i64)>> {
         let db = self.db();
-        let mut st = db.prepare("SELECT user_id, COUNT(*), COALESCE(SUM(size), 0) FROM items GROUP BY user_id")?;
-        let rows = st.query_map([], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?))))?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        let st = db.prepare("SELECT user_id, COUNT(*), COALESCE(SUM(size), 0) FROM items GROUP BY user_id")?;
+        let rows = st.query_map(params![], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?))))?;
+        Ok(rows.into_iter().collect())
     }
 
     // ------------------------------------------------------------ aliases
@@ -736,7 +739,7 @@ impl Store {
         }
         let owns_alias = self
             .db()
-            .query_row("SELECT 1 FROM aliases WHERE address = ?1 AND user_id = ?2", params![address, user_id], |_| Ok(()))
+            .query_row("SELECT 1 FROM aliases WHERE address = ?1 AND user_id = ?2", params![&address, user_id], |_| Ok(()))
             .optional()?
             .is_some();
         if !owns_alias {
@@ -745,7 +748,7 @@ impl Store {
         let mut db = self.db();
         let tx = db.transaction()?;
         tx.execute("DELETE FROM aliases WHERE address = ?1", [&address])?;
-        tx.execute("UPDATE users SET email = ?1 WHERE id = ?2", params![address, user_id])?;
+        tx.execute("UPDATE users SET email = ?1 WHERE id = ?2", params![&address, user_id])?;
         tx.execute("INSERT INTO aliases (address, user_id) VALUES (?1, ?2) ON CONFLICT(address) DO UPDATE SET user_id = excluded.user_id", params![current, user_id])?;
         tx.commit()?;
         Ok(())
@@ -753,16 +756,16 @@ impl Store {
 
     pub fn aliases(&self) -> Result<Vec<(String, i64)>> {
         let db = self.db();
-        let mut st = db.prepare("SELECT address, user_id FROM aliases ORDER BY address")?;
-        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        let st = db.prepare("SELECT address, user_id FROM aliases ORDER BY address")?;
+        let rows = st.query_map(params![], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows)
     }
 
     pub fn aliases_of(&self, user_id: i64) -> Result<Vec<String>> {
         let db = self.db();
-        let mut st = db.prepare("SELECT address FROM aliases WHERE user_id = ?1 ORDER BY address")?;
+        let st = db.prepare("SELECT address FROM aliases WHERE user_id = ?1 ORDER BY address")?;
         let rows = st.query_map([user_id], |r| r.get(0))?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        Ok(rows)
     }
 
     /// Mailbox receiving mail for `address`: (user id, exact match).
@@ -776,7 +779,7 @@ impl Store {
             if let Some(id) = db.query_row("SELECT id FROM users WHERE email = ?1", [addr], |r| r.get(0)).optional()? {
                 return Ok(Some(id));
             }
-            Ok(db.query_row("SELECT user_id FROM aliases WHERE address = ?1", [addr], |r| r.get(0)).optional()?)
+            db.query_row("SELECT user_id FROM aliases WHERE address = ?1", [addr], |r| r.get(0)).optional()
         };
         if let Some(id) = lookup(&address)? {
             return Ok(Some((id, true)));
@@ -797,10 +800,10 @@ impl Store {
         }
         out.extend(self.aliases_of(user_id)?.into_iter().filter(|a| !a.starts_with('@')));
         let db = self.db();
-        let mut st = db.prepare("SELECT u.email FROM permissions p JOIN users u ON u.id = p.owner_id WHERE p.grantee_id = ?1 AND p.send_as = 1")?;
+        let st = db.prepare("SELECT u.email FROM permissions p JOIN users u ON u.id = p.owner_id WHERE p.grantee_id = ?1 AND p.send_as = 1")?;
         let rows = st.query_map([user_id], |r| r.get::<_, String>(0))?;
         for r in rows {
-            out.push(r?);
+            out.push(r);
         }
         Ok(out)
     }
@@ -822,9 +825,9 @@ impl Store {
     /// (owner id, grantee id, full access, send as)
     pub fn permissions(&self) -> Result<Vec<(i64, i64, bool, bool)>> {
         let db = self.db();
-        let mut st = db.prepare("SELECT owner_id, grantee_id, full_access, send_as FROM permissions")?;
-        let rows = st.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? != 0, r.get::<_, i64>(3)? != 0)))?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        let st = db.prepare("SELECT owner_id, grantee_id, full_access, send_as FROM permissions")?;
+        let rows = st.query_map(params![], |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? != 0, r.get::<_, i64>(3)? != 0)))?;
+        Ok(rows)
     }
 
     /// Whether `user` may open the mailbox of `owner`.
@@ -843,24 +846,24 @@ impl Store {
 
     pub fn folders(&self, user_id: i64) -> Result<Vec<Folder>> {
         let db = self.db();
-        let mut st = db.prepare(&format!("SELECT {FOLDER_COLUMNS} FROM folders WHERE user_id = ?1 AND deleted = 0 ORDER BY id"))?;
+        let st = db.prepare(&format!("SELECT {FOLDER_COLUMNS} FROM folders WHERE user_id = ?1 AND deleted = 0 ORDER BY id"))?;
         let rows = st.query_map([user_id], folder_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        Ok(rows)
     }
 
     pub fn folder(&self, id: i64) -> Result<Option<Folder>> {
-        Ok(self
+        self
             .db()
             .query_row(&format!("SELECT {FOLDER_COLUMNS} FROM folders WHERE id = ?1 AND deleted = 0"), [id], folder_from_row)
-            .optional()?)
+            .optional()
     }
 
     pub fn folder_by_role(&self, user_id: i64, role: &str) -> Result<Option<Folder>> {
         let role = if role == "root" { "msgfolderroot" } else { role };
-        Ok(self
+        self
             .db()
             .query_row(&format!("SELECT {FOLDER_COLUMNS} FROM folders WHERE user_id = ?1 AND role = ?2 AND deleted = 0"), params![user_id, role], folder_from_row)
-            .optional()?)
+            .optional()
     }
 
     /// Folder by role, created when missing (e.g. after an upgrade).
@@ -888,7 +891,7 @@ impl Store {
             let mut db = self.db();
             let tx = db.transaction()?;
             let exists: Option<i64> = tx
-                .query_row("SELECT id FROM folders WHERE user_id = ?1 AND parent_id = ?2 AND name = ?3 COLLATE NOCASE AND deleted = 0", params![user_id, parent, name], |r| r.get(0))
+                .query_row("SELECT id FROM folders WHERE user_id = ?1 AND parent_id = ?2 AND LOWER(name) = LOWER(?3) AND deleted = 0", params![user_id, parent, name], |r| r.get(0))
                 .optional()?;
             if exists.is_some() {
                 bail!("a folder named {name} already exists");
@@ -898,11 +901,11 @@ impl Store {
                 bail!("parent folder not found");
             }
             let modseq = Self::next_modseq(&tx, user_id)?;
-            tx.execute(
-                "INSERT INTO folders (user_id, parent_id, name, class, modseq, created_modseq) VALUES (?1, ?2, ?3, ?4, ?5, ?5)",
+            let id: i64 = tx.query_row(
+                "INSERT INTO folders (user_id, parent_id, name, class, modseq, created_modseq) VALUES (?1, ?2, ?3, ?4, ?5, ?5) RETURNING id",
                 params![user_id, parent, name, class.as_str(), modseq],
+                |r| r.get(0),
             )?;
-            let id = tx.last_insert_rowid();
             tx.commit()?;
             id
         };
@@ -999,8 +1002,8 @@ impl Store {
     pub fn hierarchy_changes(&self, user_id: i64, since: i64) -> Result<HierarchyChanges> {
         let db = self.db();
         let current: i64 = db.query_row("SELECT modseq FROM users WHERE id = ?1", [user_id], |r| r.get(0))?;
-        let mut st = db.prepare(&format!("SELECT {FOLDER_COLUMNS}, created_modseq FROM folders WHERE user_id = ?1 AND modseq > ?2 ORDER BY id"))?;
-        let rows: Vec<(Folder, i64)> = st.query_map(params![user_id, since], |r| Ok((folder_from_row(r)?, r.get(8)?)))?.collect::<rusqlite::Result<_>>()?;
+        let st = db.prepare(&format!("SELECT {FOLDER_COLUMNS}, created_modseq FROM folders WHERE user_id = ?1 AND modseq > ?2 ORDER BY id"))?;
+        let rows: Vec<(Folder, i64)> = st.query_map(params![user_id, since], |r| Ok((folder_from_row(r)?, r.get(8)?)))?;
         let mut out = HierarchyChanges { modseq: current, ..Default::default() };
         for (f, created) in rows {
             if f.deleted {
@@ -1018,15 +1021,15 @@ impl Store {
     }
 
     pub fn unread_count(&self, folder_id: i64) -> Result<(i64, i64)> {
-        Ok(self.db().query_row(
+        self.db().query_row(
             "SELECT COUNT(*), COALESCE(SUM(CASE WHEN flags & 1 = 0 THEN 1 ELSE 0 END), 0) FROM items WHERE folder_id = ?1",
             [folder_id],
             |r| Ok((r.get(0)?, r.get(1)?)),
-        )?)
+        )
     }
 
     pub fn folder_size(&self, folder_id: i64) -> Result<i64> {
-        Ok(self.db().query_row("SELECT COALESCE(SUM(size), 0) FROM items WHERE folder_id = ?1", [folder_id], |r| r.get(0))?)
+        self.db().query_row("SELECT COALESCE(SUM(size), 0) FROM items WHERE folder_id = ?1", [folder_id], |r| r.get(0))
     }
 
     // -------------------------------------------------------------- items
@@ -1038,9 +1041,9 @@ impl Store {
             let mut db = self.db();
             let tx = db.transaction()?;
             let modseq = Self::next_modseq(&tx, m.user_id)?;
-            tx.execute(
+            let id: i64 = tx.query_row(
                 "INSERT INTO items (user_id, folder_id, kind, modseq, created_modseq, writer, received, size, flags, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, mime, data)
-                 VALUES (?1, ?2, 'mail', ?3, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)",
+                 VALUES (?1, ?2, 'mail', ?3, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17) RETURNING id",
                 params![
                     m.user_id,
                     m.folder_id,
@@ -1060,8 +1063,8 @@ impl Store {
                     m.mime,
                     meta.calendar,
                 ],
+                |r| r.get(0),
             )?;
-            let id = tx.last_insert_rowid();
             tx.commit()?;
             id
         };
@@ -1076,12 +1079,12 @@ impl Store {
             let mut db = self.db();
             let tx = db.transaction()?;
             let modseq = Self::next_modseq(&tx, user_id)?;
-            tx.execute(
+            let id: i64 = tx.query_row(
                 "INSERT INTO items (user_id, folder_id, kind, uid, modseq, created_modseq, writer, received, size, subject, data, range_start, range_end, flags)
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 1)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, 1) RETURNING id",
                 params![user_id, folder_id, kind.as_str(), uid, modseq, writer, now(), data.len() as i64, subject, data, range.0, range.1],
+                |r| r.get(0),
             )?;
-            let id = tx.last_insert_rowid();
             tx.commit()?;
             id
         };
@@ -1220,7 +1223,7 @@ impl Store {
     }
 
     pub fn item(&self, id: i64) -> Result<Option<Item>> {
-        Ok(self.db().query_row(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE id = ?1"), [id], item_from_row).optional()?)
+        self.db().query_row(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE id = ?1"), [id], item_from_row).optional()
     }
 
     pub fn mime(&self, id: i64) -> Result<Option<Vec<u8>>> {
@@ -1230,9 +1233,9 @@ impl Store {
     /// Items of a folder, newest first.
     pub fn items(&self, folder_id: i64, offset: i64, limit: i64) -> Result<Vec<Item>> {
         let db = self.db();
-        let mut st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE folder_id = ?1 ORDER BY received DESC, id DESC LIMIT ?2 OFFSET ?3"))?;
+        let st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE folder_id = ?1 ORDER BY received DESC, id DESC LIMIT ?2 OFFSET ?3"))?;
         let rows = st.query_map(params![folder_id, limit, offset], item_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        Ok(rows)
     }
 
 
@@ -1240,18 +1243,18 @@ impl Store {
     /// Calendar items that may have occurrences in `[from, to)`.
     pub fn events_in_range(&self, folder_id: i64, from: i64, to: i64) -> Result<Vec<Item>> {
         let db = self.db();
-        let mut st = db.prepare(&format!(
+        let st = db.prepare(&format!(
             "SELECT {ITEM_COLUMNS} FROM items WHERE folder_id = ?1 AND kind = 'event' AND range_start < ?3 AND (range_end IS NULL OR range_end > ?2)"
         ))?;
         let rows = st.query_map(params![folder_id, from, to], item_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        Ok(rows)
     }
 
     pub fn items_by_uid(&self, user_id: i64, uid: &str) -> Result<Vec<Item>> {
         let db = self.db();
-        let mut st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE user_id = ?1 AND uid = ?2"))?;
+        let st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE user_id = ?1 AND uid = ?2"))?;
         let rows = st.query_map(params![user_id, uid], item_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        Ok(rows)
     }
 
 
@@ -1271,30 +1274,39 @@ impl Store {
             ));
         }
         sql.push_str(&format!(" ORDER BY received DESC LIMIT {}", limit.max(1)));
-        let mut st = db.prepare(&sql)?;
-        let mut values: Vec<rusqlite::types::Value> = vec![user_id.into()];
-        values.extend(words.into_iter().map(rusqlite::types::Value::from));
-        let rows = st.query_map(rusqlite::params_from_iter(values), item_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        let st = db.prepare(&sql)?;
+        let mut values: Vec<crate::db::Val> = vec![user_id.into()];
+        values.extend(words.into_iter().map(crate::db::Val::from));
+        let rows = st.query_map(values, item_from_row)?;
+        Ok(rows)
     }
 
     /// Changes in a folder after `since`, oldest first. Changes made by
     /// `exclude_writer` (the asking client itself) are left out.
     pub fn changes(&self, folder_id: i64, since: i64, exclude_writer: Option<&str>) -> Result<Vec<Change>> {
         let db = self.db();
-        let writer = exclude_writer.unwrap_or("\u{0}");
+        // Omit the writer filter entirely when there is nothing to exclude. (A
+        // sentinel value can't be used: PostgreSQL rejects NUL in text and the
+        // empty string is a real writer.)
+        let filter = if exclude_writer.is_some() { " AND writer != ?3" } else { "" };
         let mut out = Vec::new();
         {
-            let mut st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE folder_id = ?1 AND modseq > ?2 AND writer != ?3 ORDER BY modseq"))?;
-            for item in st.query_map(params![folder_id, since, writer], item_from_row)? {
-                let item = item?;
+            let sql = format!("SELECT {ITEM_COLUMNS} FROM items WHERE folder_id = ?1 AND modseq > ?2{filter} ORDER BY modseq");
+            let mut p: Vec<crate::db::Val> = vec![folder_id.into(), since.into()];
+            if let Some(w) = exclude_writer {
+                p.push(w.into());
+            }
+            for item in db.query_all(&sql, p, item_from_row)? {
                 out.push(if item.created_modseq > since { Change::Add(item) } else { Change::Update(item) });
             }
         }
         {
-            let mut st = db.prepare("SELECT item_id, modseq FROM tombstones WHERE folder_id = ?1 AND modseq > ?2 AND writer != ?3 ORDER BY modseq")?;
-            for row in st.query_map(params![folder_id, since, writer], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))? {
-                let (item_id, modseq) = row?;
+            let sql = format!("SELECT item_id, modseq FROM tombstones WHERE folder_id = ?1 AND modseq > ?2{filter} ORDER BY modseq");
+            let mut p: Vec<crate::db::Val> = vec![folder_id.into(), since.into()];
+            if let Some(w) = exclude_writer {
+                p.push(w.into());
+            }
+            for (item_id, modseq) in db.query_all(&sql, p, |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?)))? {
                 // An item created and deleted after the sync point never reached the client.
                 out.push(Change::Delete { item_id, modseq });
             }
@@ -1315,12 +1327,16 @@ impl Store {
     /// Whether anything changed in a folder after `since` (for Ping/streaming).
     pub fn has_changes(&self, folder_id: i64, since: i64, exclude_writer: Option<&str>) -> Result<bool> {
         let db = self.db();
-        let writer = exclude_writer.unwrap_or("\u{0}");
-        let items: i64 = db.query_row("SELECT COUNT(*) FROM items WHERE folder_id = ?1 AND modseq > ?2 AND writer != ?3", params![folder_id, since, writer], |r| r.get(0))?;
+        let filter = if exclude_writer.is_some() { " AND writer != ?3" } else { "" };
+        let mut p: Vec<crate::db::Val> = vec![folder_id.into(), since.into()];
+        if let Some(w) = exclude_writer {
+            p.push(w.into());
+        }
+        let items: i64 = db.query_row(&format!("SELECT COUNT(*) FROM items WHERE folder_id = ?1 AND modseq > ?2{filter}"), p.clone(), |r| r.get(0))?;
         if items > 0 {
             return Ok(true);
         }
-        let deleted: i64 = db.query_row("SELECT COUNT(*) FROM tombstones WHERE folder_id = ?1 AND modseq > ?2 AND writer != ?3", params![folder_id, since, writer], |r| r.get(0))?;
+        let deleted: i64 = db.query_row(&format!("SELECT COUNT(*) FROM tombstones WHERE folder_id = ?1 AND modseq > ?2{filter}"), p, |r| r.get(0))?;
         Ok(deleted > 0)
     }
 
@@ -1329,8 +1345,8 @@ impl Store {
         let db = self.db();
         // Tombstones have no timestamp; keep the newest 10 000 per user and drop older sync keys.
         db.execute(
-            "DELETE FROM tombstones WHERE rowid IN (SELECT rowid FROM (SELECT rowid, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY modseq DESC) AS n FROM tombstones) WHERE n > 10000)",
-            [],
+            "DELETE FROM tombstones WHERE rowid IN (SELECT rowid FROM (SELECT rowid, ROW_NUMBER() OVER (PARTITION BY user_id ORDER BY modseq DESC) AS n FROM tombstones) AS t WHERE t.n > 10000)",
+            params![],
         )?;
         db.execute("DELETE FROM sync_keys WHERE created < ?1", [now() - days * 86_400])?;
         db.execute("DELETE FROM sessions WHERE expires < ?1", [now()])?;
@@ -1344,7 +1360,7 @@ impl Store {
     pub fn save_sync_key(&self, user_id: i64, device: &str, collection: &str, key: i64, modseq: i64) -> Result<()> {
         let db = self.db();
         db.execute(
-            "INSERT OR REPLACE INTO sync_keys (user_id, device_id, collection, sync_key, modseq, created) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            "INSERT INTO sync_keys (user_id, device_id, collection, sync_key, modseq, created) VALUES (?1, ?2, ?3, ?4, ?5, ?6) ON CONFLICT (user_id, device_id, collection, sync_key) DO UPDATE SET modseq = excluded.modseq, created = excluded.created",
             params![user_id, device, collection, key, modseq, now()],
         )?;
         db.execute(
@@ -1355,25 +1371,25 @@ impl Store {
     }
 
     pub fn sync_key(&self, user_id: i64, device: &str, collection: &str, key: i64) -> Result<Option<i64>> {
-        Ok(self
+        self
             .db()
             .query_row(
                 "SELECT modseq FROM sync_keys WHERE user_id = ?1 AND device_id = ?2 AND collection = ?3 AND sync_key = ?4",
                 params![user_id, device, collection, key],
                 |r| r.get(0),
             )
-            .optional()?)
+            .optional()
     }
 
     pub fn latest_sync_key(&self, user_id: i64, device: &str, collection: &str) -> Result<Option<(i64, i64)>> {
-        Ok(self
+        self
             .db()
             .query_row(
                 "SELECT sync_key, modseq FROM sync_keys WHERE user_id = ?1 AND device_id = ?2 AND collection = ?3 ORDER BY sync_key DESC LIMIT 1",
                 params![user_id, device, collection],
                 |r| Ok((r.get(0)?, r.get(1)?)),
             )
-            .optional()?)
+            .optional()
     }
 
     pub fn reset_sync(&self, user_id: i64, device: &str, collection: Option<&str>) -> Result<()> {
@@ -1386,14 +1402,14 @@ impl Store {
     }
 
     pub fn device_state(&self, user_id: i64, device: &str, key: &str) -> Result<Option<String>> {
-        Ok(self
+        self
             .db()
             .query_row("SELECT value FROM device_state WHERE user_id = ?1 AND device_id = ?2 AND key = ?3", params![user_id, device, key], |r| r.get(0))
-            .optional()?)
+            .optional()
     }
 
     pub fn set_device_state(&self, user_id: i64, device: &str, key: &str, value: &str) -> Result<()> {
-        self.db().execute("INSERT OR REPLACE INTO device_state (user_id, device_id, key, value) VALUES (?1, ?2, ?3, ?4)", params![user_id, device, key, value])?;
+        self.db().execute("INSERT INTO device_state (user_id, device_id, key, value) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id, device_id, key) DO UPDATE SET value = excluded.value", params![user_id, device, key, value])?;
         Ok(())
     }
 
@@ -1413,23 +1429,23 @@ impl Store {
     }
 
     pub fn device(&self, user_id: i64, device: &str) -> Result<Option<Device>> {
-        Ok(self
+        self
             .db()
             .query_row(
                 "SELECT user_id, device_id, device_type, user_agent, info, policy_key, wipe, blocked, first_seen, last_seen FROM devices WHERE user_id = ?1 AND device_id = ?2",
                 params![user_id, device],
                 device_from_row,
             )
-            .optional()?)
+            .optional()
     }
 
     pub fn devices(&self, user_id: Option<i64>) -> Result<Vec<Device>> {
         let db = self.db();
-        let mut st = db.prepare(
+        let st = db.prepare(
             "SELECT user_id, device_id, device_type, user_agent, info, policy_key, wipe, blocked, first_seen, last_seen FROM devices WHERE ?1 IS NULL OR user_id = ?1 ORDER BY last_seen DESC",
         )?;
         let rows = st.query_map([user_id], device_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        Ok(rows)
     }
 
     pub fn set_device_info(&self, user_id: i64, device: &str, info: &serde_json::Value) -> Result<()> {
@@ -1465,25 +1481,26 @@ impl Store {
 
     pub fn enqueue(&self, sender: &str, recipients: &[String], raw: &[u8]) -> Result<i64> {
         let db = self.db();
-        db.execute(
-            "INSERT INTO queue (sender, recipients, mime, next_attempt, created) VALUES (?1, ?2, ?3, ?4, ?4)",
+        let id: i64 = db.query_row(
+            "INSERT INTO queue (sender, recipients, mime, next_attempt, created) VALUES (?1, ?2, ?3, ?4, ?4) RETURNING id",
             params![sender, serde_json::to_string(recipients)?, raw, now()],
+            |r| r.get(0),
         )?;
-        Ok(db.last_insert_rowid())
+        Ok(id)
     }
 
     pub fn due_messages(&self, limit: i64) -> Result<Vec<QueuedMessage>> {
         let db = self.db();
-        let mut st = db.prepare("SELECT id, sender, recipients, mime, attempts, next_attempt, created, last_error FROM queue WHERE next_attempt <= ?1 ORDER BY next_attempt LIMIT ?2")?;
+        let st = db.prepare("SELECT id, sender, recipients, mime, attempts, next_attempt, created, last_error FROM queue WHERE next_attempt <= ?1 ORDER BY next_attempt LIMIT ?2")?;
         let rows = st.query_map(params![now(), limit], queue_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        Ok(rows)
     }
 
     pub fn queue(&self) -> Result<Vec<QueuedMessage>> {
         let db = self.db();
-        let mut st = db.prepare("SELECT id, sender, recipients, mime, attempts, next_attempt, created, last_error FROM queue ORDER BY created")?;
-        let rows = st.query_map([], queue_from_row)?;
-        Ok(rows.collect::<rusqlite::Result<_>>()?)
+        let st = db.prepare("SELECT id, sender, recipients, mime, attempts, next_attempt, created, last_error FROM queue ORDER BY created")?;
+        let rows = st.query_map(params![], queue_from_row)?;
+        Ok(rows)
     }
 
     /// Keep only the recipients still to be tried and schedule the next attempt.
@@ -1508,18 +1525,18 @@ impl Store {
     // --------------------------------------------------------------- dkim
 
     pub fn dkim(&self, domain: &str) -> Result<Option<DkimKey>> {
-        Ok(self
+        self
             .db()
             .query_row("SELECT domain, selector, private_key, public_key FROM dkim WHERE domain = ?1", [domain.to_ascii_lowercase()], |r| {
                 Ok(DkimKey { domain: r.get(0)?, selector: r.get(1)?, private_key: r.get(2)?, public_key: r.get(3)? })
             })
-            .optional()?)
+            .optional()
     }
 
     pub fn set_dkim(&self, key: &DkimKey) -> Result<()> {
         self.db().execute(
-            "INSERT OR REPLACE INTO dkim (domain, selector, private_key, public_key, created) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![key.domain, key.selector, key.private_key, key.public_key, now()],
+            "INSERT INTO dkim (domain, selector, private_key, public_key, created) VALUES (?1, ?2, ?3, ?4, ?5) ON CONFLICT (domain) DO UPDATE SET selector = excluded.selector, private_key = excluded.private_key, public_key = excluded.public_key, created = excluded.created",
+            params![&key.domain, &key.selector, &key.private_key, &key.public_key, now()],
         )?;
         Ok(())
     }
@@ -1530,7 +1547,7 @@ impl Store {
         let mut bytes = [0u8; 32];
         rand::fill(&mut bytes);
         let token = hex::encode(bytes);
-        self.db().execute("INSERT INTO sessions (token, user_id, created, expires) VALUES (?1, ?2, ?3, ?4)", params![token, user_id, now(), now() + lifetime])?;
+        self.db().execute("INSERT INTO sessions (token, user_id, created, expires) VALUES (?1, ?2, ?3, ?4)", params![&token, user_id, now(), now() + lifetime])?;
         Ok(token)
     }
 
@@ -1551,7 +1568,7 @@ impl Store {
     }
 }
 
-fn device_from_row(r: &Row<'_>) -> rusqlite::Result<Device> {
+fn device_from_row(r: &Row) -> Result<Device> {
     let info: String = r.get(4)?;
     Ok(Device {
         user_id: r.get(0)?,
@@ -1567,7 +1584,7 @@ fn device_from_row(r: &Row<'_>) -> rusqlite::Result<Device> {
     })
 }
 
-fn queue_from_row(r: &Row<'_>) -> rusqlite::Result<QueuedMessage> {
+fn queue_from_row(r: &Row) -> Result<QueuedMessage> {
     let recipients: String = r.get(2)?;
     Ok(QueuedMessage {
         id: r.get(0)?,
@@ -1619,6 +1636,79 @@ pub(crate) fn test_store() -> (Store, User) {
     s.add_domain("example.com").unwrap();
     let u = s.create_user("niklas@example.com", "Niklas Linz", "secret", "user").unwrap();
     (s, u)
+}
+
+/// Run the full store smoke test against a real PostgreSQL server when the
+/// `ONDURA_TEST_PG` environment variable holds a libpq connection string, e.g.
+/// `host=/var/run/postgresql user=ondura dbname=ondura`. The test resets the
+/// `public` schema first, so point it only at a throwaway database.
+#[cfg(test)]
+#[test]
+fn postgres_backend_smoke() {
+    let Ok(url) = std::env::var("ONDURA_TEST_PG") else {
+        eprintln!("skipping: set ONDURA_TEST_PG to a libpq connection string to run");
+        return;
+    };
+    // Clean slate: drop and recreate the public schema.
+    {
+        let mut admin = postgres::Client::connect(&url, postgres::NoTls).expect("connect to reset schema");
+        admin.batch_execute("DROP SCHEMA public CASCADE; CREATE SCHEMA public;").expect("reset schema");
+    }
+
+    let s = Store::connect_postgres(&url).expect("connect_postgres");
+    s.add_domain("example.com").unwrap();
+    // ON CONFLICT DO NOTHING: adding the same domain twice must not error.
+    s.add_domain("example.com").unwrap();
+    let u = s.create_user("niklas@example.com", "Niklas Linz", "secret", "user").unwrap();
+    assert!(u.id > 0, "RETURNING id yielded a real id");
+
+    // find_user exercises LIKE -> ILIKE (case-insensitive local part).
+    let found = s.user_for_login("NIKLAS").unwrap().expect("user found case-insensitively");
+    assert_eq!(found.id, u.id);
+
+    // Mail insert (RETURNING + transaction + next_modseq) and change feed.
+    let inbox = s.folder_by_role(u.id, "inbox").unwrap().unwrap();
+    let start = s.current_modseq(u.id).unwrap();
+    let raw = b"From: a@b.de\r\nSubject: Projektplan\r\n\r\nHallo Welt";
+    let id = s.insert_mail(NewMail { user_id: u.id, folder_id: inbox.id, mime: raw, flags: 0, received: now(), writer: "smtp" }).unwrap();
+    assert!(matches!(&s.changes(inbox.id, start, None).unwrap()[..], [Change::Add(i)] if i.subject == "Projektplan"));
+
+    // Full-text search (dynamic params + ILIKE).
+    let hits = s.search(u.id, &[inbox.id], "projektplan", 10).unwrap();
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].id, id);
+
+    // Flags, move, tombstones.
+    let mid = s.current_modseq(u.id).unwrap();
+    s.update_flags(id, model::flags::READ, 0, None, "eas:dev1").unwrap();
+    let trash = s.folder_by_role(u.id, "deleteditems").unwrap().unwrap();
+    s.move_item(id, trash.id, "ews").unwrap();
+    assert!(matches!(&s.changes(inbox.id, mid, None).unwrap()[..], [Change::Delete { .. }]));
+
+    // Mime round-trip through BYTEA.
+    assert_eq!(s.mime(id).unwrap().as_deref(), Some(&raw[..]));
+
+    // Collaborative document: create + server-side OT apply (transaction,
+    // RETURNING, op log).
+    let doc = s.create_doc(u.id, "Notes").unwrap();
+    let op = serde_json::json!(["Hallo"]);
+    let (rev, _) = s.apply_op(doc, u.id, 0, &op).unwrap();
+    assert_eq!(rev, 1);
+    assert_eq!(s.doc(doc).unwrap().unwrap().content, "Hallo");
+
+    // Sessions and DKIM upsert.
+    let token = s.create_session(u.id, 3600).unwrap();
+    assert_eq!(s.session_user(&token).unwrap().unwrap().id, u.id);
+    let key = DkimKey { domain: "example.com".into(), selector: "s1".into(), private_key: "priv".into(), public_key: "pub".into() };
+    s.set_dkim(&key).unwrap();
+    s.set_dkim(&DkimKey { selector: "s2".into(), ..key.clone() }).unwrap(); // ON CONFLICT DO UPDATE
+    assert_eq!(s.dkim("example.com").unwrap().unwrap().selector, "s2");
+
+    // Queue enqueue/dequeue (RETURNING id).
+    let qid = s.enqueue("a@example.com", &["b@x.de".into()], b"raw").unwrap();
+    assert_eq!(s.queue().unwrap().len(), 1);
+    s.dequeue(qid).unwrap();
+    assert!(s.queue().unwrap().is_empty());
 }
 
 #[cfg(test)]

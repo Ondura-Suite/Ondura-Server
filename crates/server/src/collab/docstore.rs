@@ -1,8 +1,9 @@
 //! Storage and server-side reconciliation for collaborative documents.
 
 use anyhow::{bail, Result};
-use rusqlite::{params, OptionalExtension};
 use serde_json::Value;
+
+use crate::db::{params, OptionalExtension};
 
 use super::ot::{to_u16, TextOp};
 use crate::store::{now, Store};
@@ -66,15 +67,16 @@ impl Store {
         let name = if name.is_empty() { "Untitled" } else { name };
         let ts = now();
         let db = self.db();
-        db.execute(
-            "INSERT INTO collab_docs (owner_id, name, content, revision, created, updated) VALUES (?1, ?2, '', 0, ?3, ?3)",
+        let id: i64 = db.query_row(
+            "INSERT INTO collab_docs (owner_id, name, content, revision, created, updated) VALUES (?1, ?2, '', 0, ?3, ?3) RETURNING id",
             params![owner_id, name, ts],
+            |r| r.get(0),
         )?;
-        Ok(db.last_insert_rowid())
+        Ok(id)
     }
 
     pub fn doc(&self, id: i64) -> Result<Option<Doc>> {
-        Ok(self
+        self
             .db()
             .query_row(
                 "SELECT id, owner_id, name, content, revision FROM collab_docs WHERE id = ?1",
@@ -89,13 +91,13 @@ impl Store {
                     })
                 },
             )
-            .optional()?)
+            .optional()
     }
 
     /// Documents the user owns or that are shared with them, most recent first.
     pub fn docs_for(&self, user_id: i64) -> Result<Vec<DocMeta>> {
         let db = self.db();
-        let mut stmt = db.prepare(
+        let stmt = db.prepare(
             "SELECT d.id, d.owner_id, d.name, d.revision, d.updated,
                     CASE WHEN d.owner_id = ?1 THEN 1 ELSE COALESCE(s.can_write, 0) END AS can_write,
                     CASE WHEN d.owner_id = ?1 THEN 1 ELSE 0 END AS owned
@@ -116,7 +118,7 @@ impl Store {
                     owned: r.get::<_, i64>(6)? != 0,
                 })
             })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+;
         Ok(rows)
     }
 
@@ -161,12 +163,12 @@ impl Store {
     /// Users a document is shared with: (user_id, email, name, can_write).
     pub fn doc_shares(&self, doc_id: i64) -> Result<Vec<(i64, String, String, bool)>> {
         let db = self.db();
-        let mut stmt = db.prepare(
+        let stmt = db.prepare(
             "SELECT u.id, u.email, u.name, s.can_write FROM collab_shares s JOIN users u ON u.id = s.user_id WHERE s.doc_id = ?1 ORDER BY u.email",
         )?;
         let rows = stmt
             .query_map([doc_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get::<_, i64>(3)? != 0)))?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+;
         Ok(rows)
     }
 
@@ -174,7 +176,7 @@ impl Store {
     /// timestamp, units added, units deleted).
     pub fn doc_history(&self, doc_id: i64, limit: i64) -> Result<Vec<HistoryEntry>> {
         let db = self.db();
-        let mut stmt = db.prepare(
+        let stmt = db.prepare(
             "SELECT o.revision, COALESCE(u.email, '?'), COALESCE(u.name, ''), o.ts, o.op
              FROM collab_ops o LEFT JOIN users u ON u.id = o.user_id
              WHERE o.doc_id = ?1 ORDER BY o.revision DESC LIMIT ?2",
@@ -188,7 +190,7 @@ impl Store {
                 let op: String = r.get(4)?;
                 Ok((rev, email, name, ts, op))
             })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+;
         rows.into_iter()
             .map(|(rev, email, name, ts, op)| {
                 let (added, removed) = op_deltas(&op);
@@ -202,13 +204,13 @@ impl Store {
     pub fn doc_content_at(&self, doc_id: i64, revision: i64) -> Result<String> {
         let ops = {
             let db = self.db();
-            let mut stmt = db.prepare("SELECT op, base_len FROM collab_ops WHERE doc_id = ?1 AND revision <= ?2 ORDER BY revision")?;
+            let stmt = db.prepare("SELECT op, base_len FROM collab_ops WHERE doc_id = ?1 AND revision <= ?2 ORDER BY revision")?;
             stmt.query_map(params![doc_id, revision], |r| {
                 let op: String = r.get(0)?;
                 let bl: u32 = r.get(1)?;
                 Ok((op, bl))
             })?
-            .collect::<std::result::Result<Vec<_>, _>>()?
+
         };
         let mut doc: Vec<u16> = Vec::new();
         for (op_json, base_len) in ops {
@@ -222,14 +224,14 @@ impl Store {
     /// Operations with revision greater than `since`, for client catch-up.
     pub fn ops_since(&self, doc_id: i64, since: i64) -> Result<Vec<(i64, Value)>> {
         let db = self.db();
-        let mut stmt = db.prepare("SELECT revision, op FROM collab_ops WHERE doc_id = ?1 AND revision > ?2 ORDER BY revision")?;
+        let stmt = db.prepare("SELECT revision, op FROM collab_ops WHERE doc_id = ?1 AND revision > ?2 ORDER BY revision")?;
         let rows = stmt
             .query_map(params![doc_id, since], |r| {
                 let rev: i64 = r.get(0)?;
                 let op: String = r.get(1)?;
                 Ok((rev, op))
             })?
-            .collect::<std::result::Result<Vec<_>, _>>()?;
+;
         rows.into_iter()
             .map(|(rev, op)| Ok((rev, serde_json::from_str(&op)?)))
             .collect()
@@ -264,18 +266,15 @@ impl Store {
         let mut incoming = TextOp::from_json(op_json, base_len).map_err(|e| anyhow::anyhow!(e))?;
 
         // Transform the incoming op forward over each already-committed op.
-        let mut stmt = tx.prepare("SELECT revision, op, base_len FROM collab_ops WHERE doc_id = ?1 AND revision > ?2 ORDER BY revision")?;
-        let concurrent: Vec<(Value, u32)> = stmt
-            .query_map(params![doc_id, base_rev], |r| {
+        let concurrent: Vec<(Value, u32)> = tx
+            .query_all("SELECT revision, op, base_len FROM collab_ops WHERE doc_id = ?1 AND revision > ?2 ORDER BY revision", params![doc_id, base_rev], |r| {
                 let op: String = r.get(1)?;
                 let bl: u32 = r.get(2)?;
                 Ok((op, bl))
             })?
-            .collect::<std::result::Result<Vec<_>, _>>()?
             .into_iter()
             .map(|(op, bl)| Ok::<_, anyhow::Error>((serde_json::from_str(&op)?, bl)))
             .collect::<Result<Vec<_>>>()?;
-        drop(stmt);
 
         for (server_op_json, server_base_len) in concurrent {
             let server_op = TextOp::from_json(&server_op_json, server_base_len).map_err(|e| anyhow::anyhow!(e))?;

@@ -28,6 +28,32 @@ pub struct Config {
     pub activesync: ActiveSync,
     #[serde(default)]
     pub collab: Collab,
+    #[serde(default)]
+    pub database: Database,
+}
+
+/// Which storage backend to use. SQLite is embedded and needs no setup;
+/// PostgreSQL connects to a server (local or remote).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Database {
+    pub backend: DbBackend,
+    /// libpq connection string for `backend = "postgres"`, e.g.
+    /// `host=/var/run/postgresql user=ondura dbname=ondura`. Ignored for SQLite.
+    pub url: String,
+}
+
+impl Default for Database {
+    fn default() -> Self {
+        Database { backend: DbBackend::Sqlite, url: String::new() }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DbBackend {
+    Sqlite,
+    Postgres,
 }
 
 /// Optional real-time collaborative documents. Turn this off to run Ondura as a
@@ -220,10 +246,14 @@ impl Config {
         if self.tls.cert.is_some() != self.tls.key.is_some() {
             bail!("tls.cert and tls.key must be set together");
         }
+        if self.database.backend == DbBackend::Postgres && self.database.url.trim().is_empty() {
+            bail!("database.url must be set when database.backend = \"postgres\"");
+        }
         Ok(())
     }
 
-    pub fn database(&self) -> PathBuf {
+    /// Path to the embedded SQLite database file (for `backend = "sqlite"`).
+    pub fn sqlite_path(&self) -> PathBuf {
         self.data_dir.join("ondura.db")
     }
 
@@ -236,6 +266,14 @@ impl Config {
 hostname = "{hostname}"
 data_dir = "/var/lib/ondura-server"
 time_zone = "Europe/Berlin"
+
+# Storage backend. The default is the embedded SQLite database in data_dir,
+# which needs no setup. To use a PostgreSQL server instead, set
+# backend = "postgres" and a libpq connection string. The Debian package can
+# provision a local PostgreSQL database for you: see docs/admin.md.
+[database]
+backend = "sqlite"
+# url = "host=/var/run/postgresql user=ondura dbname=ondura"
 
 [tls]
 # Certificate and key in PEM format, e.g. from Let's Encrypt (certbot).
