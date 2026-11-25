@@ -692,12 +692,12 @@ impl Store {
     }
 
     pub fn used_bytes(&self, user_id: i64) -> Result<i64> {
-        self.db().query_row("SELECT COALESCE(SUM(size), 0) FROM items WHERE user_id = ?1", [user_id], |r| r.get(0))
+        self.db().query_row("SELECT CAST(COALESCE(SUM(size), 0) AS BIGINT) FROM items WHERE user_id = ?1", [user_id], |r| r.get(0))
     }
 
     pub fn user_stats(&self) -> Result<HashMap<i64, (i64, i64)>> {
         let db = self.db();
-        let st = db.prepare("SELECT user_id, COUNT(*), COALESCE(SUM(size), 0) FROM items GROUP BY user_id")?;
+        let st = db.prepare("SELECT user_id, COUNT(*), CAST(COALESCE(SUM(size), 0) AS BIGINT) FROM items GROUP BY user_id")?;
         let rows = st.query_map(params![], |r| Ok((r.get(0)?, (r.get(1)?, r.get(2)?))))?;
         Ok(rows.into_iter().collect())
     }
@@ -1029,7 +1029,7 @@ impl Store {
     }
 
     pub fn folder_size(&self, folder_id: i64) -> Result<i64> {
-        self.db().query_row("SELECT COALESCE(SUM(size), 0) FROM items WHERE folder_id = ?1", [folder_id], |r| r.get(0))
+        self.db().query_row("SELECT CAST(COALESCE(SUM(size), 0) AS BIGINT) FROM items WHERE folder_id = ?1", [folder_id], |r| r.get(0))
     }
 
     // -------------------------------------------------------------- items
@@ -1364,7 +1364,7 @@ impl Store {
             params![user_id, device, collection, key, modseq, now()],
         )?;
         db.execute(
-            "DELETE FROM sync_keys WHERE user_id = ?1 AND device_id = ?2 AND collection = ?3 AND sync_key < ?4 - 1",
+            "DELETE FROM sync_keys WHERE user_id = ?1 AND device_id = ?2 AND collection = ?3 AND sync_key < CAST(?4 AS BIGINT) - 1",
             params![user_id, device, collection, key],
         )?;
         Ok(())
@@ -1442,7 +1442,9 @@ impl Store {
     pub fn devices(&self, user_id: Option<i64>) -> Result<Vec<Device>> {
         let db = self.db();
         let st = db.prepare(
-            "SELECT user_id, device_id, device_type, user_agent, info, policy_key, wipe, blocked, first_seen, last_seen FROM devices WHERE ?1 IS NULL OR user_id = ?1 ORDER BY last_seen DESC",
+            // CAST so PostgreSQL can infer the parameter type (a bare `?1 IS
+            // NULL` leaves it undetermined); harmless under SQLite.
+            "SELECT user_id, device_id, device_type, user_agent, info, policy_key, wipe, blocked, first_seen, last_seen FROM devices WHERE CAST(?1 AS BIGINT) IS NULL OR user_id = CAST(?1 AS BIGINT) ORDER BY last_seen DESC",
         )?;
         let rows = st.query_map([user_id], device_from_row)?;
         Ok(rows)
@@ -1703,6 +1705,22 @@ fn postgres_backend_smoke() {
     s.set_dkim(&key).unwrap();
     s.set_dkim(&DkimKey { selector: "s2".into(), ..key.clone() }).unwrap(); // ON CONFLICT DO UPDATE
     assert_eq!(s.dkim("example.com").unwrap().unwrap().selector, "s2");
+
+    // Device listing: the optional-filter query (CAST so PostgreSQL can infer
+    // the parameter type) must work both ways.
+    assert!(s.devices(None).unwrap().is_empty());
+    assert!(s.devices(Some(u.id)).unwrap().is_empty());
+
+    // Admin Center queries, including aggregates — SUM over a BIGINT column
+    // returns `numeric` in PostgreSQL, so these must be cast to BIGINT.
+    s.used_bytes(u.id).unwrap();
+    s.user_stats().unwrap();
+    s.unread_count(trash.id).unwrap();
+    s.audit_log(10).unwrap();
+    s.domains().unwrap();
+    s.users().unwrap();
+    s.permissions().unwrap();
+    s.aliases().unwrap();
 
     // Queue enqueue/dequeue (RETURNING id).
     let qid = s.enqueue("a@example.com", &["b@x.de".into()], b"raw").unwrap();
