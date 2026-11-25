@@ -98,6 +98,20 @@ enum Command {
         #[arg(long)]
         dry_run: bool,
     },
+    /// First-run setup: ensure a mail domain exists and create an admin
+    /// mailbox. Safe to run again — existing domain and admin are kept.
+    Bootstrap {
+        /// Mail domain. Defaults to the server's host name with the first
+        /// label removed (e.g. mail.example.com -> example.com).
+        #[arg(long)]
+        domain: Option<String>,
+        /// Admin email address. Defaults to admin@<domain>.
+        #[arg(long)]
+        email: Option<String>,
+        /// Admin password. A random one is generated and printed if omitted.
+        #[arg(long)]
+        password: Option<String>,
+    },
     /// Show the DNS records a domain needs.
     Dns { domain: String },
     /// Inspect the outbound queue.
@@ -229,15 +243,83 @@ pub fn run() -> Result<()> {
         preflight_storage(&cfg)?;
         return tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(cfg));
     }
+    // Admin commands run by a person: with a local peer-authenticated
+    // PostgreSQL database, connecting only works as the service user, so when
+    // run as root re-run the command as that user.
+    if let Some(code) = reexec_as_service_user(&cfg)? {
+        std::process::exit(code);
+    }
     let result = run_command(&cfg, command);
     fix_ownership(&cfg);
     result
+}
+
+/// Whether the current process is running as root (real uid 0).
+fn process_is_root() -> bool {
+    use std::os::unix::fs::MetadataExt;
+    std::fs::metadata("/proc/self").map(|m| m.uid() == 0).unwrap_or(false)
+}
+
+/// The `user=` value of a libpq connection string.
+fn url_user(url: &str) -> Option<&str> {
+    url.split_whitespace().find_map(|kv| kv.strip_prefix("user="))
+}
+
+/// True when the URL points at a local Unix-socket PostgreSQL with no password,
+/// i.e. a connection that relies on peer authentication (the OS user must match
+/// the role).
+fn is_local_peer_auth(url: &str) -> bool {
+    let socket_host = url.split_whitespace().any(|kv| kv.strip_prefix("host=").is_some_and(|h| h.starts_with('/')));
+    let has_password = url.split_whitespace().any(|kv| kv.starts_with("password="));
+    socket_host && !has_password
+}
+
+/// When an admin command is run as root against a local peer-authenticated
+/// PostgreSQL database, re-run the same command as the service user (the `user=`
+/// role in the URL, which matches the OS user), so the connection succeeds.
+/// Returns the child's exit code when it re-ran, or `None` when no re-exec was
+/// needed (so the caller continues normally).
+fn reexec_as_service_user(cfg: &Config) -> Result<Option<i32>> {
+    if cfg.database.backend != crate::config::DbBackend::Postgres || !process_is_root() || !is_local_peer_auth(&cfg.database.url) {
+        return Ok(None);
+    }
+    let Some(user) = url_user(&cfg.database.url) else { return Ok(None) };
+    let exe = std::env::current_exe().context("find own executable")?;
+    let args: Vec<String> = std::env::args().skip(1).collect();
+    let status = std::process::Command::new("runuser")
+        .arg("-u")
+        .arg(user)
+        .arg("--")
+        .arg(&exe)
+        .args(&args)
+        .status()
+        .with_context(|| format!("re-run the command as user '{user}'. Run it directly as that user instead: sudo -u {user} ondura-server ..."))?;
+    Ok(Some(status.code().unwrap_or(1)))
+}
+
+/// Derive the mail domain from the server host name: drop the first label when
+/// there are three or more (mail.example.com -> example.com), otherwise keep the
+/// host name (example.com -> example.com).
+fn mail_domain_from_host(hostname: &str) -> String {
+    let h = hostname.trim().trim_end_matches('.').to_ascii_lowercase();
+    let labels: Vec<&str> = h.split('.').filter(|s| !s.is_empty()).collect();
+    if labels.len() >= 3 { labels[1..].join(".") } else { h }
 }
 
 /// Check that the SQLite database and its directory are writable by the current
 /// user before serving, turning a later "attempt to write a readonly database"
 /// into an actionable error at startup.
 fn preflight_storage(cfg: &Config) -> Result<()> {
+    if cfg.database.backend == crate::config::DbBackend::Postgres {
+        // Serving by hand as root can't peer-authenticate as the service role;
+        // the service is meant to run under systemd as that user.
+        if process_is_root() && is_local_peer_auth(&cfg.database.url) && let Some(user) = url_user(&cfg.database.url) {
+            bail!(
+                "PostgreSQL uses peer authentication as the '{user}' role, but this process runs as root, so it cannot connect.\n  Start the server through systemd (it runs as '{user}'):\n    systemctl start ondura-server\n  Or, to run it by hand, run it as that user:\n    sudo -u {user} ondura-server serve"
+            );
+        }
+        return Ok(());
+    }
     if cfg.database.backend != crate::config::DbBackend::Sqlite {
         return Ok(());
     }
@@ -371,6 +453,39 @@ fn run_command(cfg: &Config, command: Command) -> Result<()> {
             print_dns(&s, &cfg, &domain.to_ascii_lowercase());
             Ok(())
         }
+        Command::Bootstrap { domain, email, password } => {
+            let s = open_store(&cfg)?;
+            let domain = domain
+                .map(|d| d.trim().to_ascii_lowercase())
+                .filter(|d| !d.is_empty())
+                .unwrap_or_else(|| mail_domain_from_host(&cfg.hostname));
+            let norm = store::normalize_domain(&domain)?;
+
+            // Ensure the domain exists (idempotent) with a DKIM key.
+            s.add_domain(&domain)?;
+            if s.dkim(&domain)?.is_none() {
+                smtp::dkim::generate(&s, &norm)?;
+            }
+
+            // Ensure an admin mailbox exists.
+            let email = email.map(|e| e.trim().to_string()).filter(|e| !e.is_empty()).unwrap_or_else(|| format!("admin@{norm}"));
+            if let Some(existing) = s.user_by_email(&email)? {
+                println!("Admin mailbox {} already exists; leaving it unchanged.", existing.email);
+            } else {
+                let generated = password.is_none();
+                let password = password.unwrap_or_else(auth::random_password);
+                let u = s.create_user(&email, "Administrator", &password, "user")?;
+                s.update_user(u.id, None, None, Some(true), None)?;
+                println!("Admin mailbox {} created.", u.email);
+                if generated {
+                    println!("Password: {password}");
+                    println!("Write this down now — it is not stored anywhere and not shown again.");
+                }
+            }
+            println!("\nDNS records for {norm}:\n");
+            print_dns(&s, &cfg, &norm);
+            Ok(())
+        }
         Command::Queue { cmd } => {
             let s = open_store(&cfg)?;
             match cmd {
@@ -422,7 +537,7 @@ async fn serve(cfg: Config) -> Result<()> {
     }
     let app = Arc::new(App { cfg: cfg.clone(), store, smtp_tls, https_tls, dns, queue_wake: Notify::new() });
     if app.store.users()?.is_empty() {
-        warn!("no mailboxes yet: create one with `ondura-server domain add <domain>` and `ondura-server user add <address> --admin`");
+        warn!("no mailboxes yet: run `ondura-server bootstrap` to create your mail domain and an admin mailbox in one step");
     }
 
     let mut tasks = tokio::task::JoinSet::new();
@@ -465,4 +580,27 @@ async fn serve(cfg: Config) -> Result<()> {
         _ = term.recv() => info!("shutting down"),
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod bootstrap_tests {
+    use super::{is_local_peer_auth, mail_domain_from_host, url_user};
+
+    #[test]
+    fn domain_derived_from_host() {
+        assert_eq!(mail_domain_from_host("mail.mirranet.de"), "mirranet.de");
+        assert_eq!(mail_domain_from_host("mx1.sub.example.com"), "sub.example.com");
+        assert_eq!(mail_domain_from_host("example.com"), "example.com");
+        assert_eq!(mail_domain_from_host("MAIL.Example.COM"), "example.com");
+    }
+
+    #[test]
+    fn peer_auth_detection() {
+        assert!(is_local_peer_auth("host=/var/run/postgresql user=ondura dbname=ondura"));
+        // A password means password auth, which works for any OS user.
+        assert!(!is_local_peer_auth("host=/var/run/postgresql user=ondura password=x dbname=ondura"));
+        // A TCP host is not peer auth.
+        assert!(!is_local_peer_auth("host=localhost user=ondura dbname=ondura"));
+        assert_eq!(url_user("host=/var/run/postgresql user=ondura dbname=ondura"), Some("ondura"));
+    }
 }

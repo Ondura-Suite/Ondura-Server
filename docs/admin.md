@@ -231,6 +231,14 @@ Notes:
 
 ## Mailboxes
 
+For a fresh server, the quickest start is one command, which creates your mail domain (derived from the host name, or pass `--domain`) and an admin mailbox with a generated password:
+
+```sh
+sudo ondura-server bootstrap
+```
+
+It is safe to run again and prints the DNS records to publish. To do it by hand instead, use `domain add` and `user add --admin` below.
+
 There are three kinds of mailbox:
 
 | Kind | Use |
@@ -274,7 +282,10 @@ ondura-server dkim generate|show example.com
 ondura-server dns example.com                               # DNS records again
 ondura-server queue list | retry <id> | delete <id>
 ondura-server setup-postgres [--role ondura] [--dbname ondura] [--url …] [--dry-run]
+ondura-server bootstrap [--domain …] [--email …] [--password …]   # first-run: domain + admin mailbox
 ```
+
+With the default PostgreSQL backend the database uses peer authentication, so admin commands only connect as the `ondura` service user. When run as root (e.g. `sudo ondura-server user add …`) the command automatically re-runs as that user, so it just works; the server itself must be started through systemd, which already runs as `ondura`.
 
 The configuration file defaults to `/etc/ondura-server/config.toml` (`--config` or `ONDURA_CONFIG` for another one).
 
