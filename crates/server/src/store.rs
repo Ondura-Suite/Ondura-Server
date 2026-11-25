@@ -188,6 +188,14 @@ CREATE TABLE IF NOT EXISTS collab_shares (
     PRIMARY KEY (doc_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS collab_shares_user ON collab_shares(user_id);
+CREATE TABLE IF NOT EXISTS mail_categories (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    color TEXT NOT NULL DEFAULT 'blue',
+    sort INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS mail_categories_user ON mail_categories(user_id);
 "#;
 
 pub fn now() -> i64 {
@@ -738,6 +746,85 @@ impl Store {
 
     pub fn delete_avatar(&self, user_id: i64) -> Result<()> {
         self.db().execute("DELETE FROM avatars WHERE user_id = ?1", [user_id])?;
+        Ok(())
+    }
+
+    // ------------------------------------------------------------ categories
+
+    /// A user's named colour categories: (id, name, colour), in display order.
+    pub fn categories(&self, user_id: i64) -> Result<Vec<(i64, String, String)>> {
+        let db = self.db();
+        let st = db.prepare("SELECT id, name, color FROM mail_categories WHERE user_id = ?1 ORDER BY sort, id")?;
+        st.query_map([user_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+    }
+
+    /// Create a colour category; returns its id. Names are unique per user
+    /// (case-insensitive); an existing name is updated with the new colour.
+    pub fn create_category(&self, user_id: i64, name: &str, color: &str) -> Result<i64> {
+        let db = self.db();
+        if let Some(id) = db
+            .query_row("SELECT id FROM mail_categories WHERE user_id = ?1 AND LOWER(name) = LOWER(?2)", params![user_id, name], |r| r.get::<_, i64>(0))
+            .optional()?
+        {
+            db.execute("UPDATE mail_categories SET color = ?1 WHERE id = ?2", params![color, id])?;
+            return Ok(id);
+        }
+        db.query_row(
+            "INSERT INTO mail_categories (user_id, name, color, sort) VALUES (?1, ?2, ?3, ?4) RETURNING id",
+            params![user_id, name, color, now()],
+            |r| r.get(0),
+        )
+    }
+
+    /// Rename and/or recolour a category, cascading a rename into the items
+    /// that carry the old name so their chips keep the right colour.
+    pub fn update_category(&self, user_id: i64, id: i64, name: &str, color: &str) -> Result<()> {
+        let old: Option<String> = self
+            .db()
+            .query_row("SELECT name FROM mail_categories WHERE id = ?1 AND user_id = ?2", params![id, user_id], |r| r.get(0))
+            .optional()?;
+        let Some(old) = old else { return Ok(()) };
+        self.db().execute("UPDATE mail_categories SET name = ?1, color = ?2 WHERE id = ?3 AND user_id = ?4", params![name, color, id, user_id])?;
+        if old != name {
+            self.remap_category_in_items(user_id, &old, Some(name))?;
+        }
+        Ok(())
+    }
+
+    /// Delete a category and strip its name from every item that carries it.
+    pub fn delete_category(&self, user_id: i64, id: i64) -> Result<()> {
+        let old: Option<String> = self
+            .db()
+            .query_row("SELECT name FROM mail_categories WHERE id = ?1 AND user_id = ?2", params![id, user_id], |r| r.get(0))
+            .optional()?;
+        self.db().execute("DELETE FROM mail_categories WHERE id = ?1 AND user_id = ?2", params![id, user_id])?;
+        if let Some(old) = old {
+            self.remap_category_in_items(user_id, &old, None)?;
+        }
+        Ok(())
+    }
+
+    /// Replace (Some) or remove (None) a category name across all of a user's
+    /// items, bumping each changed item's modseq so clients resync.
+    fn remap_category_in_items(&self, user_id: i64, old: &str, new: Option<&str>) -> Result<()> {
+        let db = self.db();
+        let pattern = format!("%\"{old}\"%");
+        let ids: Vec<i64> = {
+            let st = db.prepare("SELECT id FROM items WHERE user_id = ?1 AND categories LIKE ?2")?;
+            st.query_map(params![user_id, pattern], |r| r.get::<_, i64>(0))?
+        };
+        drop(db);
+        for id in ids {
+            let Some(item) = self.item(id)? else { continue };
+            let mut cats: Vec<String> = item.categories.iter().filter(|c| c.as_str() != old).cloned().collect();
+            if let Some(n) = new
+                && item.categories.iter().any(|c| c == old)
+                && !cats.iter().any(|c| c == n)
+            {
+                cats.push(n.to_string());
+            }
+            self.update_flags(id, 0, 0, Some(&cats), "system")?;
+        }
         Ok(())
     }
 

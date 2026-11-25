@@ -362,6 +362,65 @@ pub fn flag(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     Ok(json!({ "ok": true }))
 }
 
+/// GET /categories — the user's colour-category registry.
+pub fn categories(app: &Shared, user: &User) -> ApiResult {
+    let cats = app.store.categories(user.id).map_err(internal)?;
+    Ok(json!({
+        "categories": cats.iter().map(|(id, name, color)| json!({ "id": id, "name": name, "color": color })).collect::<Vec<_>>()
+    }))
+}
+
+/// POST /category — create a colour category, or update one when `id` is given.
+pub fn save_category(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct Body {
+        #[serde(default)]
+        id: Option<i64>,
+        name: String,
+        #[serde(default)]
+        color: String,
+    }
+    let b: Body = parse(body)?;
+    let name = b.name.trim();
+    if name.is_empty() {
+        return Err(bad("category name is required"));
+    }
+    let color = if b.color.trim().is_empty() { "blue".to_string() } else { b.color.trim().to_string() };
+    let id = match b.id {
+        Some(id) => {
+            app.store.update_category(user.id, id, name, &color).map_err(internal)?;
+            id
+        }
+        None => app.store.create_category(user.id, name, &color).map_err(internal)?,
+    };
+    Ok(json!({ "ok": true, "id": id }))
+}
+
+/// POST /category/delete — remove a category and strip it from every message.
+pub fn delete_category(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct Body {
+        id: i64,
+    }
+    let b: Body = parse(body)?;
+    app.store.delete_category(user.id, b.id).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// POST /categorize — set the exact category list on one message.
+pub fn categorize(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct Body {
+        id: i64,
+        #[serde(default)]
+        categories: Vec<String>,
+    }
+    let b: Body = parse(body)?;
+    let item = own_item(app, user, b.id)?;
+    app.store.update_flags(item.id, 0, 0, Some(&b.categories), WRITER).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
 /// POST /move — move a message to another folder.
 pub fn move_message(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     #[derive(Deserialize)]

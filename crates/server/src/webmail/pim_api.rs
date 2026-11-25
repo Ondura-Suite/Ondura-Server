@@ -175,11 +175,14 @@ pub fn bulk(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         action: String,
         #[serde(default)]
         folder: Option<i64>,
+        #[serde(default)]
+        categories: Vec<String>,
     }
     let b: B = parse(body)?;
     let target = match (b.action.as_str(), b.folder) {
         ("move", Some(f)) => Some(app.store.folder(f).map_err(internal)?.filter(|x| x.user_id == user.id).ok_or_else(not_found)?.id),
         ("move", None) => return Err(bad("folder required")),
+        ("archive", _) => Some(app.store.folder_by_role(user.id, "archive").map_err(internal)?.ok_or_else(|| bad("no archive folder"))?.id),
         _ => None,
     };
     let trash = app.store.folder_by_role(user.id, "deleteditems").map_err(internal)?;
@@ -191,7 +194,17 @@ pub fn bulk(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
             "unread" => app.store.update_flags(item.id, 0, flags::READ, None, WRITER),
             "flag" => app.store.update_flags(item.id, flags::FLAGGED, 0, None, WRITER),
             "unflag" => app.store.update_flags(item.id, 0, flags::FLAGGED, None, WRITER),
-            "move" => app.store.move_item(item.id, target.unwrap(), WRITER),
+            "move" | "archive" => app.store.move_item(item.id, target.unwrap(), WRITER),
+            "categorize" => {
+                // Additive: union the requested categories onto the item.
+                let mut cats = item.categories.clone();
+                for c in &b.categories {
+                    if !cats.iter().any(|x| x == c) {
+                        cats.push(c.clone());
+                    }
+                }
+                app.store.update_flags(item.id, 0, 0, Some(&cats), WRITER)
+            }
             "delete" => match &trash {
                 Some(tr) if item.folder_id != tr.id => app.store.move_item(item.id, tr.id, WRITER),
                 _ => app.store.delete_item(item.id, WRITER),

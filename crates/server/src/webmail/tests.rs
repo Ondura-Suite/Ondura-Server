@@ -50,6 +50,31 @@ fn draft_keeps_bcc() {
 }
 
 #[test]
+fn categories_assign_rename_and_delete() {
+    let (app, user) = App::test();
+    // Create a draft to carry a category.
+    let saved = mail_api::draft(&app, &user, &body(serde_json::json!({ "to": "a@example.com", "subject": "Tagged", "text": "x" }))).unwrap();
+    let id = saved["id"].as_i64().unwrap();
+    // Register a colour category.
+    let cat = mail_api::save_category(&app, &user, &body(serde_json::json!({ "name": "Work", "color": "red" }))).unwrap();
+    assert!(cat["id"].as_i64().unwrap() > 0);
+    // Assign it to the message.
+    mail_api::categorize(&app, &user, &body(serde_json::json!({ "id": id, "categories": ["Work"] }))).unwrap();
+    let full = mail_api::message(&app, &user, &id.to_string()).unwrap();
+    assert_eq!(full["categories"].as_array().unwrap(), &vec![serde_json::json!("Work")]);
+    // Rename the category — the item's chip name must follow.
+    let cid = cat["id"].as_i64().unwrap();
+    mail_api::save_category(&app, &user, &body(serde_json::json!({ "id": cid, "name": "Office", "color": "blue" }))).unwrap();
+    let full = mail_api::message(&app, &user, &id.to_string()).unwrap();
+    assert_eq!(full["categories"].as_array().unwrap(), &vec![serde_json::json!("Office")]);
+    // Delete the category — it is stripped from the item.
+    mail_api::delete_category(&app, &user, &body(serde_json::json!({ "id": cid }))).unwrap();
+    let full = mail_api::message(&app, &user, &id.to_string()).unwrap();
+    assert!(full["categories"].as_array().unwrap().is_empty());
+    assert!(mail_api::categories(&app, &user).unwrap()["categories"].as_array().unwrap().is_empty());
+}
+
+#[test]
 fn draft_then_list_and_read() {
     let (app, user) = App::test();
     let saved = mail_api::draft(&app, &user, &body(serde_json::json!({
