@@ -56,11 +56,8 @@ Android, the mail apps of iOS and Android and EWS clients. Includes SMTP \
 with DKIM, SPF and DMARC, Autodiscover and a web-based Admin Center."""
 section = "mail"
 priority = "optional"
-depends = "$auto, adduser"
+depends = "$auto, adduser, postgresql"
 recommends = "certbot"
-# PostgreSQL is optional: the default backend is the embedded SQLite database.
-# Install it and run `ondura-server setup-postgres` to switch.
-suggests = "postgresql"
 assets = [
     ["target/release/ondura-server", "usr/bin/", "755"],
     ["../../packaging/certbot-deploy-hook.sh", "usr/share/ondura-server/certbot-deploy-hook.sh", "755"],

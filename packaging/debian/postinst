@@ -18,6 +18,25 @@ if [ "$1" = "configure" ]; then
         chmod 0640 /etc/ondura-server/config.toml
         echo "Ondura Server: edit /etc/ondura-server/config.toml, then see /usr/share/doc/ondura-server/admin.md"
     fi
+
+    # PostgreSQL is the default backend: provision a local role and database
+    # (idempotent). The service builds the schema on first start, as the
+    # 'ondura' user over the local socket (peer authentication). If PostgreSQL
+    # is not reachable, fall back to a clear hint instead of failing the install.
+    if command -v runuser >/dev/null 2>&1 && runuser -u postgres -- psql -Atqc 'SELECT 1' >/dev/null 2>&1; then
+        runuser -u postgres -- psql -v ON_ERROR_STOP=1 -q <<'SQL' || echo "Ondura Server: could not provision PostgreSQL automatically; run 'ondura-server setup-postgres' as root."
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = 'ondura') THEN
+    CREATE ROLE ondura LOGIN;
+  END IF;
+END $$;
+SELECT 'CREATE DATABASE ondura OWNER ondura'
+  WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = 'ondura')\gexec
+SQL
+    else
+        echo "Ondura Server: PostgreSQL not reachable during install. Once it is running, provision it with: ondura-server setup-postgres"
+        echo "               Or switch to the SQLite fallback by setting backend = \"sqlite\" in /etc/ondura-server/config.toml."
+    fi
 fi
 
 #DEBHELPER#
