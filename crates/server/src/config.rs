@@ -45,7 +45,10 @@ pub struct Database {
 
 impl Default for Database {
     fn default() -> Self {
-        Database { backend: DbBackend::Sqlite, url: String::new() }
+        // PostgreSQL is the default backend; the Debian package provisions a
+        // local database and the service connects over the socket as the
+        // `ondura` role using peer authentication. SQLite is the fallback.
+        Database { backend: DbBackend::Postgres, url: "host=/var/run/postgresql user=ondura dbname=ondura".into() }
     }
 }
 
@@ -267,13 +270,15 @@ hostname = "{hostname}"
 data_dir = "/var/lib/ondura-server"
 time_zone = "Europe/Berlin"
 
-# Storage backend. The default is the embedded SQLite database in data_dir,
-# which needs no setup. To use a PostgreSQL server instead, set
-# backend = "postgres" and a libpq connection string. The Debian package can
-# provision a local PostgreSQL database for you: see docs/admin.md.
+# Storage backend. The default is PostgreSQL; the Debian package provisions a
+# local database and the service connects over the socket as the "ondura" role.
+# SQLite is the fallback: set backend = "sqlite" to store everything in a single
+# file under data_dir, with no database server. See docs/admin.md.
 [database]
-backend = "sqlite"
-# url = "host=/var/run/postgresql user=ondura dbname=ondura"
+backend = "postgres"
+url = "host=/var/run/postgresql user=ondura dbname=ondura"
+# For SQLite instead:
+# backend = "sqlite"
 
 [tls]
 # Certificate and key in PEM format, e.g. from Let's Encrypt (certbot).

@@ -42,6 +42,7 @@ The package
 
 - installs `/usr/bin/ondura-server` and the systemd service `ondura-server` (enabled, not started),
 - creates the system user `ondura`, the data folder `/var/lib/ondura-server` and `/etc/ondura-server/config.toml` with the machine's host name,
+- installs PostgreSQL (the default backend) and provisions a local `ondura` database — see [Storage backend](#storage-backend); to run without a database server, switch to the SQLite fallback instead,
 - ships `/usr/share/ondura-server/certbot-deploy-hook.sh` for Let's Encrypt.
 
 The service binds the privileged ports through `CAP_NET_BIND_SERVICE` and runs as `ondura` with a read-only system. Start it after the configuration:
@@ -66,6 +67,8 @@ sudo cp packaging/ondura-server.service /etc/systemd/system/
 sudo systemctl enable ondura-server
 ```
 
+The default backend is PostgreSQL. Install the `postgresql` package and run `sudo ondura-server setup-postgres`, or set `backend = "sqlite"` in the configuration to run without a database server — see [Storage backend](#storage-backend).
+
 ### Container
 
 ```sh
@@ -77,6 +80,8 @@ docker run -d --name ondura --restart unless-stopped \
   ondura-server
 docker exec -it ondura ondura-server --config /etc/ondura-server/config.toml user list
 ```
+
+The image has no database server, so point `[database].url` at an external PostgreSQL, or set `backend = "sqlite"` to keep everything in the `ondura-data` volume — see [Storage backend](#storage-backend).
 
 ## Configuration
 
@@ -132,46 +137,51 @@ Logs go to the journal. `ONDURA_LOG=debug` in the service environment (`systemct
 
 Ondura stores all data through one database. Two backends are supported:
 
-- **SQLite** (default) — embedded in the server, stored under `data_dir`
-  (`/var/lib/ondura-server/ondura.db`). No setup, good for a single server.
-- **PostgreSQL** — a separate database server, local or remote. Choose this if
-  you want to use external SQL tooling against the data, run backups through
-  PostgreSQL, or keep the data outside the application's own directory.
+- **PostgreSQL** (default) — a database server, local or remote. On Debian/Ubuntu
+  the package installs PostgreSQL and provisions a local database automatically,
+  so there is nothing to do.
+- **SQLite** (fallback) — embedded in the server, a single file under `data_dir`
+  (`/var/lib/ondura-server/ondura.db`). No database server; useful for a minimal
+  setup or when PostgreSQL is unavailable.
 
 Both speak the same schema; you pick one in the configuration:
 
 ```toml
 [database]
-backend = "sqlite"   # or "postgres"
-# url = "host=/var/run/postgresql user=ondura dbname=ondura"
+backend = "postgres"
+url = "host=/var/run/postgresql user=ondura dbname=ondura"
+# For SQLite instead:
+# backend = "sqlite"
 ```
 
-### Switching to PostgreSQL
+### PostgreSQL (default)
 
-On Debian/Ubuntu, install PostgreSQL and let Ondura provision the database:
+With the Debian/Ubuntu package you get this out of the box: `postgresql` is a
+dependency, and the package creates a role `ondura` and a database `ondura`
+owned by it during installation. The service connects over the local socket as
+the `ondura` role using peer authentication, so no password is stored, and it
+builds the schema on first start.
+
+If you install another way, or PostgreSQL was not reachable during install,
+provision it yourself (as root, after the `postgresql` package is running):
 
 ```sh
-sudo apt install postgresql
 sudo ondura-server setup-postgres
 ```
 
-`setup-postgres` creates a PostgreSQL role `ondura` and a database `ondura`
-owned by it, builds the schema, and sets `[database]` in
-`/etc/ondura-server/config.toml` to use it. The service connects over the local
-socket as the `ondura` role using peer authentication, so no password is
-stored. Restart the service afterwards:
+This creates the role and database, sets `[database]` in
+`/etc/ondura-server/config.toml`, and is idempotent. Use `--role`, `--dbname`
+or `--url` to override the defaults (for example a remote server with a password
+in the URL), and `--dry-run` to see the steps first. Restart the service
+afterwards.
 
-```sh
-sudo systemctl restart ondura-server
-```
+### SQLite (fallback)
 
-Use `--role`, `--dbname` or `--url` to override the defaults (for example a
-remote server with a password in the URL), and `--dry-run` to see the steps
-first. The command is idempotent — running it again does nothing if the role
-and database already exist.
+To run without a database server, set `backend = "sqlite"` in the configuration
+and restart. Everything is then stored in `/var/lib/ondura-server/ondura.db`.
 
-Switching backends does not migrate existing data; set this up before putting
-the server into use, or move data over yourself.
+Switching backends does not migrate existing data; choose the backend before
+putting the server into use, or move data over yourself.
 
 ## TLS certificate
 
@@ -353,19 +363,19 @@ SMTP is not proxied: keep `[tls]` configured so STARTTLS and port 465 work.
 
 ## Backup and restore
 
-With the default **SQLite** backend, all data is in one database (`/var/lib/ondura-server/ondura.db` plus `-wal`/`-shm` files). Consistent backups while the server runs:
+With the default **PostgreSQL** backend, back up the database with `pg_dump` and restore with `pg_restore` as usual, and back up `/etc/ondura-server` as well:
+
+```sh
+sudo -u postgres pg_dump -Fc ondura > /backup/ondura-$(date +%F).dump
+```
+
+With the **SQLite** fallback, all data is in one database (`/var/lib/ondura-server/ondura.db` plus `-wal`/`-shm` files). Consistent backups while the server runs:
 
 ```sh
 sqlite3 /var/lib/ondura-server/ondura.db ".backup '/backup/ondura-$(date +%F).db'"
 ```
 
-Also back up `/etc/ondura-server`. To restore, stop the service, copy the backup to `/var/lib/ondura-server/ondura.db` (owner `ondura`), remove old `-wal`/`-shm` files and start the service. Phones resynchronise automatically.
-
-With the **PostgreSQL** backend, back up the database with `pg_dump` and restore with `pg_restore`/`psql` as usual, and back up `/etc/ondura-server` as well:
-
-```sh
-sudo -u postgres pg_dump -Fc ondura > /backup/ondura-$(date +%F).dump
-```
+Also back up `/etc/ondura-server`. To restore SQLite, stop the service, copy the backup to `/var/lib/ondura-server/ondura.db` (owner `ondura`), remove old `-wal`/`-shm` files and start the service. Phones resynchronise automatically.
 
 ## Updates
 

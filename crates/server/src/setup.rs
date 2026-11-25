@@ -56,8 +56,15 @@ pub fn setup_postgres(config_path: &Path, role: &str, dbname: &str, url_override
     println!("Creating PostgreSQL role {role:?} and database {dbname:?} ...");
     run_superuser_sql(&sql).context("provision the database (is the 'postgresql' package installed and running?)")?;
 
-    println!("Building the schema ...");
-    Store::connect_postgres(&url).context("connect to the new PostgreSQL database")?;
+    // Build the schema now when we can reach the database directly (e.g. a
+    // remote URL with a password). With the default local socket + peer
+    // authentication this connection is refused when setup runs as root
+    // (root != the `ondura` role), which is fine: the service builds the schema
+    // on its next start, as the `ondura` user.
+    match Store::connect_postgres(&url) {
+        Ok(_) => println!("Schema is ready."),
+        Err(_) => println!("The service will create the schema on its next start."),
+    }
 
     let text = std::fs::read_to_string(config_path).with_context(|| format!("read {}", config_path.display()))?;
     let updated = rewrite_backend(&text, &url);
