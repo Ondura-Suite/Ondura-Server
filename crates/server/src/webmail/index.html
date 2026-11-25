@@ -230,6 +230,13 @@ svg { width: 18px; height: 18px; display: block; }
 @keyframes slide { from { transform: translateX(16px); opacity: .6; } to { transform: none; opacity: 1; } }
 .panel .head { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
 .panel .head h2 { font-size: 17px; margin: 0; flex: 1; }
+.dialog { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 420px; max-width: calc(100% - 32px); background: var(--surface-solid); border: 1px solid var(--border); border-radius: 14px; box-shadow: var(--shadow); max-height: 80vh; display: flex; flex-direction: column; }
+.dialog .head { display: flex; align-items: center; padding: 14px 18px; border-bottom: 1px solid var(--border); }
+.dialog .head h2 { font-size: 17px; margin: 0; flex: 1; }
+.sclist { padding: 10px 18px 16px; overflow: auto; }
+.scrow { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 7px 0; border-bottom: 1px solid var(--border); font-size: 13.5px; }
+.scrow:last-child { border-bottom: 0; }
+.scrow kbd { font: 12px ui-monospace, monospace; background: var(--surface-hover); border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; color: var(--text); white-space: nowrap; }
 .panel .cont { padding: 16px 18px; overflow-y: auto; flex: 1; }
 .panel .foot { padding: 12px 18px; border-top: 1px solid var(--border); display: flex; gap: 8px; justify-content: flex-end; }
 .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
@@ -344,6 +351,7 @@ const T = {
     logout: "Sign out", confirmDelete: "Delete this item?", sent: "Sent", saved: "Saved", deleted: "Deleted", emptyTrash: "Empty", confirmEmpty: "Permanently delete all items in Deleted Items?", loading: "Loading…", langName: "Deutsch",
     changePicture: "Change picture", removePicture: "Remove picture", discard: "Discard", newMessage: "New message", linkUrl: "Link URL",
     print: "Print", bcc: "Bcc", showBcc: "Bcc", noArchive: "No archive folder", unflag: "Clear flag", recipientRequired: "Add at least one recipient",
+    shortcuts: "Keyboard shortcuts", navigate: "Move between messages", openMsg: "Open message", close: "Close / deselect",
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
     tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
@@ -361,6 +369,7 @@ const T = {
     logout: "Abmelden", confirmDelete: "Diesen Eintrag löschen?", sent: "Gesendet", saved: "Gespeichert", deleted: "Gelöscht", emptyTrash: "Leeren", confirmEmpty: "Alle Elemente im Papierkorb endgültig löschen?", loading: "Lädt…", langName: "English",
     changePicture: "Bild ändern", removePicture: "Bild entfernen", discard: "Verwerfen", newMessage: "Neue Nachricht", linkUrl: "Link-URL",
     print: "Drucken", bcc: "Bcc", showBcc: "Bcc", noArchive: "Kein Archivordner", unflag: "Kennzeichnung entfernen", recipientRequired: "Mindestens einen Empfänger angeben",
+    shortcuts: "Tastenkürzel", navigate: "Zwischen Nachrichten wechseln", openMsg: "Nachricht öffnen", close: "Schließen / Auswahl aufheben",
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
     tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
@@ -494,6 +503,62 @@ $("#avFile").addEventListener("change", guard(async () => {
 $("#settingsBtn").addEventListener("click", () => openSettings());
 let searchTimer;
 $("#q").addEventListener("input", (e) => { clearTimeout(searchTimer); const v = e.target.value.trim(); searchTimer = setTimeout(() => { if (view !== "mail") { view = "mail"; renderRail(); } loadMessages(v); }, 250); });
+
+// ---------------------------------------------------------- KEYBOARD SHORTCUTS
+function isTypingTarget() { const el = document.activeElement; if (!el) return false; const tag = el.tagName; return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable; }
+function composeOpen() { return !!$("#reader .composepane"); }
+function overlayOpen() { const o = $("#overlay"); return !!o && o.children.length > 0; }
+function focusAdjacent(delta) {
+  if (!messages.length) return;
+  let idx = messages.findIndex((m) => m.id === curMsg);
+  if (idx < 0) idx = delta > 0 ? -1 : messages.length;
+  const next = Math.max(0, Math.min(messages.length - 1, idx + delta));
+  const id = messages[next].id;
+  openMessage(id);
+  setTimeout(() => { const row = $(`.msg[data-id="${id}"]`); if (row) row.scrollIntoView({ block: "nearest" }); }, 0);
+}
+const SHORTCUTS = [
+  ["↑ ↓  /  j k", "navigate"], ["Enter", "openMsg"], ["c  /  n", "newMessage"],
+  ["r", "reply"], ["Shift+R  /  a", "replyAll"], ["f", "forward"],
+  ["e", "archive"], ["Del  /  #", "delete"], ["u", "markUnread"], ["m", "moveTo"],
+  ["/", "search"], ["Esc", "close"], ["?", "shortcuts"],
+];
+function showShortcuts() {
+  const rows = SHORTCUTS.map(([k, label]) => `<div class="scrow"><span>${esc(t(label))}</span><kbd>${k}</kbd></div>`).join("");
+  const close = () => { $("#overlay").innerHTML = ""; };
+  $("#overlay").innerHTML = `<div class="scrim"></div><div class="dialog"><div class="head"><h2>${esc(t("shortcuts"))}</h2><button class="iconbtn" id="scClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div><div class="sclist">${rows}</div></div>`;
+  $("#overlay .scrim").onclick = close; $("#scClose").onclick = close;
+}
+document.addEventListener("keydown", (e) => {
+  if ($("#app").classList.contains("hidden")) return; // not signed in
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  // Escape unwinds whatever is open, innermost first.
+  if (e.key === "Escape") {
+    if ($("#ctxMenu")) { closeMenu(); return; }
+    if (overlayOpen()) { $("#overlay").innerHTML = ""; return; }
+    if (composeOpen()) { const c = $("#cClose"); if (c) c.click(); return; }
+    const am = $("#acctMenu"); if (am && !am.classList.contains("hidden")) { am.classList.add("hidden"); return; }
+    if (view === "mail" && curMsg) { curMsg = null; const r = $("#reader"); if (r) r.innerHTML = `<div class="empty">${esc(t("selectMessage"))}</div>`; renderMsgList(); }
+    return;
+  }
+  if (isTypingTarget() || composeOpen() || overlayOpen()) return;
+  if (e.key === "/") { e.preventDefault(); $("#q").focus(); return; }
+  if (e.key === "?") { e.preventDefault(); showShortcuts(); return; }
+  if (e.key === "c" || e.key === "n") { e.preventDefault(); openCompose({}); return; }
+  if (view !== "mail") return;
+  if (e.key === "ArrowDown" || e.key === "j") { e.preventDefault(); focusAdjacent(1); return; }
+  if (e.key === "ArrowUp" || e.key === "k") { e.preventDefault(); focusAdjacent(-1); return; }
+  if (e.key === "Enter") { if (curMsg) { e.preventDefault(); openMessage(curMsg); } return; }
+  if (!curMsg) return;
+  const id = curMsg;
+  if (e.key === "r") { e.preventDefault(); actReply(id, "reply"); }
+  else if (e.key === "R" || e.key === "a") { e.preventDefault(); actReply(id, "replyAll"); }
+  else if (e.key === "f") { e.preventDefault(); actReply(id, "forward"); }
+  else if (e.key === "e") { e.preventDefault(); guard(() => actArchive(id))(); }
+  else if (e.key === "Delete" || e.key === "#") { e.preventDefault(); guard(() => actDelete(id))(); }
+  else if (e.key === "u") { e.preventDefault(); const it = messages.find((x) => x.id === id); const read = !!(it && it.flags && it.flags.read); guard(() => actRead(id, !read))(); }
+  else if (e.key === "m") { e.preventDefault(); const row = $(`.msg[data-id="${id}"]`); openMoveMenu(row || $("#reader"), async (fid) => { await api("POST", "/move", { id, folder: fid }); afterMsgGone(id); }); }
+});
 
 async function start() {
   $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
