@@ -253,7 +253,7 @@ pub async fn handle(app: Shared, user: User, method: Method, query: &str, header
     // Provisioning: a device must accept the policy before it may sync.
     let needs_policy = !matches!(q.cmd.as_str(), "Provision" | "Ping" | "GetAttachment");
     let wipe_pending = device.wipe == 1;
-    if (app.cfg.activesync.provisioning || wipe_pending) && needs_policy && (policy_key.is_none_or(|k| k as i64 != device.policy_key) || device.policy_key == 0 || wipe_pending) {
+    if (app.activesync_provisioning() || wipe_pending) && needs_policy && (policy_key.is_none_or(|k| k as i64 != device.policy_key) || device.policy_key == 0 || wipe_pending) {
         debug!(device = %q.device_id, "device must provision");
         return with_server_headers(if version >= 14.0 { not_provisioned(&q.cmd) } else { status(StatusCode::from_u16(449).expect("valid status")) });
     }

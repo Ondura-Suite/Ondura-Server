@@ -41,6 +41,12 @@ CREATE TABLE IF NOT EXISTS aliases (
     address TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE
 );
+CREATE TABLE IF NOT EXISTS avatars (
+    user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+    content_type TEXT NOT NULL,
+    data BLOB NOT NULL,
+    updated INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS permissions (
     owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     grantee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -187,6 +193,9 @@ CREATE INDEX IF NOT EXISTS collab_shares_user ON collab_shares(user_id);
 pub fn now() -> i64 {
     chrono::Utc::now().timestamp()
 }
+
+/// Maximum size of an avatar image.
+pub const MAX_AVATAR_BYTES: usize = 1024 * 1024;
 
 // ---------------------------------------------------------------- records
 
@@ -684,6 +693,52 @@ impl Store {
     pub fn settings(&self, id: i64) -> Result<UserSettings> {
         let s: String = self.db().query_row("SELECT settings FROM users WHERE id = ?1", [id], |r| r.get(0))?;
         Ok(serde_json::from_str(&s).unwrap_or_default())
+    }
+
+    // ------------------------------------------------------- server settings
+
+    /// Read a value from the key/value `meta` table.
+    pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
+        self.db().query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0)).optional()
+    }
+
+    /// Store a value in the `meta` table.
+    pub fn set_meta(&self, key: &str, value: &str) -> Result<()> {
+        self.db().execute(
+            "INSERT INTO meta (key, value) VALUES (?1, ?2) ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    // ------------------------------------------------------------ avatars
+
+    /// Set (or replace) a user's avatar image.
+    pub fn set_avatar(&self, user_id: i64, content_type: &str, data: &[u8]) -> Result<()> {
+        self.db().execute(
+            "INSERT INTO avatars (user_id, content_type, data, updated) VALUES (?1, ?2, ?3, ?4) ON CONFLICT (user_id) DO UPDATE SET content_type = excluded.content_type, data = excluded.data, updated = excluded.updated",
+            params![user_id, content_type, data, now()],
+        )?;
+        Ok(())
+    }
+
+    /// A user's avatar: content type, image bytes and the time it was set.
+    pub fn avatar(&self, user_id: i64) -> Result<Option<(String, Vec<u8>, i64)>> {
+        self
+            .db()
+            .query_row("SELECT content_type, data, updated FROM avatars WHERE user_id = ?1", [user_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+            .optional()
+    }
+
+    /// When a user's avatar was last set (for cache-busting), without loading
+    /// the image. `None` means no avatar.
+    pub fn avatar_updated(&self, user_id: i64) -> Result<Option<i64>> {
+        self.db().query_row("SELECT updated FROM avatars WHERE user_id = ?1", [user_id], |r| r.get(0)).optional()
+    }
+
+    pub fn delete_avatar(&self, user_id: i64) -> Result<()> {
+        self.db().execute("DELETE FROM avatars WHERE user_id = ?1", [user_id])?;
+        Ok(())
     }
 
     pub fn set_settings(&self, id: i64, settings: &UserSettings) -> Result<()> {
@@ -1734,6 +1789,16 @@ fn postgres_backend_smoke() {
     s.users().unwrap();
     s.permissions().unwrap();
     s.aliases().unwrap();
+
+    // Avatars round-trip through a BYTEA column.
+    assert!(s.avatar_updated(u.id).unwrap().is_none());
+    s.set_avatar(u.id, "image/png", b"\x89PNG fake").unwrap();
+    assert!(s.avatar_updated(u.id).unwrap().is_some());
+    let (ct, data, _) = s.avatar(u.id).unwrap().unwrap();
+    assert_eq!(ct, "image/png");
+    assert_eq!(data, b"\x89PNG fake");
+    s.delete_avatar(u.id).unwrap();
+    assert!(s.avatar(u.id).unwrap().is_none());
 
     // Queue enqueue/dequeue (RETURNING id).
     let qid = s.enqueue("a@example.com", &["b@x.de".into()], b"raw").unwrap();

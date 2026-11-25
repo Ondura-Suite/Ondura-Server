@@ -106,7 +106,7 @@ pub struct WsQuery {
 
 /// Axum route handler for `GET /collab/ws?doc=<id>` (registered in the router).
 pub async fn ws_route(ws: WebSocketUpgrade, State(app): State<Shared>, headers: HeaderMap, Query(q): Query<WsQuery>) -> Response {
-    if !app.cfg.collab.enabled {
+    if !app.collab_enabled() {
         return StatusCode::NOT_FOUND.into_response();
     }
     let Some(user) = collab_user(&app, &headers) else {
@@ -235,7 +235,7 @@ fn handle_client_frame(app: &Shared, room: &Room, conn_id: u64, user: &User, doc
 // -------------------------------------------------------------- REST API
 
 pub async fn handle(app: Shared, method: Method, path: &str, query: &str, headers: &HeaderMap, body: Bytes) -> Response {
-    if !app.cfg.collab.enabled {
+    if !app.collab_enabled() {
         return StatusCode::NOT_FOUND.into_response();
     }
     let api = path.trim_start_matches("/collab/api");

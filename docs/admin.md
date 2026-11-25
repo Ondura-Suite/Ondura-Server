@@ -253,6 +253,19 @@ Further addresses go to the same mailbox as **aliases**; `@example.com` as alias
 
 **Quota**: optional per mailbox in the Admin Center; 0 means unlimited.
 
+## Settings and avatars
+
+The Admin Center has a **Settings** page for operational settings that take
+effect immediately (no restart): ActiveSync device policies and whether a device
+password is required, and whether real-time collaboration is enabled. These are
+stored in the database and override the configuration file. The page also shows
+the infrastructure settings (hostname, backend, ports, limits) read-only — those
+are changed in `config.toml` with a restart.
+
+Each mailbox can have an **avatar** (profile picture), set in the Admin Center on
+the mailbox's General tab, or by the user through the Ondura client / webmail.
+Avatars are PNG, JPEG, WebP or GIF up to 1 MB and are shown by Ondura clients.
+
 ## Admin Center
 
 `https://mail.example.com/admin` – sign in with a mailbox that has administrator rights (`--admin` when created, or the checkbox in the Admin Center). It has the same functions as the command line plus:

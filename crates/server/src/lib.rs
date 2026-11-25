@@ -558,7 +558,8 @@ async fn serve(cfg: Config) -> Result<()> {
     if dns.is_none() {
         warn!("no DNS resolver available: SPF/DKIM/DMARC checks and MX delivery will fail");
     }
-    let app = Arc::new(App { cfg: cfg.clone(), store, smtp_tls, https_tls, dns, queue_wake: Notify::new() });
+    let app = Arc::new(App { cfg: cfg.clone(), store, settings: std::sync::RwLock::new(crate::app::SettingsOverrides::default()), smtp_tls, https_tls, dns, queue_wake: Notify::new() });
+    app.load_settings();
     if app.store.users()?.is_empty() {
         warn!("no mailboxes yet: run `ondura-server bootstrap` to create your mail domain and an admin mailbox in one step");
     }

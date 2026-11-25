@@ -56,6 +56,13 @@ These mirror the web front end exactly (same request and response shapes):
 | `GET /api/v1/notes`, `POST /api/v1/note[/delete]` | Notes |
 | `POST /api/v1/folder[/rename|/delete|/read]` | Folders |
 | `GET/POST /api/v1/settings`, `POST /api/v1/password` | Settings |
+| `GET /api/v1/avatar/<id-or-email>` | Fetch a user's avatar image |
+| `POST /api/v1/avatar` (raw image body, `Content-Type`) | Set the caller's avatar |
+| `DELETE /api/v1/avatar` | Remove the caller's avatar |
+
+`GET /api/v1/me` includes the caller's own numeric `id` and an `avatar` field
+(the time the avatar was last set, or `null`), so the client can build avatar
+URLs and cache-bust them. Avatars are PNG/JPEG/WebP/GIF up to 1 MiB.
 
 ## Incremental sync
 

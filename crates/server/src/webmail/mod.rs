@@ -133,6 +133,19 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
     {
         return security_headers(mail_api::attachment(&app, &user, id, idx));
     }
+    // Avatars (binary / upload), shared with the native client API.
+    if let Some(target) = api.strip_prefix("/avatar/") {
+        if method == Method::GET {
+            return security_headers(crate::api::serve_avatar(&app, target));
+        }
+    } else if api == "/avatar" {
+        let content_type = headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok());
+        match method {
+            Method::POST => return security_headers(crate::api::set_avatar(&app, user.id, content_type, &body)),
+            Method::DELETE => return security_headers(crate::api::delete_avatar(&app, user.id)),
+            _ => {}
+        }
+    }
     let result = route(&app, &user, &method, api, query, &body).await;
     security_headers(json_response(result))
 }
@@ -241,7 +254,9 @@ fn me(app: &Shared, user: &User) -> ApiResult {
         "used": app.store.used_bytes(user.id).unwrap_or(0),
         "signature": signature,
         "addresses": addresses,
-        "collab": app.cfg.collab.enabled,
+        "collab": app.collab_enabled(),
+        "avatar": app.store.avatar_updated(user.id).ok().flatten(),
+        "id": user.id,
         "folders": list,
     }))
 }

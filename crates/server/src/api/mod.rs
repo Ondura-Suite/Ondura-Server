@@ -67,6 +67,10 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
     };
 
     match (&method, rest) {
+        // Avatars: set/remove the caller's own, fetch anyone's by id or email.
+        (&Method::POST, "/avatar") => set_avatar(&app, user.id, content_type_header(headers), &body),
+        (&Method::DELETE, "/avatar") => delete_avatar(&app, user.id),
+        (&Method::GET, p) if p.starts_with("/avatar/") => serve_avatar(&app, p.trim_start_matches("/avatar/")),
         // Incremental sync: changes across the mailbox since a modseq.
         (&Method::GET, "/sync") => {
             let since: i64 = query_value(query, "since").and_then(|v| v.parse().ok()).unwrap_or(0);
@@ -164,6 +168,61 @@ fn identity(app: &Shared) -> Value {
     })
 }
 
+// ------------------------------------------------------------- avatars
+
+/// Image types accepted for avatars.
+const AVATAR_TYPES: [&str; 4] = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+
+/// Serve an avatar image for `target` (a numeric user id or an email address).
+/// The caller has already authenticated the requester.
+pub(crate) fn serve_avatar(app: &Shared, target: &str) -> Response {
+    let user_id = match target.parse::<i64>() {
+        Ok(id) => Some(id),
+        Err(_) => app.store.user_by_email(target).ok().flatten().map(|u| u.id),
+    };
+    let Some(user_id) = user_id else {
+        return StatusCode::NOT_FOUND.into_response();
+    };
+    match app.store.avatar(user_id) {
+        Ok(Some((content_type, data, updated))) => {
+            let mut res = (StatusCode::OK, data).into_response();
+            let h = res.headers_mut();
+            if let Ok(v) = axum::http::HeaderValue::from_str(&content_type) {
+                h.insert(axum::http::header::CONTENT_TYPE, v);
+            }
+            if let Ok(v) = axum::http::HeaderValue::from_str(&format!("\"{updated}\"")) {
+                h.insert(axum::http::header::ETAG, v);
+            }
+            h.insert(axum::http::header::CACHE_CONTROL, axum::http::HeaderValue::from_static("private, max-age=86400"));
+            res
+        }
+        Ok(None) => StatusCode::NOT_FOUND.into_response(),
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
+    }
+}
+
+/// Store the authenticated user's avatar from a raw image upload.
+pub(crate) fn set_avatar(app: &Shared, user_id: i64, content_type: Option<&str>, data: &[u8]) -> Response {
+    let ct = content_type.unwrap_or("").split(';').next().unwrap_or("").trim().to_ascii_lowercase();
+    if !AVATAR_TYPES.contains(&ct.as_str()) {
+        return (StatusCode::UNSUPPORTED_MEDIA_TYPE, axum::Json(json!({ "error": "avatar must be a PNG, JPEG, WebP or GIF image" }))).into_response();
+    }
+    if data.is_empty() || data.len() > crate::store::MAX_AVATAR_BYTES {
+        return (StatusCode::PAYLOAD_TOO_LARGE, axum::Json(json!({ "error": "avatar is empty or larger than 1 MiB" }))).into_response();
+    }
+    match app.store.set_avatar(user_id, &ct, data) {
+        Ok(()) => axum::Json(json!({ "ok": true })).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({ "error": e.to_string() }))).into_response(),
+    }
+}
+
+pub(crate) fn delete_avatar(app: &Shared, user_id: i64) -> Response {
+    match app.store.delete_avatar(user_id) {
+        Ok(()) => axum::Json(json!({ "ok": true })).into_response(),
+        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, axum::Json(json!({ "error": e.to_string() }))).into_response(),
+    }
+}
+
 /// Compact wire form of an item for the sync feed.
 fn item_json(i: &Item) -> Value {
     json!({
@@ -190,6 +249,10 @@ fn change_json(c: &Change) -> Value {
         Change::Update(i) => json!({ "type": "update", "folder": i.folder_id, "item": item_json(i) }),
         Change::Delete { item_id, modseq } => json!({ "type": "delete", "id": item_id, "modseq": modseq }),
     }
+}
+
+fn content_type_header(headers: &HeaderMap) -> Option<&str> {
+    headers.get(axum::http::header::CONTENT_TYPE).and_then(|v| v.to_str().ok())
 }
 
 fn query_value<'a>(query: &'a str, key: &str) -> Option<&'a str> {
@@ -229,6 +292,44 @@ mod tests {
         let h = HeaderMap::new();
         let r = handle(app, Method::GET, "/api/v1/identity", "", &h, Bytes::new(), ip()).await;
         assert_eq!(r.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn avatar_upload_fetch_delete() {
+        let (app, user) = App::test();
+        let mut h = HeaderMap::new();
+        h.insert(AUTHORIZATION, HeaderValue::from_str(&basic(&user.email, "secret")).unwrap());
+        h.insert(CLIENT_HEADER, HeaderValue::from_static("Ondura-Mail/test"));
+
+        // Wrong content type is refused.
+        let mut bad = h.clone();
+        bad.insert(axum::http::header::CONTENT_TYPE, HeaderValue::from_static("text/plain"));
+        let r = handle(app.clone(), Method::POST, "/api/v1/avatar", "", &bad, Bytes::from_static(b"nope"), ip()).await;
+        assert_eq!(r.status(), StatusCode::UNSUPPORTED_MEDIA_TYPE);
+
+        // Upload a PNG (content is not validated, only type and size).
+        let mut up = h.clone();
+        up.insert(axum::http::header::CONTENT_TYPE, HeaderValue::from_static("image/png"));
+        let img = Bytes::from_static(b"\x89PNG\r\n\x1a\n fake image bytes");
+        let r = handle(app.clone(), Method::POST, "/api/v1/avatar", "", &up, img.clone(), ip()).await;
+        assert_eq!(r.status(), StatusCode::OK);
+
+        // Fetch it back by id.
+        let r = handle(app.clone(), Method::GET, &format!("/api/v1/avatar/{}", user.id), "", &h, Bytes::new(), ip()).await;
+        assert_eq!(r.status(), StatusCode::OK);
+        assert_eq!(r.headers().get(axum::http::header::CONTENT_TYPE).unwrap(), "image/png");
+        let got = axum::body::to_bytes(r.into_body(), 1 << 20).await.unwrap();
+        assert_eq!(got, img);
+
+        // And by email.
+        let r = handle(app.clone(), Method::GET, &format!("/api/v1/avatar/{}", user.email), "", &h, Bytes::new(), ip()).await;
+        assert_eq!(r.status(), StatusCode::OK);
+
+        // Remove it.
+        let r = handle(app.clone(), Method::DELETE, "/api/v1/avatar", "", &h, Bytes::new(), ip()).await;
+        assert_eq!(r.status(), StatusCode::OK);
+        let r = handle(app.clone(), Method::GET, &format!("/api/v1/avatar/{}", user.id), "", &h, Bytes::new(), ip()).await;
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
     }
 
     #[tokio::test]

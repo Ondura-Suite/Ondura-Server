@@ -27,7 +27,7 @@ const POLICY_TYPE: &str = "MS-EAS-Provisioning-WBXML";
 
 fn policy_doc(ctx: &Ctx) -> Element {
     let a = &ctx.app.cfg.activesync;
-    let pw = a.require_password;
+    let pw = ctx.app.activesync_require_password();
     let mut d = Element::new("Provision:EASProvisionDoc")
         .with_text("Provision:DevicePasswordEnabled", if pw { "1" } else { "0" })
         .with_text("Provision:AlphanumericDevicePasswordRequired", "0")

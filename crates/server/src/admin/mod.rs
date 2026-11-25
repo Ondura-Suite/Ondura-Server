@@ -106,6 +106,20 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
         return json_response(Err((StatusCode::UNAUTHORIZED, "Not signed in".into())));
     };
     let _ = query;
+    // A mailbox avatar: binary download, raw upload or removal.
+    if let Some(rest) = api.strip_prefix("/mailboxes/")
+        && let Some(id) = rest.strip_suffix("/avatar")
+    {
+        return match find_user(&app, id) {
+            Ok(u) => match method {
+                Method::GET => security_headers(crate::api::serve_avatar(&app, &u.id.to_string())),
+                Method::PUT | Method::POST => security_headers(crate::api::set_avatar(&app, u.id, headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()), &body)),
+                Method::DELETE => security_headers(crate::api::delete_avatar(&app, u.id)),
+                _ => json_response(Err(not_found())),
+            },
+            Err(e) => json_response(Err(e)),
+        };
+    }
     let result = route(&app, &admin, &method, api, &body, headers).await;
     security_headers(json_response(result))
 }
@@ -323,6 +337,7 @@ async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &By
                 .collect();
             v["folders"] = json!(folders);
             v["devices"] = json!(store.devices(Some(u.id)).map_err(internal)?);
+            v["avatar"] = json!(store.avatar_updated(u.id).map_err(internal)?);
             Ok(v)
         }
         ("PATCH", ["mailboxes", id]) => {
@@ -514,6 +529,24 @@ async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &By
             Ok(json!({}))
         }
 
+        ("GET", ["settings"]) => Ok(app.settings_json()),
+        ("PATCH", ["settings"]) => {
+            #[derive(Deserialize)]
+            #[serde(rename_all = "camelCase")]
+            struct Patch {
+                activesync_provisioning: Option<bool>,
+                activesync_require_password: Option<bool>,
+                collab_enabled: Option<bool>,
+            }
+            let p: Patch = parse(body)?;
+            let patch = crate::app::SettingsOverrides {
+                activesync_provisioning: p.activesync_provisioning,
+                activesync_require_password: p.activesync_require_password,
+                collab_enabled: p.collab_enabled,
+            };
+            app.update_settings(&patch).map_err(internal)?;
+            Ok(app.settings_json())
+        }
         ("GET", ["audit"]) => {
             let list: Vec<Value> = store.audit_log(300).map_err(internal)?.into_iter().map(|(t, a, act, d)| json!({ "time": t, "actor": a, "action": act, "detail": d })).collect();
             Ok(json!(list))

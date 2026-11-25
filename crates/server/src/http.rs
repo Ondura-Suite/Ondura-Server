@@ -52,7 +52,7 @@ fn ondura_identity(app: &Shared) -> Response {
     // "OnduraClient" is the native API this server offers to the Ondura client;
     // other clients use EWS/ActiveSync.
     let mut protocols = vec!["OnduraClient", "EWS", "ActiveSync", "Autodiscover", "SMTP"];
-    if app.cfg.collab.enabled {
+    if app.collab_enabled() {
         protocols.push("Collab");
     }
     let body = serde_json::json!({
@@ -65,7 +65,7 @@ fn ondura_identity(app: &Shared) -> Response {
         "features": {
             "webmail": app.cfg.http.webmail,
             "adminCenter": app.cfg.http.admin_center,
-            "collab": app.cfg.collab.enabled,
+            "collab": app.collab_enabled(),
         },
         "endpoints": {
             "clientApi": format!("https://{host}/api/{}", crate::api::API_VERSION),
@@ -74,8 +74,8 @@ fn ondura_identity(app: &Shared) -> Response {
             "activesync": format!("https://{host}/Microsoft-Server-ActiveSync"),
             "autodiscover": format!("https://{host}/autodiscover/autodiscover.xml"),
             "webmail": if app.cfg.http.webmail { Some(format!("https://{host}/mail")) } else { None },
-            "collab": if app.cfg.collab.enabled { Some(format!("https://{host}/collab")) } else { None },
-            "collabWebsocket": if app.cfg.collab.enabled { Some(format!("wss://{host}/collab/ws")) } else { None },
+            "collab": if app.collab_enabled() { Some(format!("https://{host}/collab")) } else { None },
+            "collabWebsocket": if app.collab_enabled() { Some(format!("wss://{host}/collab/ws")) } else { None },
         },
     });
     axum::Json(body).into_response()
