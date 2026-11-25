@@ -516,7 +516,11 @@ mod pg {
                     c
                 }
                 Err(e) => {
-                    let _ = ready_tx.send(Err(anyhow!("connect PostgreSQL: {e}")));
+                    use std::error::Error;
+                    // The useful message (e.g. FATAL: role "ondura" does not
+                    // exist) is in the error's source, not its terse Display.
+                    let detail = e.source().map(|s| s.to_string()).unwrap_or_else(|| e.to_string());
+                    let _ = ready_tx.send(Err(anyhow!("connect PostgreSQL ({url}): {detail}")));
                     return;
                 }
             };
