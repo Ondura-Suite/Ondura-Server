@@ -7,7 +7,9 @@ if [ "$1" = "configure" ]; then
     fi
     install -d -o ondura -g ondura -m 0750 /var/lib/ondura-server
     install -d -o root -g ondura -m 0750 /etc/ondura-server
-    install -d -o root -g ondura -m 0750 /etc/ondura-server/tls
+    # Owned by ondura so the service can write a self-signed certificate here on
+    # first start if no real certificate is present yet.
+    install -d -o ondura -g ondura -m 0750 /etc/ondura-server/tls
     if [ ! -f /etc/ondura-server/config.toml ]; then
         host="$(hostname -f 2>/dev/null || hostname)"
         case "$host" in *.*) ;; *) host="mail.example.com" ;; esac

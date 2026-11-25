@@ -29,7 +29,9 @@ ProtectControlGroups=true
 RestrictSUIDSGID=true
 LockPersonality=true
 StateDirectory=ondura-server
-ReadWritePaths=/var/lib/ondura-server
+# The data directory, and the TLS directory so the server can write a
+# self-signed certificate there on first start if none exists yet.
+ReadWritePaths=/var/lib/ondura-server /etc/ondura-server/tls
 LimitNOFILE=65536
 
 [Install]

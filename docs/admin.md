@@ -185,7 +185,9 @@ putting the server into use, or move data over yourself.
 
 ## TLS certificate
 
-All client protocols need a certificate for the host name. With Let's Encrypt:
+On first start, if the configured certificate and key do not exist yet, the server generates a **self-signed certificate** for its host name so it always starts. Clients will warn about it until you install a real one; replace it as below — the new certificate is picked up automatically, no restart needed.
+
+All client protocols need a certificate trusted by clients for the host name. With Let's Encrypt:
 
 ```sh
 sudo apt install certbot
@@ -198,7 +200,7 @@ sudo systemctl start ondura-server
 
 The hook copies the certificate to `/etc/ondura-server/tls` (readable by the `ondura` group). Ondura Server checks the files every five minutes and uses renewed certificates without a restart. For renewals while the server runs, use the DNS challenge of your DNS provider's certbot plugin, or let a reverse proxy own port 80.
 
-Without a certificate, HTTPS, STARTTLS and port 465 stay off and a warning is logged; only plain SMTP on port 25 works.
+If you remove the `[tls]` section entirely (no `cert`/`key` configured), TLS is disabled: HTTPS, STARTTLS and port 465 stay off and a warning is logged; only plain SMTP on port 25 works. With `cert`/`key` set but the files missing, a self-signed certificate is generated instead (see above).
 
 ## Domains and DNS
 

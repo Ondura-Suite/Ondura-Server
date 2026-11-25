@@ -401,6 +401,9 @@ async fn serve(cfg: Config) -> Result<()> {
     let mut reloaders = Vec::new();
     let (smtp_tls, https_tls) = match (&cfg.tls.cert, &cfg.tls.key) {
         (Some(cert), Some(key)) => {
+            // Generate a self-signed certificate if none exists yet, so the
+            // server always starts; a real certificate replaces it later.
+            tls::ensure_self_signed(cert, key, &cfg.hostname).context("ensure a TLS certificate exists")?;
             let (smtp, r1) = tls::server_config(cert, key, &[]).context("load TLS certificate")?;
             let (https, r2) = tls::server_config(cert, key, &[b"h2", b"http/1.1"])?;
             reloaders.push(r1);

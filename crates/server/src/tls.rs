@@ -26,6 +26,47 @@ impl ResolvesServerCert for Reloading {
     }
 }
 
+/// Make sure a certificate and key exist at the configured paths. If either is
+/// missing, generate a self-signed certificate for `hostname` and write both,
+/// so the server can start even before a real certificate (e.g. from certbot)
+/// is in place. The real certificate, once dropped in, is picked up
+/// automatically by the reloader.
+pub fn ensure_self_signed(cert: &Path, key: &Path, hostname: &str) -> Result<()> {
+    if cert.exists() && key.exists() {
+        return Ok(());
+    }
+    let generated = rcgen::generate_simple_self_signed(vec![hostname.to_string()]).context("generate self-signed certificate")?;
+    if let Some(dir) = cert.parent() {
+        std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
+    }
+    if let Some(dir) = key.parent() {
+        std::fs::create_dir_all(dir).with_context(|| format!("create {}", dir.display()))?;
+    }
+    std::fs::write(cert, generated.cert.pem()).with_context(|| format!("write {}", cert.display()))?;
+    write_private_key(key, &generated.key_pair.serialize_pem())?;
+    warn!(
+        hostname,
+        cert = %cert.display(),
+        "no TLS certificate found; generated a self-signed certificate so the server can start — replace it with a real one (e.g. via certbot), it will be picked up automatically"
+    );
+    Ok(())
+}
+
+/// Write a private key with owner-only permissions (0600).
+fn write_private_key(path: &Path, pem: &str) -> Result<()> {
+    use std::io::Write;
+    use std::os::unix::fs::OpenOptionsExt;
+    let mut f = std::fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .mode(0o600)
+        .open(path)
+        .with_context(|| format!("write {}", path.display()))?;
+    f.write_all(pem.as_bytes())?;
+    Ok(())
+}
+
 fn load(cert: &Path, key: &Path) -> Result<CertifiedKey> {
     let certs: Vec<CertificateDer<'static>> = rustls_pemfile::certs(&mut std::io::BufReader::new(
         std::fs::File::open(cert).with_context(|| format!("open {}", cert.display()))?,
@@ -144,5 +185,35 @@ impl rustls::client::danger::ServerCertVerifier for AcceptAny {
 
     fn supported_verify_schemes(&self) -> Vec<rustls::SignatureScheme> {
         provider().signature_verification_algorithms.supported_schemes()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn generates_and_loads_self_signed() {
+        let dir = std::env::temp_dir().join(format!("ondura-tls-test-{}", std::process::id()));
+        let cert = dir.join("fullchain.pem");
+        let key = dir.join("privkey.pem");
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // First call generates both files.
+        ensure_self_signed(&cert, &key, "mail.example.com").unwrap();
+        assert!(cert.exists() && key.exists());
+        // The generated material must parse as a usable certificate/key.
+        load(&cert, &key).unwrap();
+
+        // Key file is owner-only (0600).
+        use std::os::unix::fs::PermissionsExt;
+        assert_eq!(std::fs::metadata(&key).unwrap().permissions().mode() & 0o777, 0o600);
+
+        // Second call is a no-op: it must not overwrite the existing cert.
+        let before = std::fs::read(&cert).unwrap();
+        ensure_self_signed(&cert, &key, "mail.example.com").unwrap();
+        assert_eq!(std::fs::read(&cert).unwrap(), before);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
