@@ -65,8 +65,15 @@ async fn deliver_inner(app: &Shared, user_id: i64, raw: &[u8], opts: Options) ->
     }
 
     let folder = app.store.ensure_folder(user_id, if opts.junk { "junkemail" } else { "inbox" })?;
-    app.store.insert_mail(NewMail { user_id, folder_id: folder.id, mime: raw, flags: 0, received: now(), writer: "smtp" })?;
+    let item_id = app.store.insert_mail(NewMail { user_id, folder_id: folder.id, mime: raw, flags: 0, received: now(), writer: "smtp" })?;
     debug!(user = %user.email, folder = %folder.name, "delivered");
+
+    // Inbox rules run on freshly delivered mail (not junk).
+    if !opts.junk
+        && let Err(e) = app.store.apply_rules(user_id, item_id)
+    {
+        warn!(user = %user.email, "inbox rules failed: {e:#}");
+    }
 
     // Out of office.
     if !opts.junk && settings.oof.active(now()) && should_auto_reply(raw, &opts.envelope_from) {

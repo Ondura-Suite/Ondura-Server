@@ -370,6 +370,8 @@ const T = {
     print: "Print", bcc: "Bcc", showBcc: "Bcc", noArchive: "No archive folder", unflag: "Clear flag", recipientRequired: "Add at least one recipient",
     shortcuts: "Keyboard shortcuts", navigate: "Move between messages", openMsg: "Open message", close: "Close / deselect",
     categories: "Categories", categorize: "Categorize", newCategory: "New category", manageCategories: "Manage categories", categoryName: "Category name", color: "Color", clearCategoryFilter: "Clear filter", noCategories: "No categories yet",
+    rules: "Rules", newRule: "New rule", ruleName: "Rule name", conditionsTitle: "When a message arrives and", actionsTitle: "Do the following", matchAll: "all conditions match", matchAny: "any condition matches", contains: "contains", addCondition: "Add condition", addAction: "Add action", stopProcessing: "Stop processing more rules", enabled: "Enabled", noRules: "No rules yet", actMarkRead: "Mark as read", actDelete: "Move to Deleted Items", chooseFolder: "Choose folder", chooseCategory: "Choose category",
+    sweep: "Sweep", sweepTitle: "Sweep messages from", sweepDeleteAll: "Delete all from this sender", sweepKeepLatest: "Keep the newest, delete the rest", sweepMoveAll: "Move all to…", swept: "Swept",
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
     tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
@@ -389,6 +391,8 @@ const T = {
     print: "Drucken", bcc: "Bcc", showBcc: "Bcc", noArchive: "Kein Archivordner", unflag: "Kennzeichnung entfernen", recipientRequired: "Mindestens einen Empfänger angeben",
     shortcuts: "Tastenkürzel", navigate: "Zwischen Nachrichten wechseln", openMsg: "Nachricht öffnen", close: "Schließen / Auswahl aufheben",
     categories: "Kategorien", categorize: "Kategorisieren", newCategory: "Neue Kategorie", manageCategories: "Kategorien verwalten", categoryName: "Kategoriename", color: "Farbe", clearCategoryFilter: "Filter aufheben", noCategories: "Noch keine Kategorien",
+    rules: "Regeln", newRule: "Neue Regel", ruleName: "Regelname", conditionsTitle: "Wenn eine Nachricht eintrifft und", actionsTitle: "Dann", matchAll: "alle Bedingungen zutreffen", matchAny: "eine Bedingung zutrifft", contains: "enthält", addCondition: "Bedingung hinzufügen", addAction: "Aktion hinzufügen", stopProcessing: "Keine weiteren Regeln anwenden", enabled: "Aktiv", noRules: "Noch keine Regeln", actMarkRead: "Als gelesen markieren", actDelete: "In Gelöscht verschieben", chooseFolder: "Ordner wählen", chooseCategory: "Kategorie wählen",
+    sweep: "Aufräumen", sweepTitle: "Nachrichten aufräumen von", sweepDeleteAll: "Alle von diesem Absender löschen", sweepKeepLatest: "Neueste behalten, Rest löschen", sweepMoveAll: "Alle verschieben nach…", swept: "Aufgeräumt",
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
     tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
@@ -519,7 +523,11 @@ function renderAcct() {
     `<div class="card"><div class="big">${face}</div><div style="min-width:0"><div class="nm">${esc(me.name || me.email)}</div><div class="em">${esc(me.email)}</div></div></div>` +
     `<hr><button class="row" id="amPic">${esc(t("changePicture"))}</button>` +
     (me.avatar ? `<button class="row" id="amPicRm">${esc(t("removePicture"))}</button>` : "") +
+    `<hr><button class="row" id="amRules">${esc(t("rules"))}</button>` +
+    `<button class="row" id="amCats">${esc(t("categories"))}</button>` +
     `<hr><button class="row danger" id="amOut">${esc(t("logout"))}</button>`;
+  $("#amRules").onclick = () => { $("#acctMenu").classList.add("hidden"); openRulesManager(); };
+  $("#amCats").onclick = () => { $("#acctMenu").classList.add("hidden"); openCategoryManager(); };
   $("#amPic").onclick = () => { $("#acctMenu").classList.add("hidden"); $("#avFile").click(); };
   if ($("#amPicRm")) $("#amPicRm").onclick = guard(async () => {
     await fetch("/mail/api/avatar", { method: "DELETE", credentials: "same-origin", headers: { "X-Ondura-Mail": "1" } });
@@ -771,6 +779,7 @@ function openMsgContext(ev, id) {
     { ic: "mail", label: read ? t("markUnread") : t("markRead"), fn: () => actRead(id, !read) },
     { ic: "flag", label: flagged ? t("unflag") : t("flag"), fn: () => actFlag(id, !flagged) },
     { ic: "tag", label: t("categorize"), keepOpen: true, fn: () => openCategoryPicker(anchor, (it.categories || []), (cats) => assignCategories(id, cats)) },
+    (it.from && it.from.email) ? { ic: "clock", label: t("sweep"), fn: () => openSweep(it.from.email, it.from.name) } : null,
     (archiveFolder() && !inArchive()) ? { ic: "archive", label: t("archive"), fn: () => actArchive(id) } : null,
     { ic: "folder", label: t("moveTo"), fn: () => openMoveMenu(anchor, async (fid) => { await api("POST", "/move", { id, folder: fid }); afterMsgGone(id); }) },
     { sep: true },
@@ -849,6 +858,128 @@ async function assignCategories(id, cats) {
   await api("POST", "/categorize", { id, categories: cats });
   const it = messages.find((x) => x.id === id); if (it) it.categories = cats;
   renderMsgList();
+}
+
+// ------------------------------------------------------------ INBOX RULES
+function ruleFieldName(f) { return ({ from: t("from"), to: t("to"), subject: t("subject") })[f] || f; }
+function ruleActName(a) {
+  if (a.type === "markRead") return t("actMarkRead");
+  if (a.type === "delete") return t("actDelete");
+  if (a.type === "move") { const f = folders.find((x) => x.id === a.folder); return t("moveTo") + " " + (f ? folderLabel(f) : "?"); }
+  if (a.type === "categorize") return t("categorize") + " " + (a.category || "?");
+  return a.type;
+}
+function ruleSummary(r) {
+  const conds = (r.conditions || []).map((c) => `${ruleFieldName(c.field)} ${t("contains")} "${c.value}"`).join(r.match_all ? "  &  " : "  /  ");
+  const acts = (r.actions || []).map(ruleActName).join(", ");
+  return `${conds || "—"}  →  ${acts || "—"}`;
+}
+async function openRulesManager() {
+  let rules = [];
+  try { rules = (await api("GET", "/rules")).rules || []; } catch (e) {}
+  const list = rules.length ? rules.map((r) => `
+    <div class="catmgr-row" data-id="${r.id}" style="align-items:flex-start">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600">${esc(r.name)}${r.enabled ? "" : ` <span style="color:var(--muted);font-weight:400">(${esc(t("oofOff"))})</span>`}</div>
+        <div style="color:var(--muted);font-size:12.5px;margin-top:2px;word-break:break-word">${esc(ruleSummary(r))}</div>
+      </div>
+      <button class="iconbtn" data-edit title="${esc(t("rules"))}">${icon("settings")}</button>
+      <button class="iconbtn danger" data-del title="${esc(t("delete"))}">${icon("trash")}</button>
+    </div>`).join("") : `<div style="color:var(--muted);padding:8px 0">${esc(t("noRules"))}</div>`;
+  const close = () => { $("#overlay").innerHTML = ""; };
+  $("#overlay").innerHTML = `<div class="scrim"></div><div class="dialog" style="width:580px"><div class="head"><h2>${esc(t("rules"))}</h2><button class="iconbtn" id="rClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div><div class="sclist">${list}<div style="margin-top:12px"><button class="btn primary" id="rNew">${icon("plus")}<span>${esc(t("newRule"))}</span></button></div></div></div>`;
+  $("#rClose").onclick = close; $("#overlay .scrim").onclick = close;
+  $("#rNew").onclick = () => openRuleEditor(null);
+  $("#overlay").querySelectorAll(".catmgr-row[data-id]").forEach((row) => {
+    const r = rules.find((x) => x.id === +row.dataset.id);
+    row.querySelector("[data-edit]").onclick = () => openRuleEditor(r);
+    row.querySelector("[data-del]").onclick = guard(async () => { await api("POST", "/rule/delete", { id: r.id }); openRulesManager(); });
+  });
+}
+function openRuleEditor(rule) {
+  const base = rule || { name: "", enabled: true, match_all: true, stop: false, conditions: [{ field: "from", value: "" }], actions: [{ type: "move", folder: (mailFolders()[0] || {}).id }] };
+  let conds = JSON.parse(JSON.stringify(base.conditions && base.conditions.length ? base.conditions : [{ field: "from", value: "" }]));
+  let acts = JSON.parse(JSON.stringify(base.actions && base.actions.length ? base.actions : [{ type: "markRead" }]));
+  const folderOpts = (sel) => mailFolders().map((f) => `<option value="${f.id}" ${sel === f.id ? "selected" : ""}>${esc(folderLabel(f))}</option>`).join("");
+  const catOpts = (sel) => categories.length ? categories.map((c) => `<option value="${esc(c.name)}" ${sel === c.name ? "selected" : ""}>${esc(c.name)}</option>`).join("") : `<option value="">${esc(t("noCategories"))}</option>`;
+  const sel = (field, opts) => `<select ${field}>${opts}</select>`;
+  function readForm() {
+    $("#reConds").querySelectorAll("[data-ci]").forEach((row) => { const i = +row.dataset.ci; conds[i].field = row.querySelector("[data-cfield]").value; conds[i].value = row.querySelector("[data-cval]").value; });
+    $("#reActs").querySelectorAll("[data-ai]").forEach((row) => { const i = +row.dataset.ai; acts[i].type = row.querySelector("[data-atype]").value; const f = row.querySelector("[data-afolder]"); if (f) acts[i].folder = +f.value; const c = row.querySelector("[data-acat]"); if (c) acts[i].category = c.value; });
+  }
+  const draw = () => {
+    const condRows = conds.map((c, i) => `<div class="catmgr-row" data-ci="${i}">
+      ${sel('data-cfield', `<option value="from" ${c.field === "from" ? "selected" : ""}>${esc(t("from"))}</option><option value="to" ${c.field === "to" ? "selected" : ""}>${esc(t("to"))}</option><option value="subject" ${c.field === "subject" ? "selected" : ""}>${esc(t("subject"))}</option>`)}
+      <span style="color:var(--muted);font-size:12px">${esc(t("contains"))}</span>
+      <input type="text" data-cval value="${esc(c.value || "")}" style="flex:1">
+      <button class="iconbtn danger" data-crm>${icon("trash")}</button></div>`).join("");
+    const actRows = acts.map((a, i) => `<div class="catmgr-row" data-ai="${i}">
+      ${sel('data-atype', `<option value="move" ${a.type === "move" ? "selected" : ""}>${esc(t("moveTo"))}</option><option value="markRead" ${a.type === "markRead" ? "selected" : ""}>${esc(t("actMarkRead"))}</option><option value="categorize" ${a.type === "categorize" ? "selected" : ""}>${esc(t("categorize"))}</option><option value="delete" ${a.type === "delete" ? "selected" : ""}>${esc(t("actDelete"))}</option>`)}
+      ${a.type === "move" ? `<select data-afolder style="flex:1">${folderOpts(a.folder)}</select>` : ""}
+      ${a.type === "categorize" ? `<select data-acat style="flex:1">${catOpts(a.category)}</select>` : ""}
+      <button class="iconbtn danger" data-arm>${icon("trash")}</button></div>`).join("");
+    $("#overlay").innerHTML = `<div class="scrim"></div><div class="dialog" style="width:580px"><div class="head"><h2>${esc(base.id ? t("rules") : t("newRule"))}</h2><button class="iconbtn" id="reClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div><div class="sclist">
+      <div class="field"><label>${esc(t("ruleName"))}</label><input type="text" id="reName" value="${esc(base.name || "")}"></div>
+      <label style="font-size:12.5px;color:var(--muted)">${esc(t("conditionsTitle"))}</label>
+      <div style="margin:6px 0 8px"><label style="font-size:13px"><input type="radio" name="reMatch" value="all" ${base.match_all ? "checked" : ""}> ${esc(t("matchAll"))}</label><label style="font-size:13px;margin-left:16px"><input type="radio" name="reMatch" value="any" ${base.match_all ? "" : "checked"}> ${esc(t("matchAny"))}</label></div>
+      <div id="reConds">${condRows}</div>
+      <button class="btn" id="reAddCond">${icon("plus")}<span>${esc(t("addCondition"))}</span></button>
+      <label style="font-size:12.5px;color:var(--muted);display:block;margin-top:16px">${esc(t("actionsTitle"))}</label>
+      <div id="reActs">${actRows}</div>
+      <button class="btn" id="reAddAct">${icon("plus")}<span>${esc(t("addAction"))}</span></button>
+      <div style="margin-top:14px"><label style="font-size:13px"><input type="checkbox" id="reStop" ${base.stop ? "checked" : ""}> ${esc(t("stopProcessing"))}</label></div>
+      <div style="margin-top:4px"><label style="font-size:13px"><input type="checkbox" id="reEnabled" ${base.enabled ? "checked" : ""}> ${esc(t("enabled"))}</label></div>
+      <div style="display:flex;gap:8px;margin-top:18px"><div style="flex:1"></div><button class="btn" id="reCancel">${esc(t("cancel"))}</button><button class="btn primary" id="reSave">${esc(t("save"))}</button></div>
+    </div></div>`;
+    $("#reClose").onclick = $("#reCancel").onclick = () => openRulesManager();
+    $("#reConds").querySelectorAll("[data-ci]").forEach((row) => {
+      const i = +row.dataset.ci;
+      row.querySelector("[data-cfield]").onchange = (e) => { conds[i].field = e.target.value; };
+      row.querySelector("[data-cval]").oninput = (e) => { conds[i].value = e.target.value; };
+      row.querySelector("[data-crm]").onclick = () => { readForm(); conds.splice(i, 1); if (!conds.length) conds.push({ field: "from", value: "" }); draw(); };
+    });
+    $("#reAddCond").onclick = () => { readForm(); conds.push({ field: "from", value: "" }); draw(); };
+    $("#reActs").querySelectorAll("[data-ai]").forEach((row) => {
+      const i = +row.dataset.ai;
+      row.querySelector("[data-atype]").onchange = (e) => { readForm(); acts[i].type = e.target.value; if (e.target.value === "move" && acts[i].folder == null) acts[i].folder = (mailFolders()[0] || {}).id; if (e.target.value === "categorize" && !acts[i].category) acts[i].category = (categories[0] || {}).name; draw(); };
+      const f = row.querySelector("[data-afolder]"); if (f) f.onchange = (e) => { acts[i].folder = +e.target.value; };
+      const c = row.querySelector("[data-acat]"); if (c) c.onchange = (e) => { acts[i].category = e.target.value; };
+      row.querySelector("[data-arm]").onclick = () => { readForm(); acts.splice(i, 1); if (!acts.length) acts.push({ type: "markRead" }); draw(); };
+    });
+    $("#reAddAct").onclick = () => { readForm(); acts.push({ type: "markRead" }); draw(); };
+    $("#reSave").onclick = guard(async () => {
+      readForm();
+      const name = $("#reName").value.trim(); if (!name) { toast(t("ruleName"), true); return; }
+      const matchAll = $("#overlay").querySelector('input[name="reMatch"]:checked').value === "all";
+      const payload = {
+        name, enabled: $("#reEnabled").checked, matchAll, stop: $("#reStop").checked,
+        conditions: conds.filter((c) => c.value && c.value.trim()).map((c) => ({ field: c.field, value: c.value.trim() })),
+        actions: acts.map((a) => ({ type: a.type, folder: a.type === "move" ? a.folder : null, category: a.type === "categorize" ? a.category : null })),
+      };
+      if (base.id) payload.id = base.id;
+      await api("POST", "/rule", payload);
+      openRulesManager();
+    });
+  };
+  draw();
+}
+
+// ------------------------------------------------------------ SWEEP
+function openSweep(fromEmail, fromName) {
+  if (!curFolder) return;
+  const close = () => { $("#overlay").innerHTML = ""; };
+  const folderOpts = mailFolders().filter((f) => f.id !== curFolder.id).map((f) => `<option value="${f.id}">${esc(folderLabel(f))}</option>`).join("");
+  $("#overlay").innerHTML = `<div class="scrim"></div><div class="dialog"><div class="head"><h2>${esc(t("sweep"))}</h2><button class="iconbtn" id="swClose"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div><div class="sclist">
+    <div style="font-size:13px;color:var(--muted);margin-bottom:12px">${esc(t("sweepTitle"))} <b style="color:var(--text)">${esc(fromName || fromEmail)}</b></div>
+    <button class="btn" id="swDel" style="width:100%;justify-content:flex-start;margin-bottom:8px">${icon("trash")}<span>${esc(t("sweepDeleteAll"))}</span></button>
+    <button class="btn" id="swKeep" style="width:100%;justify-content:flex-start;margin-bottom:8px">${icon("clock")}<span>${esc(t("sweepKeepLatest"))}</span></button>
+    <div style="display:flex;gap:8px;align-items:center"><button class="btn" id="swMove" style="flex:1;justify-content:flex-start">${icon("folder")}<span>${esc(t("sweepMoveAll"))}</span></button><select id="swTarget">${folderOpts}</select></div>
+  </div></div>`;
+  $("#swClose").onclick = close; $("#overlay .scrim").onclick = close;
+  const run = (action, target) => guard(async () => { const r = await api("POST", "/sweep", { from: fromEmail, folder: curFolder.id, action, target }); close(); toast(t("swept") + (r && r.count != null ? " (" + r.count + ")" : "")); curMsg = null; loadMessages(); refreshFolders(); })();
+  $("#swDel").onclick = () => run("delete");
+  $("#swKeep").onclick = () => run("keepLatest");
+  $("#swMove").onclick = () => { const v = $("#swTarget").value; if (v) run("move", +v); };
 }
 function renderCatFilterBar() {
   const msgs = $("#msgs"); if (!msgs) return;

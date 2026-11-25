@@ -421,6 +421,104 @@ pub fn categorize(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     Ok(json!({ "ok": true }))
 }
 
+/// GET /rules — the user's inbox rules.
+pub fn rules(app: &Shared, user: &User) -> ApiResult {
+    let rules = app.store.rules(user.id).map_err(internal)?;
+    Ok(json!({ "rules": rules }))
+}
+
+/// POST /rule — create or update an inbox rule.
+pub fn save_rule(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    use crate::store::{RuleAction, RuleCondition};
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct Body {
+        #[serde(default)]
+        id: Option<i64>,
+        name: String,
+        #[serde(default = "crate::webmail::default_true")]
+        enabled: bool,
+        #[serde(default = "crate::webmail::default_true")]
+        match_all: bool,
+        #[serde(default)]
+        stop: bool,
+        #[serde(default)]
+        conditions: Vec<RuleCondition>,
+        #[serde(default)]
+        actions: Vec<RuleAction>,
+    }
+    let b: Body = parse(body)?;
+    if b.name.trim().is_empty() {
+        return Err(bad("rule name is required"));
+    }
+    let id = app
+        .store
+        .save_rule(user.id, b.id, b.name.trim(), b.enabled, b.match_all, b.stop, &b.conditions, &b.actions)
+        .map_err(internal)?;
+    Ok(json!({ "ok": true, "id": id }))
+}
+
+/// POST /rule/delete — remove an inbox rule.
+pub fn delete_rule(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct Body {
+        id: i64,
+    }
+    let b: Body = parse(body)?;
+    app.store.delete_rule(user.id, b.id).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// POST /sweep — bulk-act on all mail from a sender within a folder.
+pub fn sweep(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct Body {
+        from: String,
+        folder: i64,
+        #[serde(default)]
+        action: String,
+        #[serde(default)]
+        target: Option<i64>,
+    }
+    let b: Body = parse(body)?;
+    let folder = app.store.folder(b.folder).map_err(internal)?.filter(|f| f.user_id == user.id).ok_or_else(not_found)?;
+    let from = b.from.trim().to_ascii_lowercase();
+    if from.is_empty() {
+        return Err(bad("sender is required"));
+    }
+    let mut items: Vec<_> = app
+        .store
+        .items(folder.id, 0, 10_000)
+        .map_err(internal)?
+        .into_iter()
+        .filter(|it| it.sender.as_ref().is_some_and(|p| p.email.eq_ignore_ascii_case(&from)))
+        .collect();
+    items.sort_by(|a, c| c.received.cmp(&a.received).then(c.id.cmp(&a.id)));
+    let ids: Vec<i64> = match b.action.as_str() {
+        "keepLatest" => items.iter().skip(1).map(|i| i.id).collect(),
+        _ => items.iter().map(|i| i.id).collect(),
+    };
+    let target = match b.action.as_str() {
+        "move" => Some(app.store.folder(b.target.ok_or_else(|| bad("target folder required"))?).map_err(internal)?.filter(|f| f.user_id == user.id).ok_or_else(not_found)?.id),
+        _ => None,
+    };
+    let trash = app.store.folder_by_role(user.id, "deleteditems").map_err(internal)?;
+    let mut done = 0;
+    for id in ids {
+        let r = match (b.action.as_str(), target) {
+            ("move", Some(t)) => app.store.move_item(id, t, WRITER),
+            _ => match &trash {
+                Some(tr) if folder.id != tr.id => app.store.move_item(id, tr.id, WRITER),
+                _ => app.store.delete_item(id, WRITER),
+            },
+        };
+        if r.is_ok() {
+            done += 1;
+        }
+    }
+    Ok(json!({ "ok": true, "count": done }))
+}
+
 /// POST /move — move a message to another folder.
 pub fn move_message(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     #[derive(Deserialize)]

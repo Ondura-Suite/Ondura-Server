@@ -36,6 +36,11 @@ const SESSION_LIFETIME: i64 = 8 * 3600;
 /// their echoes apart (same role as "ews" or an ActiveSync device id).
 pub(crate) const WRITER: &str = "webmail";
 
+/// serde default for booleans that should default to `true`.
+pub(crate) fn default_true() -> bool {
+    true
+}
+
 pub(crate) type ApiResult = Result<Value, (StatusCode, String)>;
 
 pub(crate) fn bad(msg: impl Into<String>) -> (StatusCode, String) {
@@ -175,6 +180,10 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/category") => mail_api::save_category(app, user, body),
         (&Method::POST, "/category/delete") => mail_api::delete_category(app, user, body),
         (&Method::POST, "/categorize") => mail_api::categorize(app, user, body),
+        (&Method::GET, "/rules") => mail_api::rules(app, user),
+        (&Method::POST, "/rule") => mail_api::save_rule(app, user, body),
+        (&Method::POST, "/rule/delete") => mail_api::delete_rule(app, user, body),
+        (&Method::POST, "/sweep") => mail_api::sweep(app, user, body),
         (&Method::POST, "/move") => mail_api::move_message(app, user, body),
         (&Method::POST, "/delete") => mail_api::delete(app, user, body),
         (&Method::POST, "/empty") => mail_api::empty(app, user, body),

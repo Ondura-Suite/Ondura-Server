@@ -234,6 +234,63 @@ fn system_folder_cannot_be_deleted() {
 }
 
 #[test]
+fn rule_moves_matching_mail() {
+    use crate::store::{NewMail, RuleAction, RuleCondition, now};
+    let (app, user) = App::test();
+    let archive = app.store.ensure_folder(user.id, "archive").unwrap();
+    let inbox = app.store.folder_by_role(user.id, "inbox").unwrap().unwrap();
+    let raw = b"From: Boss <boss@corp.example>\r\nTo: me@example.com\r\nSubject: Weekly report\r\n\r\nhi";
+    let id = app.store.insert_mail(NewMail { user_id: user.id, folder_id: inbox.id, mime: raw, flags: 0, received: now(), writer: "smtp" }).unwrap();
+    app.store
+        .save_rule(
+            user.id,
+            None,
+            "boss to archive",
+            true,
+            true,
+            false,
+            &[RuleCondition { field: "from".into(), value: "boss@corp".into() }],
+            &[RuleAction { kind: "move".into(), folder: Some(archive.id), category: None }, RuleAction { kind: "markRead".into(), folder: None, category: None }],
+        )
+        .unwrap();
+    app.store.apply_rules(user.id, id).unwrap();
+    let item = app.store.item(id).unwrap().unwrap();
+    assert_eq!(item.folder_id, archive.id);
+    assert!(item.flags & crate::model::flags::READ != 0);
+}
+
+#[test]
+fn rule_skips_non_matching_mail() {
+    use crate::store::{NewMail, RuleAction, RuleCondition, now};
+    let (app, user) = App::test();
+    let archive = app.store.ensure_folder(user.id, "archive").unwrap();
+    let inbox = app.store.folder_by_role(user.id, "inbox").unwrap().unwrap();
+    let raw = b"From: Friend <friend@example.com>\r\nSubject: Lunch\r\n\r\nhi";
+    let id = app.store.insert_mail(NewMail { user_id: user.id, folder_id: inbox.id, mime: raw, flags: 0, received: now(), writer: "smtp" }).unwrap();
+    app.store
+        .save_rule(user.id, None, "boss", true, true, false, &[RuleCondition { field: "from".into(), value: "boss@corp".into() }], &[RuleAction { kind: "move".into(), folder: Some(archive.id), category: None }])
+        .unwrap();
+    app.store.apply_rules(user.id, id).unwrap();
+    assert_eq!(app.store.item(id).unwrap().unwrap().folder_id, inbox.id);
+}
+
+#[test]
+fn sweep_keeps_latest_from_sender() {
+    use crate::store::{NewMail, now};
+    let (app, user) = App::test();
+    let inbox = app.store.folder_by_role(user.id, "inbox").unwrap().unwrap();
+    let trash = app.store.folder_by_role(user.id, "deleteditems").unwrap().unwrap();
+    for n in 0..3 {
+        let raw = format!("From: Spammer <spam@ads.example>\r\nSubject: Deal {n}\r\n\r\nbuy");
+        app.store.insert_mail(NewMail { user_id: user.id, folder_id: inbox.id, mime: raw.as_bytes(), flags: 0, received: now() + n, writer: "smtp" }).unwrap();
+    }
+    let r = mail_api::sweep(&app, &user, &body(serde_json::json!({ "from": "spam@ads.example", "folder": inbox.id, "action": "keepLatest" }))).unwrap();
+    assert_eq!(r["count"].as_i64().unwrap(), 2);
+    assert_eq!(mail_api::messages(&app, &user, &format!("folder={}", inbox.id)).unwrap()["messages"].as_array().unwrap().len(), 1);
+    assert_eq!(mail_api::messages(&app, &user, &format!("folder={}", trash.id)).unwrap()["messages"].as_array().unwrap().len(), 2);
+}
+
+#[test]
 fn bulk_mark_read_and_move() {
     let (app, user) = App::test();
     let archive = app.store.ensure_folder(user.id, "archive").unwrap();

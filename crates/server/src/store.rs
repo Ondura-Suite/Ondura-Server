@@ -196,6 +196,18 @@ CREATE TABLE IF NOT EXISTS mail_categories (
     sort INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS mail_categories_user ON mail_categories(user_id);
+CREATE TABLE IF NOT EXISTS mail_rules (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    match_all INTEGER NOT NULL DEFAULT 1,
+    stop INTEGER NOT NULL DEFAULT 0,
+    conditions TEXT NOT NULL DEFAULT '[]',
+    actions TEXT NOT NULL DEFAULT '[]',
+    sort INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS mail_rules_user ON mail_rules(user_id);
 "#;
 
 pub fn now() -> i64 {
@@ -320,6 +332,39 @@ pub struct Item {
     pub data: Option<String>,
 }
 
+/// One condition of an inbox rule: a case-insensitive substring match against
+/// a header field (`from`, `to` or `subject`).
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RuleCondition {
+    pub field: String,
+    pub value: String,
+}
+
+/// One action an inbox rule performs: move, mark read, categorize or delete.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct RuleAction {
+    #[serde(rename = "type")]
+    pub kind: String,
+    #[serde(default)]
+    pub folder: Option<i64>,
+    #[serde(default)]
+    pub category: Option<String>,
+}
+
+/// An inbox rule, applied to messages as they are delivered.
+#[derive(Clone, Serialize, Deserialize)]
+pub struct Rule {
+    pub id: i64,
+    pub name: String,
+    pub enabled: bool,
+    /// true: all conditions must match; false: any one is enough.
+    pub match_all: bool,
+    /// Stop evaluating further rules once this one matches.
+    pub stop: bool,
+    pub conditions: Vec<RuleCondition>,
+    pub actions: Vec<RuleAction>,
+}
+
 impl Item {
     #[cfg(test)]
     pub fn is_read(&self) -> bool {
@@ -344,6 +389,25 @@ impl Item {
 }
 
 const ITEM_COLUMNS: &str = "id, user_id, folder_id, kind, uid, modseq, created_modseq, received, size, flags, categories, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, data";
+
+/// Evaluate an inbox rule's conditions against a delivered item.
+fn rule_matches(rule: &Rule, item: &Item) -> bool {
+    let field_text = |field: &str| -> String {
+        match field {
+            "from" => item.sender.as_ref().map(|p| format!("{} {}", p.name, p.email)).unwrap_or_default(),
+            "to" => item.recipients.to.iter().chain(item.recipients.cc.iter()).map(|p| format!("{} {}", p.name, p.email)).collect::<Vec<_>>().join(" "),
+            "subject" => item.subject.clone(),
+            _ => String::new(),
+        }
+        .to_lowercase()
+    };
+    let hit = |c: &RuleCondition| !c.value.trim().is_empty() && field_text(&c.field).contains(&c.value.to_lowercase());
+    if rule.match_all {
+        rule.conditions.iter().all(hit)
+    } else {
+        rule.conditions.iter().any(hit)
+    }
+}
 
 fn item_from_row(r: &Row) -> Result<Item> {
     let kind: String = r.get(3)?;
@@ -824,6 +888,103 @@ impl Store {
                 cats.push(n.to_string());
             }
             self.update_flags(id, 0, 0, Some(&cats), "system")?;
+        }
+        Ok(())
+    }
+
+    // ------------------------------------------------------------ inbox rules
+
+    /// A user's inbox rules, in evaluation order.
+    pub fn rules(&self, user_id: i64) -> Result<Vec<Rule>> {
+        let db = self.db();
+        let st = db.prepare("SELECT id, name, enabled, match_all, stop, conditions, actions FROM mail_rules WHERE user_id = ?1 ORDER BY sort, id")?;
+        st.query_map([user_id], |r| {
+            let conditions: String = r.get(5)?;
+            let actions: String = r.get(6)?;
+            Ok(Rule {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                enabled: r.get::<_, i64>(2)? != 0,
+                match_all: r.get::<_, i64>(3)? != 0,
+                stop: r.get::<_, i64>(4)? != 0,
+                conditions: serde_json::from_str(&conditions).unwrap_or_default(),
+                actions: serde_json::from_str(&actions).unwrap_or_default(),
+            })
+        })
+    }
+
+    /// Create an inbox rule, or update one when `id` is `Some`. Returns its id.
+    #[allow(clippy::too_many_arguments)]
+    pub fn save_rule(&self, user_id: i64, id: Option<i64>, name: &str, enabled: bool, match_all: bool, stop: bool, conditions: &[RuleCondition], actions: &[RuleAction]) -> Result<i64> {
+        let cond = serde_json::to_string(conditions)?;
+        let act = serde_json::to_string(actions)?;
+        let db = self.db();
+        if let Some(id) = id {
+            db.execute(
+                "UPDATE mail_rules SET name = ?1, enabled = ?2, match_all = ?3, stop = ?4, conditions = ?5, actions = ?6 WHERE id = ?7 AND user_id = ?8",
+                params![name, enabled as i64, match_all as i64, stop as i64, cond, act, id, user_id],
+            )?;
+            return Ok(id);
+        }
+        db.query_row(
+            "INSERT INTO mail_rules (user_id, name, enabled, match_all, stop, conditions, actions, sort) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8) RETURNING id",
+            params![user_id, name, enabled as i64, match_all as i64, stop as i64, cond, act, now()],
+            |r| r.get(0),
+        )
+    }
+
+    pub fn delete_rule(&self, user_id: i64, id: i64) -> Result<()> {
+        self.db().execute("DELETE FROM mail_rules WHERE id = ?1 AND user_id = ?2", params![id, user_id])?;
+        Ok(())
+    }
+
+    /// Apply the user's enabled rules to a just-delivered item. Reloads the
+    /// item between rules because a move changes its folder.
+    pub fn apply_rules(&self, user_id: i64, item_id: i64) -> Result<()> {
+        let rules = self.rules(user_id)?;
+        if rules.is_empty() {
+            return Ok(());
+        }
+        let trash = self.folder_by_role(user_id, "deleteditems")?;
+        for rule in rules.iter().filter(|r| r.enabled && !r.conditions.is_empty()) {
+            let Some(item) = self.item(item_id)? else { return Ok(()) };
+            if !rule_matches(rule, &item) {
+                continue;
+            }
+            let mut terminal = false;
+            for a in &rule.actions {
+                match a.kind.as_str() {
+                    "markRead" => {
+                        self.update_flags(item.id, model::flags::READ, 0, None, "rules")?;
+                    }
+                    "categorize" => {
+                        if let Some(cat) = &a.category {
+                            let mut cats = item.categories.clone();
+                            if !cats.iter().any(|c| c == cat) {
+                                cats.push(cat.clone());
+                            }
+                            self.update_flags(item.id, 0, 0, Some(&cats), "rules")?;
+                        }
+                    }
+                    "move" => {
+                        if let Some(f) = a.folder
+                            && self.folder(f)?.filter(|x| x.user_id == user_id).is_some()
+                        {
+                            self.move_item(item.id, f, "rules")?;
+                        }
+                    }
+                    "delete" => {
+                        if let Some(tr) = &trash {
+                            let _ = self.move_item(item.id, tr.id, "rules");
+                            terminal = true;
+                        }
+                    }
+                    _ => {}
+                }
+            }
+            if rule.stop || terminal {
+                break;
+            }
         }
         Ok(())
     }

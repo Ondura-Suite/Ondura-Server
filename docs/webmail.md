@@ -19,13 +19,36 @@ the system's light or dark appearance.
 ## What it does
 
 **Mail** — folders with unread counts, message list with search across all mail
-folders, reading pane, compose with attachments and signature, reply and
-forward, flag, mark read/unread, move between folders, and delete (to Deleted
-Items, then permanently). Select several messages at once to move, delete or
-mark them read in one go, and empty Deleted Items or mark a whole folder read.
-Create, rename and delete your own folders. HTML messages are shown in a
-sandboxed frame so message content cannot run scripts. Drafts reopen in the
-composer.
+folders, reading pane, compose with attachments and signature, reply, reply all
+and forward, Bcc, flag, mark read/unread, archive, move between folders, print,
+and delete (to Deleted Items, then permanently). The reading pane carries a full
+command bar and every message row has a right-click context menu with the same
+actions. Select several messages at once to categorize, flag, archive, move,
+delete or mark them read/unread in one go, and empty Deleted Items or mark a
+whole folder read. Create, rename and delete your own folders. HTML messages are
+shown in a sandboxed frame so message content cannot run scripts. Drafts reopen
+in the composer and are kept up to date automatically while you write.
+
+**Keyboard shortcuts** — the mail view is fully keyboard-drivable: arrow keys or
+`j`/`k` move through the list, `Enter` opens, `c`/`n` compose, `r` reply,
+`Shift+R` reply all, `f` forward, `e` archive, `Delete` delete, `u` toggle
+read/unread, `m` move, `/` focuses search and `Esc` steps back out. Press `?`
+for the full list.
+
+**Categories** — colour-coded labels you define once and assign to messages from
+the reading pane, the context menu or a multi-selection. Click a category chip
+to filter the current folder to it. Manage categories (create, rename, recolour,
+delete) from the account menu; deleting or renaming a category updates every
+message that carried it.
+
+**Rules** — inbox rules run automatically on newly delivered mail. Each rule
+matches on From, To or Subject (all or any conditions) and can move the message
+to a folder, mark it read, categorize it or send it to Deleted Items, optionally
+stopping further rules. Manage rules from the account menu.
+
+**Sweep** — right-click a message and choose Sweep to act on every message from
+that sender in the current folder at once: delete them all, keep only the newest,
+or move them all to another folder.
 
 **Calendar** — a month view with your events; series are expanded by the
 server. Create and edit events, delete them, and accept, decline or tentatively
