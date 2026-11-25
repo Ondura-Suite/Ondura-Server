@@ -564,3 +564,70 @@ pub fn mail_tips(ctx: &Ctx, op: &Node) -> EwsResult<String> {
     }
     Ok(format!(r#"<m:GetMailTipsResponse ResponseClass="Success" xmlns:m="{NS_M}" xmlns:t="{NS_T}"><m:ResponseCode>NoError</m:ResponseCode><m:ResponseMessages>{out}</m:ResponseMessages></m:GetMailTipsResponse>"#))
 }
+
+/// GetInboxRules — expose the user's server-side inbox rules so Outlook and
+/// other EWS clients can display them. Read-only (rules are managed in webmail).
+pub fn get_inbox_rules(ctx: &Ctx) -> EwsResult<String> {
+    let rules = ctx.app.store.rules(ctx.user.id).map_err(|_| EwsError::new("ErrorInternalServerError", "could not load inbox rules"))?;
+    let strings = |v: &[String]| v.iter().map(|s| format!("<t:String>{}</t:String>", escape(s))).collect::<String>();
+    let mut out = String::new();
+    for (i, r) in rules.iter().enumerate() {
+        let (mut subj, mut sender, mut rcpt) = (Vec::new(), Vec::new(), Vec::new());
+        for c in &r.conditions {
+            match c.field.as_str() {
+                "subject" => subj.push(c.value.clone()),
+                "from" => sender.push(c.value.clone()),
+                "to" => rcpt.push(c.value.clone()),
+                _ => {}
+            }
+        }
+        let mut conds = String::new();
+        if !subj.is_empty() {
+            let _ = write!(conds, "<t:ContainsSubjectStrings>{}</t:ContainsSubjectStrings>", strings(&subj));
+        }
+        if !sender.is_empty() {
+            let _ = write!(conds, "<t:ContainsSenderStrings>{}</t:ContainsSenderStrings>", strings(&sender));
+        }
+        if !rcpt.is_empty() {
+            let _ = write!(conds, "<t:ContainsRecipientStrings>{}</t:ContainsRecipientStrings>", strings(&rcpt));
+        }
+        let mut acts = String::new();
+        let mut cats = Vec::new();
+        for a in &r.actions {
+            match a.kind.as_str() {
+                "move" => {
+                    if let Some(f) = a.folder {
+                        let _ = write!(acts, r#"<t:MoveToFolder><t:FolderId Id="F.{f}"/></t:MoveToFolder>"#);
+                    }
+                }
+                "markRead" => acts.push_str("<t:MarkAsRead>true</t:MarkAsRead>"),
+                "categorize" => {
+                    if let Some(c) = &a.category {
+                        cats.push(c.clone());
+                    }
+                }
+                "delete" => acts.push_str("<t:Delete>true</t:Delete>"),
+                _ => {}
+            }
+        }
+        if !cats.is_empty() {
+            let _ = write!(acts, "<t:AssignCategories>{}</t:AssignCategories>", strings(&cats));
+        }
+        if r.stop {
+            acts.push_str("<t:StopProcessingRules>true</t:StopProcessingRules>");
+        }
+        let _ = write!(
+            out,
+            r#"<t:Rule><t:RuleId>{}</t:RuleId><t:DisplayName>{}</t:DisplayName><t:Priority>{}</t:Priority><t:IsEnabled>{}</t:IsEnabled><t:IsNotSupported>false</t:IsNotSupported><t:IsInError>false</t:IsInError><t:Conditions>{}</t:Conditions><t:Actions>{}</t:Actions></t:Rule>"#,
+            r.id,
+            escape(&r.name),
+            i + 1,
+            r.enabled,
+            conds,
+            acts
+        );
+    }
+    Ok(format!(
+        r#"<m:GetInboxRulesResponse ResponseClass="Success" xmlns:m="{NS_M}" xmlns:t="{NS_T}"><m:ResponseCode>NoError</m:ResponseCode><m:OutlookRuleBlobExists>false</m:OutlookRuleBlobExists><m:InboxRules>{out}</m:InboxRules></m:GetInboxRulesResponse>"#
+    ))
+}

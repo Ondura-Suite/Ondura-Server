@@ -120,3 +120,31 @@ async fn ondura_mail_requests() {
     let doc = call(&app, &format!(r#"<m:Subscribe><m:StreamingSubscriptionRequest><t:FolderIds><t:FolderId Id="{inbox}"/></t:FolderIds><t:EventTypes><t:EventType>NewMailEvent</t:EventType></t:EventTypes></m:StreamingSubscriptionRequest></m:Subscribe>"#)).await;
     assert!(!doc.find("SubscriptionId").unwrap().text.is_empty());
 }
+
+#[tokio::test]
+async fn get_inbox_rules_lists_stored_rules() {
+    use crate::store::{RuleAction, RuleCondition};
+    let (app, user) = App::test();
+    let archive = app.store.ensure_folder(user.id, "archive").unwrap();
+    app.store
+        .save_rule(
+            user.id,
+            None,
+            "boss to archive",
+            true,
+            true,
+            true,
+            &[RuleCondition { field: "from".into(), value: "boss@corp".into() }],
+            &[RuleAction { kind: "move".into(), folder: Some(archive.id), category: None }, RuleAction { kind: "markRead".into(), folder: None, category: None }],
+        )
+        .unwrap();
+    let doc = call(&app, r#"<m:GetInboxRules><m:MailboxSmtpAddress>niklas@example.com</m:MailboxSmtpAddress></m:GetInboxRules>"#).await;
+    let rules = all(&doc, "Rule");
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0].text_of("DisplayName"), Some("boss to archive"));
+    assert_eq!(rules[0].text_of("IsEnabled"), Some("true"));
+    assert_eq!(all(&doc, "ContainsSenderStrings").len(), 1);
+    assert_eq!(all(&doc, "MoveToFolder").len(), 1);
+    assert_eq!(all(&doc, "MarkAsRead").len(), 1);
+    assert_eq!(all(&doc, "StopProcessingRules").len(), 1);
+}

@@ -32,7 +32,9 @@ bar above the list narrows it to Unread, Flagged or messages with attachments,
 and a select-all box picks every message currently shown. A conversation-view
 toggle in the list header groups a folder's messages into conversations by the
 Message-ID / In-Reply-To / References chain (with a shared-subject fallback),
-newest first, that expand and collapse; the choice is remembered.
+newest first, that expand and collapse; the choice is remembered. ActiveSync
+derives its conversation id from the same thread root, so phones group the same
+conversations.
 
 **Keyboard shortcuts** — the mail view is fully keyboard-drivable: arrow keys or
 `j`/`k` move through the list, `Enter` opens, `c`/`n` compose, `r` reply,
@@ -44,12 +46,16 @@ for the full list.
 the reading pane, the context menu or a multi-selection. Click a category chip
 to filter the current folder to it. Manage categories (create, rename, recolour,
 delete) from the account menu; deleting or renaming a category updates every
-message that carried it.
+message that carried it. Category names travel with the message over EWS and
+ActiveSync, so a category set in webmail also shows in Outlook and on phones
+(each client supplies its own colours).
 
 **Rules** — inbox rules run automatically on newly delivered mail. Each rule
 matches on From, To or Subject (all or any conditions) and can move the message
 to a folder, mark it read, categorize it or send it to Deleted Items, optionally
-stopping further rules. Manage rules from the account menu.
+stopping further rules. Manage rules from the account menu. Because rules run on
+the server at delivery, they apply to every client; Outlook can also display
+them read-only over EWS.
 
 **Sweep** — right-click a message and choose Sweep to act on every message from
 that sender in the current folder at once: delete them all, keep only the newest,

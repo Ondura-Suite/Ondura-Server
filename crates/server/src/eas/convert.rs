@@ -14,6 +14,33 @@ use crate::model::{
 use crate::store::Item;
 use crate::tzinfo;
 
+// ---------------------------------------------------------------- threading
+
+/// A stable per-conversation key for an item: the thread root message-id from
+/// References, else In-Reply-To, else its own Message-ID, else the normalized
+/// subject. Hashed into the ActiveSync ConversationId.
+fn thread_key(item: &Item) -> String {
+    if let Some(root) = item.references.as_deref().and_then(|r| r.split_whitespace().next()) {
+        return root.to_ascii_lowercase();
+    }
+    if let Some(parent) = item.in_reply_to.as_deref().filter(|s| !s.is_empty()) {
+        return parent.to_ascii_lowercase();
+    }
+    if let Some(mid) = item.message_id.as_deref().filter(|s| !s.is_empty()) {
+        return mid.to_ascii_lowercase();
+    }
+    let mut s = item.subject.trim().to_ascii_lowercase();
+    loop {
+        let t = s.trim_start();
+        let stripped = ["re:", "aw:", "fwd:", "wg:", "fw:"].iter().find_map(|p| t.strip_prefix(p));
+        match stripped {
+            Some(rest) => s = rest.trim_start().to_string(),
+            None => break,
+        }
+    }
+    s
+}
+
 // ------------------------------------------------------------------ dates
 
 pub fn iso(ts: i64) -> String {
@@ -228,9 +255,10 @@ pub fn email(item: &Item, raw: Option<&[u8]>, prefs: &BodyPrefs, version: f32, m
             cats.push_text("Email:Category", c.clone());
         }
         d.push(cats);
-        // Conversation id: hash of the thread topic.
-        let topic = item.subject.trim_start_matches(|c: char| c.is_whitespace());
-        let digest = <sha2::Sha256 as sha2::Digest>::digest(topic.to_ascii_lowercase().as_bytes());
+        // Conversation id: hash of the thread root (References/In-Reply-To/
+        // Message-ID), so clients group the same conversations as webmail;
+        // falls back to the normalized subject when no message-ids are present.
+        let digest = <sha2::Sha256 as sha2::Digest>::digest(thread_key(item).as_bytes());
         d.push(Element::new("Email2:ConversationId").opaque(digest[..16].to_vec()));
         d.push(Element::new("Email2:ConversationIndex").opaque(digest[16..21].to_vec()));
         if item.flags & flags::ANSWERED != 0 {
@@ -955,6 +983,50 @@ pub fn apply_note(d: &Element, mut n: Note) -> Note {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn mail_item(subject: &str, message_id: Option<&str>, in_reply_to: Option<&str>, references: Option<&str>) -> Item {
+        Item {
+            id: 1,
+            user_id: 1,
+            folder_id: 1,
+            kind: crate::model::ItemKind::Mail,
+            uid: None,
+            modseq: 1,
+            created_modseq: 1,
+            received: 0,
+            size: 0,
+            flags: 0,
+            categories: vec![],
+            subject: subject.into(),
+            sender: None,
+            recipients: Default::default(),
+            preview: String::new(),
+            has_attachments: false,
+            importance: Importance::Normal,
+            message_id: message_id.map(str::to_string),
+            message_class: "IPM.Note".into(),
+            data: None,
+            in_reply_to: in_reply_to.map(str::to_string),
+            references: references.map(str::to_string),
+        }
+    }
+
+    #[test]
+    fn conversation_key_follows_references() {
+        // A reply keys on the thread root (References first id), matching the
+        // root's own Message-ID, so both land in one conversation.
+        let root = mail_item("Hi", Some("<root@x>"), None, None);
+        let reply = mail_item("Re: Hi", Some("<r1@x>"), Some("<root@x>"), Some("<root@x>"));
+        assert_eq!(thread_key(&root), thread_key(&reply));
+        // A different message with the same subject but no reference link keys on
+        // its own Message-ID, so it is not merged by subject.
+        let other = mail_item("Hi", Some("<z@x>"), None, None);
+        assert_ne!(thread_key(&root), thread_key(&other));
+        // With no message-ids at all, the normalized subject is the key.
+        let a = mail_item("Re: Lunch?", None, None, None);
+        let b = mail_item("Lunch?", None, None, None);
+        assert_eq!(thread_key(&a), thread_key(&b));
+    }
 
     #[test]
     fn calendar_round_trip() {

@@ -168,9 +168,7 @@ pub async fn handle(app: Shared, user: User, _headers: &HeaderMap, body: Bytes) 
         "GetEvents" => misc::get_events(&ctx, &op),
         "GetServerTimeZones" => misc::server_time_zones(&ctx, &op),
         "ConvertId" => misc::convert_id(&ctx, &op),
-        "GetInboxRules" => Ok(format!(
-            r#"<m:GetInboxRulesResponse ResponseClass="Success" xmlns:m="{NS_M}" xmlns:t="{NS_T}"><m:ResponseCode>NoError</m:ResponseCode><m:OutlookRuleBlobExists>false</m:OutlookRuleBlobExists><m:InboxRules/></m:GetInboxRulesResponse>"#
-        )),
+        "GetInboxRules" => misc::get_inbox_rules(&ctx),
         "GetMailTips" => misc::mail_tips(&ctx, &op),
         other => {
             warn!(op = other, "unsupported EWS operation");
