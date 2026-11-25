@@ -35,6 +35,21 @@ fn draft_keeps_rich_text_html() {
 }
 
 #[test]
+fn draft_keeps_bcc() {
+    // Bcc is stored as a header on the draft and re-exposed on read, so the
+    // composer can restore the hidden recipients when the draft is reopened.
+    let (app, user) = App::test();
+    let saved = mail_api::draft(&app, &user, &body(serde_json::json!({
+        "to": "a@example.com", "bcc": "secret@example.com", "subject": "Hidden", "text": "hi"
+    }))).unwrap();
+    let id = saved["id"].as_i64().unwrap();
+    let full = mail_api::message(&app, &user, &id.to_string()).unwrap();
+    let bcc = full["bcc"].as_array().unwrap();
+    assert_eq!(bcc.len(), 1);
+    assert_eq!(bcc[0]["email"], "secret@example.com");
+}
+
+#[test]
 fn draft_then_list_and_read() {
     let (app, user) = App::test();
     let saved = mail_api::draft(&app, &user, &body(serde_json::json!({

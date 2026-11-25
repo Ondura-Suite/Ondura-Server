@@ -116,6 +116,7 @@ pub fn message(app: &Shared, user: &User, id: &str) -> ApiResult {
         "from": item.sender.as_ref().map(person_json),
         "to": item.recipients.to.iter().map(person_json).collect::<Vec<_>>(),
         "cc": item.recipients.cc.iter().map(person_json).collect::<Vec<_>>(),
+        "bcc": item.recipients.bcc.iter().map(person_json).collect::<Vec<_>>(),
         "replyTo": item.recipients.reply_to.iter().map(person_json).collect::<Vec<_>>(),
         "date": item.received,
         "messageId": item.message_id,
@@ -189,6 +190,8 @@ struct Compose {
     #[serde(default)]
     cc: String,
     #[serde(default)]
+    bcc: String,
+    #[serde(default)]
     subject: String,
     #[serde(default)]
     text: String,
@@ -212,7 +215,8 @@ struct Compose {
 fn build_outgoing(app: &Shared, user: &User, c: &Compose) -> Result<Outgoing, (StatusCode, String)> {
     let to = parse_addresses(&c.to);
     let cc = parse_addresses(&c.cc);
-    if to.is_empty() && cc.is_empty() {
+    let bcc = parse_addresses(&c.bcc);
+    if to.is_empty() && cc.is_empty() && bcc.is_empty() {
         return Err(bad("at least one recipient is required"));
     }
     // The From address defaults to the primary address; any other value must be
@@ -233,6 +237,13 @@ fn build_outgoing(app: &Shared, user: &User, c: &Compose) -> Result<Outgoing, (S
         let data = B64.decode(a.data.as_bytes()).map_err(|_| bad("invalid attachment encoding"))?;
         files.push(File { name: a.name.clone(), content_type: a.content_type.clone(), data, content_id: None, inline: false });
     }
+    // Bcc goes in a header; it is included in the envelope recipients and then
+    // stripped before the message is transmitted, so it stays hidden.
+    let mut headers = Vec::new();
+    if !bcc.is_empty() {
+        let v = bcc.iter().map(|p| if p.name.is_empty() { p.email.clone() } else { format!("{} <{}>", p.name, p.email) }).collect::<Vec<_>>().join(", ");
+        headers.push(("Bcc".to_string(), v));
+    }
     Ok(Outgoing {
         from: Person { name: user.name.clone(), email: from_email },
         to,
@@ -242,7 +253,7 @@ fn build_outgoing(app: &Shared, user: &User, c: &Compose) -> Result<Outgoing, (S
         html: c.html.clone(),
         calendar: None,
         attachment: None,
-        headers: Vec::new(),
+        headers,
         in_reply_to: c.in_reply_to.clone(),
         multipart_report: None,
         files,
@@ -297,6 +308,13 @@ pub fn draft(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         // Drafts may have no recipient yet, so build directly.
         let to = parse_addresses(&d.compose.to);
         let cc = parse_addresses(&d.compose.cc);
+        let bcc = parse_addresses(&d.compose.bcc);
+        // Keep Bcc on the stored draft so it is restored when the draft is reopened.
+        let mut headers = Vec::new();
+        if !bcc.is_empty() {
+            let v = bcc.iter().map(|p| if p.name.is_empty() { p.email.clone() } else { format!("{} <{}>", p.name, p.email) }).collect::<Vec<_>>().join(", ");
+            headers.push(("Bcc".to_string(), v));
+        }
         Outgoing {
             from: Person { name: user.name.clone(), email: user.email.clone() },
             to,
@@ -306,7 +324,7 @@ pub fn draft(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
             html: d.compose.html.clone(),
             calendar: None,
             attachment: None,
-            headers: Vec::new(),
+            headers,
             in_reply_to: d.compose.in_reply_to.clone(),
             multipart_report: None,
             files: Vec::new(),

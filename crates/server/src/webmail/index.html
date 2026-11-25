@@ -154,7 +154,11 @@ svg { width: 18px; height: 18px; display: block; }
 .msg .msgchk { opacity: 0; transition: opacity .1s; }
 .msg:hover .msgchk, .msg.sel .msgchk { opacity: 1; }
 #ctxMenu .navitem { padding: 7px 10px; }
+#ctxMenu .navitem.danger { color: var(--danger); }
+.ctxsep { height: 1px; background: var(--border); margin: 4px 8px; }
 .iconbtn.danger { color: var(--danger); }
+.acts { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.acts .sep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--border); }
 .taskrow { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--border); }
 .taskrow .tck { width: 20px; height: 20px; border: 1.6px solid var(--border); border-radius: 50%; cursor: pointer; display: grid; place-items: center; flex: 0 0 auto; }
 .taskrow .tck.done { background: var(--tint); border-color: var(--tint); color: #fff; }
@@ -244,6 +248,9 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 .rte:focus { border-color: var(--tint); }
 .rte:empty::before { content: attr(data-ph); color: var(--muted); }
 .acfield { position: relative; }
+.bcctoggle { position: absolute; right: 6px; top: 26px; border: 0; background: none; color: var(--muted); font-size: 12px; cursor: pointer; padding: 3px 6px; border-radius: 6px; }
+.bcctoggle:hover { background: var(--surface-hover); color: var(--text); }
+.bcctoggle.hidden { display: none; }
 .acdrop { position: absolute; left: 0; right: 0; top: 100%; z-index: 70; background: var(--surface-solid); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); max-height: 240px; overflow-y: auto; margin-top: 2px; }
 .acitem { padding: 7px 10px; cursor: pointer; display: flex; flex-direction: column; }
 .acitem:hover, .acitem.sel { background: var(--surface-hover); }
@@ -336,6 +343,7 @@ const T = {
     newContact: "New contact", editContact: "Contact", firstName: "First name", lastName: "Last name", company: "Company", jobTitle: "Job title", phone: "Mobile", notes: "Notes", noContacts: "No contacts", selectContact: "Select a contact",
     logout: "Sign out", confirmDelete: "Delete this item?", sent: "Sent", saved: "Saved", deleted: "Deleted", emptyTrash: "Empty", confirmEmpty: "Permanently delete all items in Deleted Items?", loading: "Loading…", langName: "Deutsch",
     changePicture: "Change picture", removePicture: "Remove picture", discard: "Discard", newMessage: "New message", linkUrl: "Link URL",
+    print: "Print", bcc: "Bcc", showBcc: "Bcc", noArchive: "No archive folder", unflag: "Clear flag", recipientRequired: "Add at least one recipient",
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
     tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
@@ -352,6 +360,7 @@ const T = {
     newContact: "Neuer Kontakt", editContact: "Kontakt", firstName: "Vorname", lastName: "Nachname", company: "Firma", jobTitle: "Position", phone: "Mobil", notes: "Notizen", noContacts: "Keine Kontakte", selectContact: "Kontakt auswählen",
     logout: "Abmelden", confirmDelete: "Diesen Eintrag löschen?", sent: "Gesendet", saved: "Gespeichert", deleted: "Gelöscht", emptyTrash: "Leeren", confirmEmpty: "Alle Elemente im Papierkorb endgültig löschen?", loading: "Lädt…", langName: "English",
     changePicture: "Bild ändern", removePicture: "Bild entfernen", discard: "Verwerfen", newMessage: "Neue Nachricht", linkUrl: "Link-URL",
+    print: "Drucken", bcc: "Bcc", showBcc: "Bcc", noArchive: "Kein Archivordner", unflag: "Kennzeichnung entfernen", recipientRequired: "Mindestens einen Empfänger angeben",
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
     tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
@@ -391,6 +400,8 @@ const ICON = {
   contacts: '<circle cx="12" cy="9" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 20a7 7 0 0 1 14 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   reply: '<path d="M9 7 4 12l5 5M4 12h9a7 7 0 0 1 7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   forward: '<path d="M15 7l5 5-5 5M20 12h-9a7 7 0 0 0-7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  replyall: '<path d="M7 7 2 12l5 5M2 12h11a7 7 0 0 1 7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7 7 12l5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  print: '<path d="M7 9V4h10v5M7 18H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M7 15h10v5H7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   trash: '<path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   flag: '<path d="M6 21V4h11l-2 4 2 4H6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
   paperclip: '<path d="M8 12V7a4 4 0 0 1 8 0v9a2.5 2.5 0 0 1-5 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
@@ -580,6 +591,70 @@ function openMoveMenu(anchor, onPick) {
   setTimeout(() => document.addEventListener("click", closeMenu, { once: true }), 0);
 }
 function closeMenu() { const m = $("#ctxMenu"); if (m) m.remove(); }
+
+// ------------------------------------------------------------ MESSAGE ACTIONS
+// Shared command surface used by both the reader ribbon and the list context menu.
+function archiveFolder() { return folders.find((f) => f.role === "archive"); }
+function inArchive() { return curFolder && curFolder.role === "archive"; }
+function clearReader() {
+  const r = $("#reader"); if (r) r.innerHTML = `<div class="empty">${esc(t("selectMessage"))}</div>`;
+}
+function afterMsgGone(id) { if (curMsg === id) { curMsg = null; clearReader(); } loadMessages(); refreshFolders(); }
+async function fetchFull(id) { return api("GET", "/message/" + id); }
+async function actReply(id, mode) { const m = await fetchFull(id); openCompose({ mode, msg: m }); }
+async function actDelete(id) { await api("POST", "/delete", { id }); afterMsgGone(id); toast(t("deleted")); }
+async function actArchive(id) {
+  const af = archiveFolder();
+  if (!af) { toast(t("noArchive"), true); return; }
+  await api("POST", "/move", { id, folder: af.id }); afterMsgGone(id); toast(t("saved"));
+}
+async function actFlag(id, flagged) {
+  await api("POST", "/flag", { id, flagged });
+  const it = messages.find((x) => x.id === id); if (it) it.flags.flagged = flagged;
+  renderMsgList();
+}
+async function actRead(id, read) {
+  await api("POST", "/flag", { id, read });
+  const it = messages.find((x) => x.id === id); if (it) it.flags.read = read;
+  renderMsgList(); refreshFolders();
+}
+function actPrint(m) {
+  const w = window.open("", "_blank", "width=820,height=680");
+  if (!w) { toast(t("print"), true); return; }
+  const body = m.html || `<pre style="white-space:pre-wrap;font:14px/1.5 system-ui">${esc(m.text || "")}</pre>`;
+  const to = (m.to || []).map(personStr).join(", ");
+  w.document.write(`<!doctype html><meta charset="utf-8"><title>${esc(m.subject || "")}</title>` +
+    `<style>body{font:14px/1.5 "Segoe UI",system-ui,sans-serif;color:#1b1f27;margin:28px}h1{font-size:19px;margin:0 0 4px}.hd{color:#555;font-size:12px;border-bottom:1px solid #ddd;padding-bottom:12px;margin-bottom:16px}img{max-width:100%}</style>` +
+    `<h1>${esc(m.subject || "")}</h1>` +
+    `<div class="hd">${esc(personStr(m.from))} &lt;${esc(m.from ? m.from.email : "")}&gt; · ${esc(fmtDate(m.date))}<br>${esc(t("to"))}: ${esc(to)}` +
+    `${m.cc && m.cc.length ? "<br>" + esc(t("cc")) + ": " + esc(m.cc.map(personStr).join(", ")) : ""}</div>${body}`);
+  w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 300);
+}
+// Right-click context menu on a list row.
+function openMsgContext(ev, id) {
+  closeMenu();
+  const it = messages.find((x) => x.id === id) || { flags: {} };
+  const read = !!(it.flags && it.flags.read), flagged = !!(it.flags && it.flags.flagged);
+  const anchor = { getBoundingClientRect: () => ({ bottom: ev.clientY, left: ev.clientX }) };
+  const items = [
+    { ic: "reply", label: t("reply"), fn: () => actReply(id, "reply") },
+    { ic: "replyall", label: t("replyAll"), fn: () => actReply(id, "replyAll") },
+    { ic: "forward", label: t("forward"), fn: () => actReply(id, "forward") },
+    { sep: true },
+    { ic: "mail", label: read ? t("markUnread") : t("markRead"), fn: () => actRead(id, !read) },
+    { ic: "flag", label: flagged ? t("unflag") : t("flag"), fn: () => actFlag(id, !flagged) },
+    (archiveFolder() && !inArchive()) ? { ic: "archive", label: t("archive"), fn: () => actArchive(id) } : null,
+    { ic: "folder", label: t("moveTo"), fn: () => openMoveMenu(anchor, async (fid) => { await api("POST", "/move", { id, folder: fid }); afterMsgGone(id); }) },
+    { sep: true },
+    { ic: "trash", label: t("delete"), danger: true, fn: () => actDelete(id) },
+  ].filter(Boolean);
+  const m = document.createElement("div"); m.id = "ctxMenu"; m.className = "glass";
+  m.style.cssText = `position:fixed;top:${Math.min(ev.clientY, innerHeight - 340)}px;left:${Math.min(ev.clientX, innerWidth - 230)}px;z-index:70;min-width:212px;padding:6px`;
+  m.innerHTML = items.map((x, i) => x.sep ? '<div class="ctxsep"></div>' : `<div class="navitem ${x.danger ? "danger" : ""}" data-i="${i}">${icon(x.ic)}<span>${esc(x.label)}</span></div>`).join("");
+  document.body.appendChild(m);
+  m.querySelectorAll("[data-i]").forEach((el) => el.onclick = guard(async () => { const fn = items[+el.dataset.i].fn; closeMenu(); await fn(); }));
+  setTimeout(() => document.addEventListener("click", closeMenu, { once: true }), 0);
+}
 function renderMsgList() {
   const box = $("#msgs"); if (!box) return;
   if (!messages.length) { box.innerHTML = `<div class="empty" style="height:auto;padding:40px">${esc(t("noMessages"))}</div>`; return; }
@@ -592,6 +667,7 @@ function renderMsgList() {
       <div class="pv">${m.hasAttachments ? "📎 " : ""}${esc(m.preview)}</div></div></div>`;
   }).join("");
   box.querySelectorAll(".msgmain").forEach((e) => e.onclick = () => openMessage(+e.parentElement.dataset.id));
+  box.querySelectorAll(".msg").forEach((e) => e.oncontextmenu = (ev) => { ev.preventDefault(); openMsgContext(ev, +e.dataset.id); });
   box.querySelectorAll(".msgchk").forEach((e) => e.onclick = (ev) => { ev.stopPropagation(); const id = +e.dataset.id; if (e.checked) selected.add(id); else selected.delete(id); e.closest(".msg").classList.toggle("sel", e.checked); renderSelectionBar(); });
 }
 async function openMessage(id) {
@@ -619,19 +695,30 @@ async function openMessage(id) {
       ${esc(t("to"))}: ${esc(addr(m.to))}${m.cc && m.cc.length ? " · " + esc(t("cc")) + ": " + esc(addr(m.cc)) : ""}</div></div>
     <div class="acts">
       <button class="btn" data-a="reply">${icon("reply")}<span>${esc(t("reply"))}</span></button>
+      <button class="btn" data-a="replyAll">${icon("replyall")}<span>${esc(t("replyAll"))}</span></button>
       <button class="btn" data-a="forward">${icon("forward")}<span>${esc(t("forward"))}</span></button>
-      <button class="btn" data-a="flag">${icon("flag")}<span>${esc(t("flag"))}</span></button>
+      <span class="sep"></span>
+      ${archiveFolder() && !inArchive() ? `<button class="btn" data-a="archive">${icon("archive")}<span>${esc(t("archive"))}</span></button>` : ""}
       <button class="btn" data-a="move">${icon("folder")}<span>${esc(t("moveTo"))}</span></button>
       <button class="btn danger" data-a="delete">${icon("trash")}<span>${esc(t("delete"))}</span></button>
+      <span class="sep"></span>
+      <button class="btn" data-a="unread">${icon("mail")}<span>${esc(t("markUnread"))}</span></button>
+      <button class="btn" data-a="flag">${icon("flag")}<span>${esc(m.flags && m.flags.flagged ? t("unflag") : t("flag"))}</span></button>
+      <button class="btn" data-a="print">${icon("print")}<span>${esc(t("print"))}</span></button>
     </div>
     <div class="bodywrap">${bodyHtml}</div>
     ${atts ? `<div class="atts">${atts}</div>` : ""}`;
   if (m.html) { const f = reader.querySelector("iframe"); f.srcdoc = `<!doctype html><meta charset="utf-8"><base target="_blank"><style>body{font:14px/1.5 "Segoe UI",system-ui,sans-serif;color:#1b1f27;margin:16px}img{max-width:100%}</style>` + m.html; }
-  reader.querySelector('[data-a="reply"]').onclick = () => openCompose({ mode: "reply", msg: m });
-  reader.querySelector('[data-a="forward"]').onclick = () => openCompose({ mode: "forward", msg: m });
-  reader.querySelector('[data-a="flag"]').onclick = guard(async () => { await api("POST", "/flag", { id, flagged: !(messages.find((x) => x.id === id) || {}).flags?.flagged }); loadMessages(); });
-  reader.querySelector('[data-a="move"]').onclick = (e) => openMoveMenu(e.target.closest("button"), async (fid) => { await api("POST", "/move", { id, folder: fid }); curMsg = null; reader.innerHTML = `<div class="empty">${esc(t("selectMessage"))}</div>`; loadMessages(); refreshFolders(); toast(t("saved")); });
-  reader.querySelector('[data-a="delete"]').onclick = guard(async () => { await api("POST", "/delete", { id }); curMsg = null; reader.innerHTML = `<div class="empty">${esc(t("selectMessage"))}</div>`; loadMessages(); refreshFolders(); toast(t("deleted")); });
+  const act = (name) => reader.querySelector(`[data-a="${name}"]`);
+  act("reply").onclick = () => openCompose({ mode: "reply", msg: m });
+  act("replyAll").onclick = () => openCompose({ mode: "replyAll", msg: m });
+  act("forward").onclick = () => openCompose({ mode: "forward", msg: m });
+  if (act("archive")) act("archive").onclick = guard(() => actArchive(id));
+  act("move").onclick = (e) => openMoveMenu(e.target.closest("button"), async (fid) => { await api("POST", "/move", { id, folder: fid }); afterMsgGone(id); toast(t("saved")); });
+  act("delete").onclick = guard(() => actDelete(id));
+  act("unread").onclick = guard(() => actRead(id, false));
+  act("flag").onclick = guard(() => actFlag(id, !(m.flags && m.flags.flagged)));
+  act("print").onclick = () => actPrint(m);
 }
 async function refreshFolders() { try { const r = await api("GET", "/me"); folders = r.folders.filter((f) => f.role !== "root"); if (curFolder) curFolder = folders.find((f) => f.id === curFolder.id) || curFolder; renderRail(); } catch (e) {} }
 
@@ -644,10 +731,19 @@ function panel(title, contentHtml, footHtml) {
 let pendingFiles = [];
 function openCompose(opt) {
   opt = opt || {}; pendingFiles = [];
-  let to = "", cc = "", subject = "", text = "", answering = null;
+  let to = "", cc = "", bcc = "", subject = "", text = "", answering = null;
   let draftId = opt.mode === "draft" ? opt.draftId : null;
-  if (opt.mode === "reply" && opt.msg) {
+  const myAddrs = ((me && me.addresses) || []).map((a) => a.toLowerCase());
+  const notMe = (p) => p && p.email && !myAddrs.includes(p.email.toLowerCase());
+  const joinAddrs = (list) => (list || []).filter(notMe).map((p) => p.email).join(", ");
+  if ((opt.mode === "reply" || opt.mode === "replyAll") && opt.msg) {
     to = opt.msg.from ? opt.msg.from.email : ""; answering = opt.msg.id;
+    if (opt.mode === "replyAll") {
+      // Everyone on the original except me; original sender stays only in To.
+      const extraTo = (opt.msg.to || []).filter((p) => notMe(p) && (!opt.msg.from || p.email.toLowerCase() !== opt.msg.from.email.toLowerCase()));
+      if (extraTo.length) to += (to ? ", " : "") + extraTo.map((p) => p.email).join(", ");
+      cc = joinAddrs(opt.msg.cc);
+    }
     subject = (/^(re|aw):/i.test(opt.msg.subject) ? "" : t("re") + ": ") + opt.msg.subject;
     text = `\n\n${t("on")} ${fmtDate(opt.msg.date)} ${personStr(opt.msg.from)} ${t("wrote")}\n> ` + (opt.msg.text || "").split("\n").join("\n> ");
   } else if (opt.mode === "forward" && opt.msg) {
@@ -656,6 +752,7 @@ function openCompose(opt) {
   } else if (opt.mode === "draft" && opt.msg) {
     to = (opt.msg.to || []).map((p) => p.email).join(", ");
     cc = (opt.msg.cc || []).map((p) => p.email).join(", ");
+    bcc = (opt.msg.bcc || []).map((p) => p.email).join(", ");
     subject = opt.msg.subject || "";
     text = opt.msg.text || "";
   }
@@ -669,13 +766,14 @@ function openCompose(opt) {
   const reader = $("#reader");
   if (!reader) return;
   curMsg = null;
-  const title = opt.mode === "reply" ? t("reply") : opt.mode === "forward" ? t("forward") : opt.mode === "draft" ? t("drafts") : t("newMessage");
+  const title = opt.mode === "reply" ? t("reply") : opt.mode === "replyAll" ? t("replyAll") : opt.mode === "forward" ? t("forward") : opt.mode === "draft" ? t("drafts") : t("newMessage");
   reader.innerHTML =
     `<div class="composepane">` +
       `<div class="rh"><h1>${esc(title)}</h1><button class="iconbtn" id="cClose" title="${esc(t("discard"))}"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>` +
       `<div class="cform">${fromField}` +
-        `<div class="field acfield"><label>${esc(t("to"))}</label><input id="cto" autocomplete="off" value="${esc(to)}"></div>` +
+        `<div class="field acfield"><label>${esc(t("to"))}</label><input id="cto" autocomplete="off" value="${esc(to)}"><button type="button" id="bccToggle" class="bcctoggle">${esc(t("showBcc"))}</button></div>` +
         `<div class="field acfield"><label>${esc(t("cc"))}</label><input id="ccc" autocomplete="off" value="${esc(cc)}"></div>` +
+        `<div class="field acfield" id="bccRow" style="${bcc ? "" : "display:none"}"><label>${esc(t("bcc"))}</label><input id="cbcc" autocomplete="off" value="${esc(bcc)}"></div>` +
         `<div class="field"><label>${esc(t("subject"))}</label><input id="csub" value="${esc(subject)}"></div>` +
         `<div class="field" style="flex:1"><label>${esc(t("message") || "")}</label>` +
           `<div class="rte-toolbar">` +
@@ -706,13 +804,18 @@ function openCompose(opt) {
     else fmt(b.dataset.cmd);
   });
   // Recipient autocomplete from contacts.
-  attachAutocomplete($("#cto")); attachAutocomplete($("#ccc"));
+  attachAutocomplete($("#cto")); attachAutocomplete($("#ccc")); attachAutocomplete($("#cbcc"));
+  // Bcc is hidden until requested (shown automatically when a draft already has one).
+  const bccToggle = $("#bccToggle");
+  const showBcc = () => { $("#bccRow").style.display = ""; bccToggle.classList.add("hidden"); $("#cbcc").focus(); };
+  if (bcc) bccToggle.classList.add("hidden");
+  bccToggle.onclick = showBcc;
   const closeCompose = () => { const r = $("#reader"); if (r) r.innerHTML = `<div class="empty">${esc(t("selectMessage"))}</div>`; };
 
   // --- autosave: keep the message current in Drafts until it is sent ---
   let saveTimer = null, saving = false, dirty = false;
-  const snapshot = () => ({ to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").innerText, html: $("#cbody").innerHTML });
-  const empty = (s) => !s.to.trim() && !s.cc.trim() && !s.subject.trim() && !s.text.trim() && pendingFiles.length === 0;
+  const snapshot = () => ({ to: $("#cto").value, cc: $("#ccc").value, bcc: $("#cbcc").value, subject: $("#csub").value, text: $("#cbody").innerText, html: $("#cbody").innerHTML });
+  const empty = (s) => !s.to.trim() && !s.cc.trim() && !s.bcc.trim() && !s.subject.trim() && !s.text.trim() && pendingFiles.length === 0;
   async function autosave() {
     if (saving) return;
     const s = snapshot();
@@ -726,7 +829,7 @@ function openCompose(opt) {
     } catch (e) { dirty = true; } finally { saving = false; }
   }
   const scheduleSave = () => { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(() => { if (dirty) autosave(); }, 1200); };
-  ["cto", "ccc", "csub"].forEach((id) => $("#" + id).addEventListener("input", scheduleSave));
+  ["cto", "ccc", "cbcc", "csub"].forEach((id) => $("#" + id).addEventListener("input", scheduleSave));
   $("#cbody").addEventListener("input", scheduleSave);
 
   // Close keeps the (autosaved) draft; Discard deletes it.
@@ -740,7 +843,8 @@ function openCompose(opt) {
   $("#cfiles").onchange = async (e) => { for (const f of e.target.files) { const b64 = await fileB64(f); pendingFiles.push({ name: f.name, contentType: f.type || "application/octet-stream", data: b64 }); } renderFileList(); scheduleSave(); };
   $("#csend").onclick = guard(async () => {
     clearTimeout(saveTimer);
-    const body = { to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").innerText, html: $("#cbody").innerHTML, attachments: pendingFiles };
+    if (!$("#cto").value.trim() && !$("#ccc").value.trim() && !$("#cbcc").value.trim()) { toast(t("recipientRequired"), true); $("#cto").focus(); return; }
+    const body = { to: $("#cto").value, cc: $("#ccc").value, bcc: $("#cbcc").value, subject: $("#csub").value, text: $("#cbody").innerText, html: $("#cbody").innerHTML, attachments: pendingFiles };
     if ($("#cfrom")) body.from = $("#cfrom").value;
     if (answering) body.answering = answering;
     if (draftId) body.draftId = draftId;
