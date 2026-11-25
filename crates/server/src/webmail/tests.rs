@@ -21,6 +21,20 @@ fn me_lists_folders() {
 }
 
 #[test]
+fn draft_keeps_rich_text_html() {
+    // The rich-text composer sends both text and html; the html must survive
+    // the round-trip (multipart/alternative) so the editor reloads formatting.
+    let (app, user) = App::test();
+    let saved = mail_api::draft(&app, &user, &body(serde_json::json!({
+        "to": "a@example.com", "subject": "Rich", "text": "Hello bold world", "html": "<p>Hello <b>bold</b> world</p>"
+    }))).unwrap();
+    let id = saved["id"].as_i64().unwrap();
+    let full = mail_api::message(&app, &user, &id.to_string()).unwrap();
+    assert!(full["html"].as_str().unwrap().contains("<b>bold</b>"));
+    assert!(full["text"].as_str().unwrap().contains("bold"));
+}
+
+#[test]
 fn draft_then_list_and_read() {
     let (app, user) = App::test();
     let saved = mail_api::draft(&app, &user, &body(serde_json::json!({

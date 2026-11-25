@@ -236,6 +236,19 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 .cform { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; min-height: 0; }
 .cform textarea.body { flex: 1; min-height: 220px; }
 .cfoot { display: flex; gap: 8px; align-items: center; padding: 12px 20px; border-top: 1px solid var(--border); }
+.rte-toolbar { display: flex; gap: 2px; flex-wrap: wrap; padding: 4px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
+.rte-toolbar button { min-width: 30px; height: 30px; padding: 0 7px; border: none; background: none; border-radius: 6px; cursor: pointer; color: var(--text); display: grid; place-items: center; font-size: 14px; }
+.rte-toolbar button:hover { background: var(--surface-hover); }
+.rte-toolbar button svg { width: 16px; height: 16px; }
+.rte { flex: 1; min-height: 220px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 10px 12px; outline: none; background: var(--surface-solid); line-height: 1.5; }
+.rte:focus { border-color: var(--tint); }
+.rte:empty::before { content: attr(data-ph); color: var(--muted); }
+.acfield { position: relative; }
+.acdrop { position: absolute; left: 0; right: 0; top: 100%; z-index: 70; background: var(--surface-solid); border: 1px solid var(--border); border-radius: 8px; box-shadow: var(--shadow); max-height: 240px; overflow-y: auto; margin-top: 2px; }
+.acitem { padding: 7px 10px; cursor: pointer; display: flex; flex-direction: column; }
+.acitem:hover, .acitem.sel { background: var(--surface-hover); }
+.acitem .nm { font-weight: 500; font-size: 13.5px; }
+.acitem .em { color: var(--muted); font-size: 12px; }
 
 /* ---------- calendar ---------- */
 .cal { height: 100%; display: flex; flex-direction: column; }
@@ -322,7 +335,7 @@ const T = {
     accept: "Accept", decline: "Decline", tentative: "Tentative", today: "Today",
     newContact: "New contact", editContact: "Contact", firstName: "First name", lastName: "Last name", company: "Company", jobTitle: "Job title", phone: "Mobile", notes: "Notes", noContacts: "No contacts", selectContact: "Select a contact",
     logout: "Sign out", confirmDelete: "Delete this item?", sent: "Sent", saved: "Saved", deleted: "Deleted", emptyTrash: "Empty", confirmEmpty: "Permanently delete all items in Deleted Items?", loading: "Loading…", langName: "Deutsch",
-    changePicture: "Change picture", removePicture: "Remove picture", discard: "Discard", newMessage: "New message",
+    changePicture: "Change picture", removePicture: "Remove picture", discard: "Discard", newMessage: "New message", linkUrl: "Link URL",
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
     tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
@@ -338,7 +351,7 @@ const T = {
     accept: "Zusagen", decline: "Absagen", tentative: "Vorbehalt", today: "Heute",
     newContact: "Neuer Kontakt", editContact: "Kontakt", firstName: "Vorname", lastName: "Nachname", company: "Firma", jobTitle: "Position", phone: "Mobil", notes: "Notizen", noContacts: "Keine Kontakte", selectContact: "Kontakt auswählen",
     logout: "Abmelden", confirmDelete: "Diesen Eintrag löschen?", sent: "Gesendet", saved: "Gespeichert", deleted: "Gelöscht", emptyTrash: "Leeren", confirmEmpty: "Alle Elemente im Papierkorb endgültig löschen?", loading: "Lädt…", langName: "English",
-    changePicture: "Bild ändern", removePicture: "Bild entfernen", discard: "Verwerfen", newMessage: "Neue Nachricht",
+    changePicture: "Bild ändern", removePicture: "Bild entfernen", discard: "Verwerfen", newMessage: "Neue Nachricht", linkUrl: "Link-URL",
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
     tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
@@ -381,6 +394,7 @@ const ICON = {
   trash: '<path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   flag: '<path d="M6 21V4h11l-2 4 2 4H6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
   paperclip: '<path d="M8 12V7a4 4 0 0 1 8 0v9a2.5 2.5 0 0 1-5 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  link: '<path d="M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   chev: '<path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   tasks: '<path d="M4 6h10M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="m17 6 2 2 3-3M17 13l2 2 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   note: '<path d="M5 4h14v12l-5 5H5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 21v-5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
@@ -631,7 +645,7 @@ let pendingFiles = [];
 function openCompose(opt) {
   opt = opt || {}; pendingFiles = [];
   let to = "", cc = "", subject = "", text = "", answering = null;
-  const draftId = opt.mode === "draft" ? opt.draftId : null;
+  let draftId = opt.mode === "draft" ? opt.draftId : null;
   if (opt.mode === "reply" && opt.msg) {
     to = opt.msg.from ? opt.msg.from.email : ""; answering = opt.msg.id;
     subject = (/^(re|aw):/i.test(opt.msg.subject) ? "" : t("re") + ": ") + opt.msg.subject;
@@ -660,11 +674,22 @@ function openCompose(opt) {
     `<div class="composepane">` +
       `<div class="rh"><h1>${esc(title)}</h1><button class="iconbtn" id="cClose" title="${esc(t("discard"))}"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>` +
       `<div class="cform">${fromField}` +
-        `<div class="field"><label>${esc(t("to"))}</label><input id="cto" value="${esc(to)}"></div>` +
-        `<div class="field"><label>${esc(t("cc"))}</label><input id="ccc" value="${esc(cc)}"></div>` +
+        `<div class="field acfield"><label>${esc(t("to"))}</label><input id="cto" autocomplete="off" value="${esc(to)}"></div>` +
+        `<div class="field acfield"><label>${esc(t("cc"))}</label><input id="ccc" autocomplete="off" value="${esc(cc)}"></div>` +
         `<div class="field"><label>${esc(t("subject"))}</label><input id="csub" value="${esc(subject)}"></div>` +
-        `<div class="field" style="flex:1"><label>${esc(t("message") || "")}</label><textarea id="cbody" class="body">${esc(text)}</textarea></div>` +
-        `<div id="filelist" style="display:flex;gap:6px;flex-wrap:wrap"></div>` +
+        `<div class="field" style="flex:1"><label>${esc(t("message") || "")}</label>` +
+          `<div class="rte-toolbar">` +
+            `<button type="button" data-cmd="bold" title="Bold"><b>B</b></button>` +
+            `<button type="button" data-cmd="italic" title="Italic"><i>I</i></button>` +
+            `<button type="button" data-cmd="underline" title="Underline"><span style="text-decoration:underline">U</span></button>` +
+            `<button type="button" data-cmd="insertUnorderedList" title="Bullets">&bull;</button>` +
+            `<button type="button" data-cmd="insertOrderedList" title="Numbered">1.</button>` +
+            `<button type="button" data-cmd="createLink" title="Link">${icon("link")}</button>` +
+            `<button type="button" data-cmd="removeFormat" title="Clear formatting">T<sub>x</sub></button>` +
+          `</div>` +
+          `<div id="cbody" class="rte" contenteditable="true" data-ph="${esc(t("message") || "")}"></div>` +
+        `</div>` +
+        `<div id="filelist" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>` +
       `</div>` +
       `<div class="cfoot"><label class="btn" style="cursor:pointer">${icon("paperclip")}<span>${esc(t("addFiles"))}</span><input id="cfiles" type="file" multiple hidden></label>` +
         `<div style="flex:1"></div>` +
@@ -672,23 +697,100 @@ function openCompose(opt) {
         `<button class="btn" id="cdraft">${esc(t("saveDraft"))}</button>` +
         `<button class="btn primary" id="csend">${esc(t("send"))}</button></div>` +
     `</div>`;
+  // Rich-text body: start from the draft's HTML, or the plain text turned into HTML.
+  $("#cbody").innerHTML = (opt.mode === "draft" && opt.msg && opt.msg.html) ? opt.msg.html : textToHtml(text);
+  const fmt = (cmd, val) => { document.execCommand(cmd, false, val || null); $("#cbody").focus(); };
+  $("#reader").querySelectorAll(".rte-toolbar button").forEach((b) => b.onmousedown = (e) => {
+    e.preventDefault();
+    if (b.dataset.cmd === "createLink") { const u = prompt(t("linkUrl") || "URL"); if (u) fmt("createLink", u); }
+    else fmt(b.dataset.cmd);
+  });
+  // Recipient autocomplete from contacts.
+  attachAutocomplete($("#cto")); attachAutocomplete($("#ccc"));
   const closeCompose = () => { const r = $("#reader"); if (r) r.innerHTML = `<div class="empty">${esc(t("selectMessage"))}</div>`; };
-  $("#cClose").onclick = closeCompose;
-  $("#cdiscard").onclick = closeCompose;
+
+  // --- autosave: keep the message current in Drafts until it is sent ---
+  let saveTimer = null, saving = false, dirty = false;
+  const snapshot = () => ({ to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").innerText, html: $("#cbody").innerHTML });
+  const empty = (s) => !s.to.trim() && !s.cc.trim() && !s.subject.trim() && !s.text.trim() && pendingFiles.length === 0;
+  async function autosave() {
+    if (saving) return;
+    const s = snapshot();
+    if (empty(s)) { dirty = false; return; } // don't create empty drafts
+    saving = true; dirty = false;
+    try {
+      const d = Object.assign({}, s); if (draftId) d.id = draftId;
+      const r = await api("POST", "/draft", d);
+      if (r && r.id) draftId = r.id;
+      refreshFolders();
+    } catch (e) { dirty = true; } finally { saving = false; }
+  }
+  const scheduleSave = () => { dirty = true; clearTimeout(saveTimer); saveTimer = setTimeout(() => { if (dirty) autosave(); }, 1200); };
+  ["cto", "ccc", "csub"].forEach((id) => $("#" + id).addEventListener("input", scheduleSave));
+  $("#cbody").addEventListener("input", scheduleSave);
+
+  // Close keeps the (autosaved) draft; Discard deletes it.
+  $("#cClose").onclick = guard(async () => { clearTimeout(saveTimer); if (dirty) await autosave(); closeCompose(); if (view === "mail") { loadMessages(); refreshFolders(); } });
+  $("#cdiscard").onclick = guard(async () => {
+    clearTimeout(saveTimer);
+    if (draftId) { try { await api("POST", "/delete", { id: draftId }); } catch (e) {} }
+    closeCompose(); toast(t("deleted")); if (view === "mail") { loadMessages(); refreshFolders(); }
+  });
   $("#cto").focus();
-  $("#cfiles").onchange = async (e) => { for (const f of e.target.files) { const b64 = await fileB64(f); pendingFiles.push({ name: f.name, contentType: f.type || "application/octet-stream", data: b64 }); } renderFileList(); };
+  $("#cfiles").onchange = async (e) => { for (const f of e.target.files) { const b64 = await fileB64(f); pendingFiles.push({ name: f.name, contentType: f.type || "application/octet-stream", data: b64 }); } renderFileList(); scheduleSave(); };
   $("#csend").onclick = guard(async () => {
-    const body = { to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").value, attachments: pendingFiles };
+    clearTimeout(saveTimer);
+    const body = { to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").innerText, html: $("#cbody").innerHTML, attachments: pendingFiles };
     if ($("#cfrom")) body.from = $("#cfrom").value;
     if (answering) body.answering = answering;
     if (draftId) body.draftId = draftId;
     await api("POST", "/send", body); closeCompose(); toast(t("sent")); if (view === "mail") loadMessages(); refreshFolders();
   });
-  $("#cdraft").onclick = guard(async () => {
-    const d = { to: $("#cto").value, cc: $("#ccc").value, subject: $("#csub").value, text: $("#cbody").value };
-    if (draftId) d.id = draftId;
-    await api("POST", "/draft", d); closeCompose(); toast(t("saved")); refreshFolders(); if (view === "mail") loadMessages();
+  $("#cdraft").onclick = guard(async () => { clearTimeout(saveTimer); await autosave(); closeCompose(); toast(t("saved")); if (view === "mail") loadMessages(); refreshFolders(); });
+}
+function textToHtml(s) { return esc(s || "").replace(/\n/g, "<br>"); }
+// Contacts cache for recipient autocomplete.
+let contactsCache = null;
+async function loadContacts() {
+  if (contactsCache) return contactsCache;
+  const recips = [];
+  try {
+    const r = await api("GET", "/contacts");
+    (r.contacts || []).forEach((c) => (c.emails || []).forEach((em) => { if (em) recips.push({ name: c.displayName || em, email: em }); }));
+  } catch (e) { /* no contacts */ }
+  contactsCache = recips; return recips;
+}
+function attachAutocomplete(input) {
+  let drop = null, sel = -1, matches = [], recips = contactsCache || [];
+  loadContacts().then((r) => { recips = r; });
+  const close = () => { if (drop) { drop.remove(); drop = null; } sel = -1; matches = []; };
+  const token = () => { const v = input.value; const i = v.lastIndexOf(","); return { start: i + 1, q: v.slice(i + 1).trim() }; };
+  const apply = (m) => {
+    const { start } = token();
+    const before = input.value.slice(0, start).replace(/\s+$/, "");
+    input.value = (before ? before + " " : "") + m.email + ", ";
+    close(); input.focus();
+  };
+  const show = () => {
+    const { q } = token();
+    if (q.length < 1) { close(); return; }
+    const ql = q.toLowerCase();
+    matches = recips.filter((r) => r.email.toLowerCase().includes(ql) || (r.name || "").toLowerCase().includes(ql)).slice(0, 7);
+    if (!matches.length) { close(); return; }
+    if (sel >= matches.length) sel = matches.length - 1;
+    if (!drop) { drop = document.createElement("div"); drop.className = "acdrop"; input.parentNode.appendChild(drop); }
+    drop.innerHTML = matches.map((m, i) => `<div class="acitem ${i === sel ? "sel" : ""}" data-i="${i}"><span class="nm">${esc(m.name || m.email)}</span><span class="em">${esc(m.email)}</span></div>`).join("");
+    drop.querySelectorAll(".acitem").forEach((el) => el.onmousedown = (e) => { e.preventDefault(); apply(matches[+el.dataset.i]); });
+  };
+  input.addEventListener("input", () => { sel = -1; show(); });
+  input.addEventListener("keydown", (e) => {
+    if (!drop || !matches.length) return;
+    if (e.key === "ArrowDown") { e.preventDefault(); sel = Math.min(sel + 1, matches.length - 1); show(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); sel = Math.max(sel - 1, 0); show(); }
+    else if (e.key === "Enter" && sel >= 0) { e.preventDefault(); apply(matches[sel]); }
+    else if (e.key === "Escape") { close(); }
   });
+  input.addEventListener("blur", () => setTimeout(close, 150));
 }
 function renderFileList() { $("#filelist").innerHTML = pendingFiles.map((f, i) => `<span class="att">${esc(f.name)} <a href="#" data-rm="${i}" style="color:var(--danger)">✕</a></span>`).join(""); $("#filelist").querySelectorAll("[data-rm]").forEach((e) => e.onclick = (ev) => { ev.preventDefault(); pendingFiles.splice(+e.dataset.rm, 1); renderFileList(); }); }
 function fileB64(file) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result.split(",")[1]); r.readAsDataURL(file); }); }
