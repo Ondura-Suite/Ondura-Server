@@ -54,7 +54,7 @@ pub(crate) fn parse<T: for<'de> Deserialize<'de>>(body: &Bytes) -> Result<T, (St
     serde_json::from_slice(body).map_err(|e| bad(format!("invalid request: {e}")))
 }
 
-fn json_response(r: ApiResult) -> Response {
+pub(crate) fn json_response(r: ApiResult) -> Response {
     match r {
         Ok(v) => axum::Json(v).into_response(),
         Err((code, msg)) => (code, axum::Json(json!({ "error": msg }))).into_response(),
@@ -135,6 +135,13 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
     }
     let result = route(&app, &user, &method, api, query, &body).await;
     security_headers(json_response(result))
+}
+
+/// Dispatch an already-authenticated API call to the shared PIM handlers. Used
+/// by the webmail front end (cookie auth) and the native client API (Basic
+/// auth) so both speak the same endpoints.
+pub(crate) async fn dispatch(app: &Shared, user: &User, method: &Method, api: &str, query: &str, body: &Bytes) -> ApiResult {
+    route(app, user, method, api, query, body).await
 }
 
 async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &str, body: &Bytes) -> ApiResult {

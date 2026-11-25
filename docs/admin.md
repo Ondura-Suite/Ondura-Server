@@ -408,6 +408,7 @@ Install the new package over the old one (`apt install ./ondura-server_<new>.deb
 
 | Protocol | Supported |
 | --- | --- |
+| Ondura client API | Native JSON/REST + WebSocket API at `/api/v1` for the Ondura client only (HTTP Basic auth, `X-Ondura-Client` header). Reuses the mailbox handlers (folders, messages, send, flag, move, delete, calendar, contacts, tasks, notes) plus incremental sync by modseq (`/sync`) and a push WebSocket (`/ws`). Other clients use EWS/ActiveSync instead. |
 | SMTP | Receiving (port 25), submission with STARTTLS (587) and implicit TLS (465), AUTH PLAIN/LOGIN, SIZE, 8BITMIME, PIPELINING, SMTPUTF8 |
 | Exchange ActiveSync | Versions 12.0–14.1: Provision (security policy, remote wipe), FolderSync and folder commands, Sync (mail, calendar, contacts, tasks, notes; windowing, filters, long polling), Ping (push), GetItemEstimate, SendMail, SmartReply, SmartForward, MoveItems, ItemOperations (fetch, attachments, empty folder), MeetingResponse, Settings (automatic replies, device and user information), ResolveRecipients (with free/busy), Search (address book and mailbox), ValidateCert |
 | Exchange Web Services | Folders (get, find, create, update, move, delete, empty, hierarchy sync), items (find with paging, restrictions, sorting and search; calendar view with recurring series; get with MIME content; create, update, delete, move, copy, send; item sync), meeting requests, replies and cancellations, attachments, ResolveNames, automatic replies, free/busy (GetUserAvailability), room lists, streaming and pull notifications, mail tips |

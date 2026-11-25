@@ -1325,6 +1325,19 @@ impl Store {
     }
 
     /// Whether anything changed in a folder after `since` (for Ping/streaming).
+    /// Aggregate changes across all of a user's folders since `since`, together
+    /// with the current modseq to use as the next sync point. Powers the native
+    /// client's incremental sync.
+    pub fn account_changes(&self, user_id: i64, since: i64) -> Result<(Vec<Change>, i64)> {
+        let now = self.current_modseq(user_id)?;
+        let mut all = Vec::new();
+        for f in self.folders(user_id)? {
+            all.extend(self.changes(f.id, since, None)?);
+        }
+        all.sort_by_key(|c| c.modseq());
+        Ok((all, now))
+    }
+
     pub fn has_changes(&self, folder_id: i64, since: i64, exclude_writer: Option<&str>) -> Result<bool> {
         let db = self.db();
         let filter = if exclude_writer.is_some() { " AND writer != ?3" } else { "" };

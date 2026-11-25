@@ -2,6 +2,7 @@
 //! Services for mail, calendars, contacts and tasks.
 
 pub mod admin;
+pub mod api;
 pub mod app;
 pub mod collab;
 pub mod auth;

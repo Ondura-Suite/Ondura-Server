@@ -33,6 +33,7 @@ pub const SERVER_ID: &str = concat!("Ondura-Server/", env!("CARGO_PKG_VERSION"))
 pub fn router(app: Shared) -> Router {
     Router::new()
         .route("/collab/ws", axum::routing::get(crate::collab::server::ws_route))
+        .route("/api/v1/ws", axum::routing::get(crate::api::ws_route))
         .fallback(dispatch)
         .layer(axum::middleware::map_response(stamp_server))
         .with_state(app)
@@ -48,7 +49,9 @@ async fn stamp_server(mut res: Response) -> Response {
 /// is an Ondura Server and learn its endpoints before signing in.
 fn ondura_identity(app: &Shared) -> Response {
     let host = &app.cfg.hostname;
-    let mut protocols = vec!["EWS", "ActiveSync", "Autodiscover", "SMTP"];
+    // "OnduraClient" is the native API this server offers to the Ondura client;
+    // other clients use EWS/ActiveSync.
+    let mut protocols = vec!["OnduraClient", "EWS", "ActiveSync", "Autodiscover", "SMTP"];
     if app.cfg.collab.enabled {
         protocols.push("Collab");
     }
@@ -65,6 +68,8 @@ fn ondura_identity(app: &Shared) -> Response {
             "collab": app.cfg.collab.enabled,
         },
         "endpoints": {
+            "clientApi": format!("https://{host}/api/{}", crate::api::API_VERSION),
+            "clientApiWebsocket": format!("wss://{host}/api/{}/ws", crate::api::API_VERSION),
             "ews": format!("https://{host}/EWS/Exchange.asmx"),
             "activesync": format!("https://{host}/Microsoft-Server-ActiveSync"),
             "autodiscover": format!("https://{host}/autodiscover/autodiscover.xml"),
@@ -161,6 +166,7 @@ async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
             webmail::handle(app.clone(), method, &path, &query, &headers, body, ip).await
         }
         p if p.starts_with("/collab/api") => crate::collab::server::handle(app.clone(), method, &path, &query, &headers, body).await,
+        p if p == "/api" || p.starts_with("/api/") => crate::api::handle(app.clone(), method, &path, &query, &headers, body, ip).await,
         _ => StatusCode::NOT_FOUND.into_response(),
     }
 }
