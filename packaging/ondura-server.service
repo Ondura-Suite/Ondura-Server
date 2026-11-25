@@ -6,6 +6,9 @@ Wants=network-online.target
 # PostgreSQL is the default backend; start after it when present. (Harmless if
 # the SQLite fallback is configured instead.)
 Wants=postgresql.service
+# Keep restarting on failure indefinitely (e.g. while the database is still
+# coming up after a reboot) instead of giving up after a few quick retries.
+StartLimitIntervalSec=0
 
 [Service]
 Type=simple

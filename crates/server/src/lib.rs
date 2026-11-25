@@ -183,7 +183,29 @@ fn open_store(cfg: &Config) -> Result<Store> {
     use crate::config::DbBackend;
     match cfg.database.backend {
         DbBackend::Sqlite => Store::open(&cfg.sqlite_path()),
-        DbBackend::Postgres => Store::connect_postgres(&cfg.database.url),
+        DbBackend::Postgres => connect_postgres_with_retry(&cfg.database.url),
+    }
+}
+
+/// Connect to PostgreSQL, retrying for a while if it is not ready yet. On boot
+/// the database server may still be starting when Ondura launches, so a single
+/// failed connection must not keep the service down.
+fn connect_postgres_with_retry(url: &str) -> Result<Store> {
+    use std::time::{Duration, Instant};
+    let deadline = Instant::now() + Duration::from_secs(60);
+    let mut attempt = 0u32;
+    loop {
+        match Store::connect_postgres(url) {
+            Ok(store) => return Ok(store),
+            Err(e) => {
+                attempt += 1;
+                if Instant::now() >= deadline {
+                    return Err(e.context("PostgreSQL did not become reachable within 60s"));
+                }
+                warn!("PostgreSQL not ready yet (attempt {attempt}): {e:#}; retrying in 2s");
+                std::thread::sleep(Duration::from_secs(2));
+            }
+        }
     }
 }
 

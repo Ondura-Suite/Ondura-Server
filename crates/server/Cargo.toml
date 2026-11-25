@@ -67,4 +67,4 @@ assets = [
     ["../../THIRD-PARTY-NOTICES.txt", "usr/share/doc/ondura-server/THIRD-PARTY-NOTICES.txt", "644"],
 ]
 maintainer-scripts = "../../packaging/debian/"
-systemd-units = { unit-name = "ondura-server", unit-scripts = "../../packaging", enable = true, start = false }
+systemd-units = { unit-name = "ondura-server", unit-scripts = "../../packaging", enable = true, start = true }
