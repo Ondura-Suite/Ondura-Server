@@ -178,7 +178,14 @@ svg { width: 18px; height: 18px; display: block; }
 .fchip { border: 1px solid var(--border); background: none; color: var(--muted); font-size: 12px; padding: 3px 10px; border-radius: 999px; cursor: pointer; }
 .fchip:hover { background: var(--surface-hover); }
 .fchip.on { background: var(--tint-soft); color: var(--tint); border-color: transparent; font-weight: 600; }
+.msg.thread { cursor: pointer; }
+.msg.thread .tchev { align-self: center; color: var(--muted); transition: transform .12s; flex: 0 0 auto; }
+.msg.thread .tchev svg { width: 18px; height: 18px; }
+.msg.thread .tchev.open { transform: rotate(90deg); }
+.msg.child { padding-left: 34px; background: var(--surface); }
+.tcount { display: inline-block; background: var(--tint-soft); color: var(--tint); border-radius: 999px; padding: 0 7px; font-size: 11px; font-weight: 600; margin-left: 6px; vertical-align: 1px; }
 .iconbtn.danger { color: var(--danger); }
+.iconbtn.on { color: var(--tint); background: var(--tint-soft); }
 .acts { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .acts .sep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--border); }
 .taskrow { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--border); }
@@ -378,6 +385,7 @@ const T = {
     rules: "Rules", newRule: "New rule", ruleName: "Rule name", conditionsTitle: "When a message arrives and", actionsTitle: "Do the following", matchAll: "all conditions match", matchAny: "any condition matches", contains: "contains", addCondition: "Add condition", addAction: "Add action", stopProcessing: "Stop processing more rules", enabled: "Enabled", noRules: "No rules yet", actMarkRead: "Mark as read", actDelete: "Move to Deleted Items", chooseFolder: "Choose folder", chooseCategory: "Choose category",
     sweep: "Sweep", sweepTitle: "Sweep messages from", sweepDeleteAll: "Delete all from this sender", sweepKeepLatest: "Keep the newest, delete the rest", sweepMoveAll: "Move all to…", swept: "Swept",
     filterAll: "All", filterUnread: "Unread", filterFlagged: "Flagged", filterAttach: "Attachments", selectAll: "Select all",
+    conversationView: "Conversation view",
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
     tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
@@ -400,6 +408,7 @@ const T = {
     rules: "Regeln", newRule: "Neue Regel", ruleName: "Regelname", conditionsTitle: "Wenn eine Nachricht eintrifft und", actionsTitle: "Dann", matchAll: "alle Bedingungen zutreffen", matchAny: "eine Bedingung zutrifft", contains: "enthält", addCondition: "Bedingung hinzufügen", addAction: "Aktion hinzufügen", stopProcessing: "Keine weiteren Regeln anwenden", enabled: "Aktiv", noRules: "Noch keine Regeln", actMarkRead: "Als gelesen markieren", actDelete: "In Gelöscht verschieben", chooseFolder: "Ordner wählen", chooseCategory: "Kategorie wählen",
     sweep: "Aufräumen", sweepTitle: "Nachrichten aufräumen von", sweepDeleteAll: "Alle von diesem Absender löschen", sweepKeepLatest: "Neueste behalten, Rest löschen", sweepMoveAll: "Alle verschieben nach…", swept: "Aufgeräumt",
     filterAll: "Alle", filterUnread: "Ungelesen", filterFlagged: "Gekennzeichnet", filterAttach: "Anhänge", selectAll: "Alle auswählen",
+    conversationView: "Konversationsansicht",
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
     tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
@@ -442,6 +451,7 @@ const ICON = {
   replyall: '<path d="M7 7 2 12l5 5M2 12h11a7 7 0 0 1 7 7" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M12 7 7 12l5 5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   print: '<path d="M7 9V4h10v5M7 18H5a1 1 0 0 1-1-1v-6a1 1 0 0 1 1-1h14a1 1 0 0 1 1 1v6a1 1 0 0 1-1 1h-2M7 15h10v5H7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   tag: '<path d="M4 4h7l9 9-7 7-9-9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><circle cx="8.5" cy="8.5" r="1.4" fill="currentColor"/>',
+  threads: '<rect x="4" y="5" width="16" height="7" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M7 15h12a1 1 0 0 1 1 1v3a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1v-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
   trash: '<path d="M5 7h14M9 7V5h6v2M7 7l1 13h8l1-13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   flag: '<path d="M6 21V4h11l-2 4 2 4H6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
   paperclip: '<path d="M8 12V7a4 4 0 0 1 8 0v9a2.5 2.5 0 0 1-5 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
@@ -491,6 +501,8 @@ async function capi(method, path, body) {
 let me = null, view = "mail", folders = [], curFolder = null, curMsg = null, messages = [];
 let selected = new Set();
 let categories = [], catFilter = null, msgFilter = "all";
+let threaded = false; try { threaded = localStorage.getItem("ondura-mail-threads") === "1"; } catch (e) {}
+let openThreads = new Set();
 // Fixed palette of category colours (name -> hex), OWA-like.
 const CATEGORY_COLORS = { red: "#e05260", orange: "#e8873b", yellow: "#e6b800", green: "#3aa655", teal: "#17a2a2", blue: "#3b82c4", purple: "#9b59b6", pink: "#e0559b", gray: "#8a93a2" };
 const CATEGORY_ORDER = ["red", "orange", "yellow", "green", "teal", "blue", "purple", "pink", "gray"];
@@ -559,11 +571,12 @@ function isTypingTarget() { const el = document.activeElement; if (!el) return f
 function composeOpen() { return !!$("#reader .composepane"); }
 function overlayOpen() { const o = $("#overlay"); return !!o && o.children.length > 0; }
 function focusAdjacent(delta) {
-  if (!messages.length) return;
-  let idx = messages.findIndex((m) => m.id === curMsg);
-  if (idx < 0) idx = delta > 0 ? -1 : messages.length;
-  const next = Math.max(0, Math.min(messages.length - 1, idx + delta));
-  const id = messages[next].id;
+  const list = visibleMessages();
+  if (!list.length) return;
+  let idx = list.findIndex((m) => m.id === curMsg);
+  if (idx < 0) idx = delta > 0 ? -1 : list.length;
+  const next = Math.max(0, Math.min(list.length - 1, idx + delta));
+  const id = list[next].id;
   openMessage(id);
   setTimeout(() => { const row = $(`.msg[data-id="${id}"]`); if (row) row.scrollIntoView({ block: "nearest" }); }, 0);
 }
@@ -672,6 +685,7 @@ function renderMail() {
   selected.clear();
   const canEmpty = curFolder && curFolder.role === "deleteditems";
   const extra = (canEmpty ? `<button class="btn danger" id="emptyTrash">${icon("trash")}<span>${esc(t("emptyTrash"))}</span></button>` : "")
+    + `<button class="iconbtn ${threaded ? "on" : ""}" id="threadToggle" title="${esc(t("conversationView"))}">${icon("threads")}</button>`
     + `<button class="iconbtn" id="markAll" title="${esc(t("markAllRead"))}">${icon("check")}</button>`;
   $("#view").innerHTML = `<div class="mailgrid"><div class="list"><div class="hd glass" id="listHead" style="box-shadow:none;border:0;border-radius:0"><h2>${esc(curFolder ? folderLabel(curFolder) : t("inbox"))}</h2>${extra}</div><div id="msgs"></div></div><div class="reader" id="reader"><div class="empty">${esc(t("selectMessage"))}</div></div></div>`;
   guard(loadMessages)();
@@ -681,6 +695,7 @@ function renderMail() {
     curMsg = null; loadMessages(); refreshFolders(); toast(t("deleted"));
   });
   $("#markAll").onclick = guard(async () => { await api("POST", "/folder/read", { folder: curFolder.id }); loadMessages(); refreshFolders(); });
+  $("#threadToggle").onclick = () => { threaded = !threaded; try { localStorage.setItem("ondura-mail-threads", threaded ? "1" : "0"); } catch (e) {} openThreads.clear(); $("#threadToggle").classList.toggle("on", threaded); renderMsgList(); };
   if (curMsg) openMessage(curMsg);
 }
 function renderSelectionBar() {
@@ -1012,24 +1027,64 @@ function visibleMessages() {
   else if (msgFilter === "attach") list = list.filter((m) => m.hasAttachments);
   return list;
 }
+function msgWho(m) {
+  return curFolder && (curFolder.role === "sentitems" || curFolder.role === "drafts") ? (m.to && m.to.length ? personStr(m.to[0]) : "") : personStr(m.from);
+}
+function msgRowHtml(m, child) {
+  return `<div class="msg ${m.flags.read ? "" : "unread"} ${curMsg === m.id ? "active" : ""} ${selected.has(m.id) ? "sel" : ""} ${child ? "child" : ""}" data-id="${m.id}">
+    <input type="checkbox" class="msgchk" data-id="${m.id}" ${selected.has(m.id) ? "checked" : ""}>
+    <div class="msgmain"><div class="top"><span class="mf">${m.flags.read ? "" : '<span class="dot"></span> '}${esc(msgWho(m))}</span><span class="dt">${esc(fmtShort(m.date))}</span></div>
+    <div class="su">${m.flags.flagged ? "⚑ " : ""}${esc(m.subject || "(" + t("subject") + ")")}</div>
+    <div class="pv">${m.hasAttachments ? "📎 " : ""}${esc(m.preview)}</div>
+    ${catChips(m.categories)}</div></div>`;
+}
+function normSubject(s) { return (s || "").replace(/^((re|aw|fwd|wg|fw)\s*:\s*)+/i, "").trim().toLowerCase(); }
+function buildThreads(list) {
+  const map = new Map();
+  for (const m of list) {
+    const key = normSubject(m.subject) || ("__id" + m.id);
+    if (!map.has(key)) map.set(key, { key, msgs: [] });
+    map.get(key).msgs.push(m);
+  }
+  const groups = [...map.values()];
+  groups.forEach((g) => g.msgs.sort((a, b) => b.date - a.date));
+  groups.sort((a, b) => b.msgs[0].date - a.msgs[0].date);
+  return groups;
+}
+function threadHeadHtml(g) {
+  const latest = g.msgs[0];
+  const unread = g.msgs.some((m) => !m.flags.read);
+  const names = [...new Set(g.msgs.map(msgWho).filter(Boolean))].slice(0, 3).join(", ");
+  const open = openThreads.has(g.key);
+  return `<div class="msg thread ${unread ? "unread" : ""}" data-thread="${esc(g.key)}">
+    <div class="msgmain"><div class="top"><span class="mf">${unread ? '<span class="dot"></span> ' : ""}${esc(names)}</span><span class="dt">${esc(fmtShort(latest.date))}</span></div>
+    <div class="su">${latest.flags.flagged ? "⚑ " : ""}${esc(latest.subject || "(" + t("subject") + ")")}<span class="tcount">${g.msgs.length}</span></div>
+    <div class="pv">${latest.hasAttachments ? "📎 " : ""}${esc(latest.preview)}</div></div>
+    <span class="tchev ${open ? "open" : ""}">${icon("chev")}</span></div>`;
+}
+function wireRows(box) {
+  box.querySelectorAll(".msg[data-id] .msgmain").forEach((e) => e.onclick = () => openMessage(+e.parentElement.dataset.id));
+  box.querySelectorAll(".msg[data-id] .cchip[data-cat]").forEach((e) => e.onclick = (ev) => { ev.stopPropagation(); catFilter = e.dataset.cat; renderMsgList(); });
+  box.querySelectorAll(".msg[data-id]").forEach((e) => e.oncontextmenu = (ev) => { ev.preventDefault(); openMsgContext(ev, +e.dataset.id); });
+  box.querySelectorAll(".msgchk").forEach((e) => e.onclick = (ev) => { ev.stopPropagation(); const id = +e.dataset.id; if (e.checked) selected.add(id); else selected.delete(id); e.closest(".msg").classList.toggle("sel", e.checked); renderSelectionBar(); if (selected.size) renderFilterBar(); });
+  box.querySelectorAll(".msg.thread[data-thread]").forEach((e) => e.onclick = () => { const k = e.dataset.thread; if (openThreads.has(k)) openThreads.delete(k); else openThreads.add(k); renderMsgList(); });
+}
 function renderMsgList() {
   const box = $("#msgs"); if (!box) return;
   const list = visibleMessages();
   renderFilterBar();
   if (!list.length) { box.innerHTML = `<div class="empty" style="height:auto;padding:40px">${esc(t("noMessages"))}</div>`; return; }
-  box.innerHTML = list.map((m) => {
-    const who = curFolder && (curFolder.role === "sentitems" || curFolder.role === "drafts") ? (m.to && m.to.length ? personStr(m.to[0]) : "") : personStr(m.from);
-    return `<div class="msg ${m.flags.read ? "" : "unread"} ${curMsg === m.id ? "active" : ""} ${selected.has(m.id) ? "sel" : ""}" data-id="${m.id}">
-      <input type="checkbox" class="msgchk" data-id="${m.id}" ${selected.has(m.id) ? "checked" : ""}>
-      <div class="msgmain"><div class="top"><span class="mf">${m.flags.read ? "" : '<span class="dot"></span> '}${esc(who)}</span><span class="dt">${esc(fmtShort(m.date))}</span></div>
-      <div class="su">${m.flags.flagged ? "⚑ " : ""}${esc(m.subject || "(" + t("subject") + ")")}</div>
-      <div class="pv">${m.hasAttachments ? "📎 " : ""}${esc(m.preview)}</div>
-      ${catChips(m.categories)}</div></div>`;
-  }).join("");
-  box.querySelectorAll(".msgmain").forEach((e) => e.onclick = () => openMessage(+e.parentElement.dataset.id));
-  box.querySelectorAll(".msg .cchip[data-cat]").forEach((e) => e.onclick = (ev) => { ev.stopPropagation(); catFilter = e.dataset.cat; renderMsgList(); });
-  box.querySelectorAll(".msg").forEach((e) => e.oncontextmenu = (ev) => { ev.preventDefault(); openMsgContext(ev, +e.dataset.id); });
-  box.querySelectorAll(".msgchk").forEach((e) => e.onclick = (ev) => { ev.stopPropagation(); const id = +e.dataset.id; if (e.checked) selected.add(id); else selected.delete(id); e.closest(".msg").classList.toggle("sel", e.checked); renderSelectionBar(); if (selected.size) renderFilterBar(); });
+  if (threaded) {
+    const groups = buildThreads(list);
+    box.innerHTML = groups.map((g) => {
+      if (g.msgs.length === 1) return msgRowHtml(g.msgs[0]);
+      const children = openThreads.has(g.key) ? g.msgs.map((m) => msgRowHtml(m, true)).join("") : "";
+      return threadHeadHtml(g) + children;
+    }).join("");
+  } else {
+    box.innerHTML = list.map((m) => msgRowHtml(m)).join("");
+  }
+  wireRows(box);
 }
 async function openMessage(id) {
   // In Drafts, clicking a message reopens it in the composer.

@@ -29,7 +29,9 @@ whole folder read. Create, rename and delete your own folders. HTML messages are
 shown in a sandboxed frame so message content cannot run scripts. Drafts reopen
 in the composer and are kept up to date automatically while you write. A filter
 bar above the list narrows it to Unread, Flagged or messages with attachments,
-and a select-all box picks every message currently shown.
+and a select-all box picks every message currently shown. A conversation-view
+toggle in the list header groups a folder's messages into threads (by subject),
+newest first, that expand and collapse; the choice is remembered.
 
 **Keyboard shortcuts** — the mail view is fully keyboard-drivable: arrow keys or
 `j`/`k` move through the list, `Enter` opens, `c`/`n` compose, `r` reply,
