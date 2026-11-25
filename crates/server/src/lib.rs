@@ -8,6 +8,7 @@ pub mod auth;
 pub mod autodiscover;
 pub mod calendar;
 pub mod config;
+pub mod db;
 pub mod directory;
 pub mod dns;
 pub mod eas;
@@ -17,6 +18,7 @@ pub mod ical;
 pub mod mime;
 pub mod model;
 pub mod netlimit;
+pub mod setup;
 pub mod smtp;
 pub mod store;
 pub mod tls;
@@ -76,6 +78,25 @@ enum Command {
     Dkim {
         #[command(subcommand)]
         cmd: DkimCmd,
+    },
+    /// Provision a local PostgreSQL database and switch the configuration to
+    /// it. Run as root after installing the `postgresql` package.
+    SetupPostgres {
+        /// PostgreSQL role to own the data. The service connects as this role
+        /// over the local socket using peer authentication, so it must match
+        /// the system user the service runs as. Defaults to "ondura".
+        #[arg(long, default_value = "ondura")]
+        role: String,
+        /// Database name. Defaults to "ondura".
+        #[arg(long, default_value = "ondura")]
+        dbname: String,
+        /// Connection string to store. Defaults to a local peer-auth socket URL
+        /// built from --role and --dbname.
+        #[arg(long)]
+        url: Option<String>,
+        /// Print the steps without changing anything.
+        #[arg(long)]
+        dry_run: bool,
     },
     /// Show the DNS records a domain needs.
     Dns { domain: String },
@@ -145,7 +166,11 @@ enum QueueCmd {
 }
 
 fn open_store(cfg: &Config) -> Result<Store> {
-    Store::open(&cfg.database())
+    use crate::config::DbBackend;
+    match cfg.database.backend {
+        DbBackend::Sqlite => Store::open(&cfg.sqlite_path()),
+        DbBackend::Postgres => Store::connect_postgres(&cfg.database.url),
+    }
 }
 
 /// Administrative commands usually run as root while the service runs as
@@ -153,11 +178,16 @@ fn open_store(cfg: &Config) -> Result<Store> {
 /// directory.
 fn fix_ownership(cfg: &Config) {
     use std::os::unix::fs::MetadataExt;
+    // Only the embedded SQLite database lives in data_dir; PostgreSQL manages
+    // its own files.
+    if cfg.database.backend != crate::config::DbBackend::Sqlite {
+        return;
+    }
     let Ok(dir) = std::fs::metadata(&cfg.data_dir) else { return };
     if dir.uid() == 0 {
         return;
     }
-    let db = cfg.database();
+    let db = cfg.sqlite_path();
     for suffix in ["", "-wal", "-shm"] {
         let path = std::path::PathBuf::from(format!("{}{suffix}", db.display()));
         if std::fs::metadata(&path).is_ok_and(|m| m.uid() == 0) {
@@ -187,7 +217,16 @@ pub fn run() -> Result<()> {
     model::set_default_tz(cfg.time_zone.parse().map_err(|_| anyhow!("invalid time zone"))?);
 
     let command = cli.command.unwrap_or(Command::Serve);
+    if let Command::SetupPostgres { role, dbname, url, dry_run } = command {
+        return setup::setup_postgres(&cli.config, &role, &dbname, url, dry_run);
+    }
     if matches!(command, Command::Serve) {
+        // Hand any root-created database files to the data-directory owner (in
+        // case the server was ever started by hand as root), then fail early
+        // with a clear message if the database still isn't writable — rather
+        // than letting the first write log a cryptic "readonly database".
+        fix_ownership(&cfg);
+        preflight_storage(&cfg)?;
         return tokio::runtime::Builder::new_multi_thread().enable_all().build()?.block_on(serve(cfg));
     }
     let result = run_command(&cfg, command);
@@ -195,10 +234,40 @@ pub fn run() -> Result<()> {
     result
 }
 
+/// Check that the SQLite database and its directory are writable by the current
+/// user before serving, turning a later "attempt to write a readonly database"
+/// into an actionable error at startup.
+fn preflight_storage(cfg: &Config) -> Result<()> {
+    if cfg.database.backend != crate::config::DbBackend::Sqlite {
+        return Ok(());
+    }
+    let dir = &cfg.data_dir;
+    // The directory must be writable: SQLite creates -wal/-shm/journal files there.
+    let probe = dir.join(".ondura-write-test");
+    if let Err(e) = std::fs::write(&probe, b"") {
+        bail!(
+            "data directory {} is not writable ({e}).\n  The service runs as the 'ondura' user. Fix ownership with:\n    sudo chown -R ondura:ondura {}",
+            dir.display(),
+            dir.display()
+        );
+    }
+    let _ = std::fs::remove_file(&probe);
+
+    let db = cfg.sqlite_path();
+    if db.exists() && std::fs::OpenOptions::new().write(true).open(&db).is_err() {
+        bail!(
+            "database {} exists but is not writable by this user.\n  This usually means it was created while running as root. Fix ownership with:\n    sudo systemctl stop ondura-server\n    sudo chown -R ondura:ondura {}\n    sudo systemctl start ondura-server",
+            db.display(),
+            cfg.data_dir.display()
+        );
+    }
+    Ok(())
+}
+
 fn run_command(cfg: &Config, command: Command) -> Result<()> {
     let cfg = cfg.clone();
     match command {
-        Command::Serve => unreachable!(),
+        Command::Serve | Command::SetupPostgres { .. } => unreachable!(),
         Command::Init { .. } => unreachable!(),
         Command::Domain { cmd } => {
             let s = open_store(&cfg)?;

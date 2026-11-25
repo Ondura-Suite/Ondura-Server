@@ -25,6 +25,7 @@ hyper-util = { version = "0.1.21", features = ["tokio", "server-auto", "service"
 mail-auth = { version = "0.13", features = ["generate"] }
 mail-parser = "0.11.9"
 ondura-wbxml = { path = "../wbxml" }
+postgres = "0.19"
 quick-xml = "0.42"
 rand = "0.10.4"
 rusqlite = { version = "0.43.0", features = ["bundled"] }
@@ -57,6 +58,9 @@ section = "mail"
 priority = "optional"
 depends = "$auto, adduser"
 recommends = "certbot"
+# PostgreSQL is optional: the default backend is the embedded SQLite database.
+# Install it and run `ondura-server setup-postgres` to switch.
+suggests = "postgresql"
 assets = [
     ["target/release/ondura-server", "usr/bin/", "755"],
     ["../../packaging/certbot-deploy-hook.sh", "usr/share/ondura-server/certbot-deploy-hook.sh", "755"],

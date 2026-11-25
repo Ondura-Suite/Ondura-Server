@@ -128,6 +128,51 @@ max_heartbeat = 1680         # seconds a device may wait for push
 
 Logs go to the journal. `ONDURA_LOG=debug` in the service environment (`systemctl edit ondura-server`) shows every request, including decoded ActiveSync traffic.
 
+## Storage backend
+
+Ondura stores all data through one database. Two backends are supported:
+
+- **SQLite** (default) — embedded in the server, stored under `data_dir`
+  (`/var/lib/ondura-server/ondura.db`). No setup, good for a single server.
+- **PostgreSQL** — a separate database server, local or remote. Choose this if
+  you want to use external SQL tooling against the data, run backups through
+  PostgreSQL, or keep the data outside the application's own directory.
+
+Both speak the same schema; you pick one in the configuration:
+
+```toml
+[database]
+backend = "sqlite"   # or "postgres"
+# url = "host=/var/run/postgresql user=ondura dbname=ondura"
+```
+
+### Switching to PostgreSQL
+
+On Debian/Ubuntu, install PostgreSQL and let Ondura provision the database:
+
+```sh
+sudo apt install postgresql
+sudo ondura-server setup-postgres
+```
+
+`setup-postgres` creates a PostgreSQL role `ondura` and a database `ondura`
+owned by it, builds the schema, and sets `[database]` in
+`/etc/ondura-server/config.toml` to use it. The service connects over the local
+socket as the `ondura` role using peer authentication, so no password is
+stored. Restart the service afterwards:
+
+```sh
+sudo systemctl restart ondura-server
+```
+
+Use `--role`, `--dbname` or `--url` to override the defaults (for example a
+remote server with a password in the URL), and `--dry-run` to see the steps
+first. The command is idempotent — running it again does nothing if the role
+and database already exist.
+
+Switching backends does not migrate existing data; set this up before putting
+the server into use, or move data over yourself.
+
 ## TLS certificate
 
 All client protocols need a certificate for the host name. With Let's Encrypt:
@@ -216,6 +261,7 @@ ondura-server alias list
 ondura-server dkim generate|show example.com
 ondura-server dns example.com                               # DNS records again
 ondura-server queue list | retry <id> | delete <id>
+ondura-server setup-postgres [--role ondura] [--dbname ondura] [--url …] [--dry-run]
 ```
 
 The configuration file defaults to `/etc/ondura-server/config.toml` (`--config` or `ONDURA_CONFIG` for another one).
@@ -307,13 +353,19 @@ SMTP is not proxied: keep `[tls]` configured so STARTTLS and port 465 work.
 
 ## Backup and restore
 
-All data is in one SQLite database (`/var/lib/ondura-server/ondura.db` plus `-wal`/`-shm` files). Consistent backups while the server runs:
+With the default **SQLite** backend, all data is in one database (`/var/lib/ondura-server/ondura.db` plus `-wal`/`-shm` files). Consistent backups while the server runs:
 
 ```sh
 sqlite3 /var/lib/ondura-server/ondura.db ".backup '/backup/ondura-$(date +%F).db'"
 ```
 
 Also back up `/etc/ondura-server`. To restore, stop the service, copy the backup to `/var/lib/ondura-server/ondura.db` (owner `ondura`), remove old `-wal`/`-shm` files and start the service. Phones resynchronise automatically.
+
+With the **PostgreSQL** backend, back up the database with `pg_dump` and restore with `pg_restore`/`psql` as usual, and back up `/etc/ondura-server` as well:
+
+```sh
+sudo -u postgres pg_dump -Fc ondura > /backup/ondura-$(date +%F).dump
+```
 
 ## Updates
 
@@ -326,6 +378,7 @@ Install the new package over the old one (`apt install ./ondura-server_<new>.deb
 - **Phones do not find the server**: test `https://autodiscover.example.com/autodiscover/autodiscover.xml` (should ask for a password) or enter `mail.example.com` as server manually.
 - **iPhone keeps asking for the password**: the certificate must be valid for the name the phone uses.
 - **Device stuck**: remove it in the Admin Center; it will resynchronise.
+- **`attempt to write a readonly database`**: the SQLite database or its directory is not writable by the `ondura` service user — usually because the server or a CLI command was once run as root. Fix ownership: `sudo systemctl stop ondura-server && sudo chown -R ondura:ondura /var/lib/ondura-server && sudo systemctl start ondura-server`. The server now checks this at startup and reports it clearly.
 - **More details**: `ONDURA_LOG=debug` (see [Configuration](#configuration)).
 
 ## Protocol support
