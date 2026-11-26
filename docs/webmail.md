@@ -102,3 +102,10 @@ webmail = true   # set to false to disable browser webmail
   signed-in user.
 - Serve webmail over HTTPS only. Behind a TLS-terminating reverse proxy, set
   `behind_proxy = true`.
+
+**Meetings** — adding attendees to a calendar event turns it into a meeting:
+saving it sends an iCalendar invitation (iMIP `METHOD:REQUEST`) to each
+attendee and deleting it sends a cancellation, matching Outlook and ActiveSync.
+Attendees accept, decline or tentatively accept from the invitation, which
+sends a reply back to the organizer; incoming invitations and replies update
+the calendar automatically on delivery.

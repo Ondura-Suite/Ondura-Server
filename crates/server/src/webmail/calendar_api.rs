@@ -6,7 +6,7 @@ use serde_json::{json, Value};
 
 use super::{bad, internal, not_found, own_item, parse, ApiResult, WRITER};
 use crate::app::Shared;
-use crate::model::{Event, ItemKind, Response as MeetingResponse};
+use crate::model::{Event, ItemKind, Person, Response as MeetingResponse};
 use crate::store::User;
 
 fn calendar_folders(app: &Shared, user: &User) -> Result<Vec<i64>, (axum::http::StatusCode, String)> {
@@ -66,43 +66,75 @@ pub fn list(app: &Shared, user: &User, query: &str) -> ApiResult {
 }
 
 /// POST /event — create or update an event. Body: the Event plus optional id.
-pub fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+pub async fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     #[derive(Deserialize)]
     struct SaveBody {
         #[serde(default)]
         id: Option<i64>,
+        /// Send meeting invitations to attendees (default true).
+        #[serde(default = "yes")]
+        send: bool,
         event: Event,
     }
     let mut req: SaveBody = parse(body)?;
     if req.event.uid.is_empty() {
         req.event.uid = uuid::Uuid::new_v4().simple().to_string();
     }
+    // A meeting we organize carries us as the organizer so invitations are valid.
+    if !req.event.attendees.is_empty() && req.event.organizer.is_none() {
+        req.event.organizer = Some(Person::new(&user.name, &user.email));
+    }
     let data = serde_json::to_string(&req.event).map_err(|e| internal(e.into()))?;
 
-    if let Some(id) = req.id {
+    let id = if let Some(id) = req.id {
         let item = own_item(app, user, id)?;
         if item.kind != ItemKind::Event {
             return Err(bad("not a calendar item"));
         }
         app.store.update_pim(item.id, &data, WRITER).map_err(internal)?;
-        return Ok(json!({ "ok": true, "id": item.id }));
-    }
+        item.id
+    } else {
+        let folder = app.store.folder_by_role(user.id, "calendar").map_err(internal)?.ok_or_else(not_found)?;
+        app.store.insert_pim(user.id, folder.id, ItemKind::Event, &data, Some(&req.event.uid), WRITER).map_err(internal)?
+    };
 
-    let folder = app.store.folder_by_role(user.id, "calendar").map_err(internal)?.ok_or_else(not_found)?;
-    let id = app.store.insert_pim(user.id, folder.id, ItemKind::Event, &data, Some(&req.event.uid), WRITER).map_err(internal)?;
+    // Send a meeting request to the attendees of a meeting we organize.
+    if req.send
+        && !req.event.attendees.is_empty()
+        && crate::calendar::user_is_organizer(app, user, &req.event)
+        && let Err(e) = crate::calendar::send_invitations(app, user, &req.event, "REQUEST", None, None).await
+    {
+        tracing::warn!("meeting request failed: {e:#}");
+    }
     Ok(json!({ "ok": true, "id": id }))
 }
 
 /// POST /event/delete
-pub fn delete(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+pub async fn delete(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     #[derive(Deserialize)]
     struct DelBody {
         id: i64,
+        #[serde(default = "yes")]
+        send: bool,
     }
     let d: DelBody = parse(body)?;
     let item = own_item(app, user, d.id)?;
+    // Cancel the meeting for its attendees when we organize it.
+    if d.send
+        && let Some(data) = &item.data
+        && let Ok(ev) = serde_json::from_str::<Event>(data)
+        && !ev.attendees.is_empty()
+        && crate::calendar::user_is_organizer(app, user, &ev)
+        && let Err(e) = crate::calendar::send_invitations(app, user, &ev, "CANCEL", None, None).await
+    {
+        tracing::warn!("meeting cancellation failed: {e:#}");
+    }
     app.store.delete_item(item.id, WRITER).map_err(internal)?;
     Ok(json!({ "ok": true }))
+}
+
+fn yes() -> bool {
+    true
 }
 
 /// POST /event/respond — accept/decline/tentative a meeting invitation.

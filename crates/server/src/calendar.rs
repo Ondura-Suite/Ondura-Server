@@ -25,7 +25,16 @@ pub fn find_by_uid(app: &Shared, user_id: i64, uid: &str) -> Result<Option<Item>
 }
 
 fn is_me(app: &Shared, user: &User, email: &str) -> bool {
-    app.store.send_as_addresses(user.id).unwrap_or_default().iter().any(|a| a.eq_ignore_ascii_case(email))
+    email.eq_ignore_ascii_case(&user.email) || app.store.send_as_addresses(user.id).unwrap_or_default().iter().any(|a| a.eq_ignore_ascii_case(email))
+}
+
+/// Whether `user` organizes the meeting `e` (no organizer means the user, who is
+/// creating it, is the organizer).
+pub fn user_is_organizer(app: &Shared, user: &User, e: &Event) -> bool {
+    match &e.organizer {
+        None => true,
+        Some(p) => is_me(app, user, &p.email),
+    }
 }
 
 /// Apply a meeting message (METHOD REQUEST/CANCEL/REPLY) to the calendar of `user`.

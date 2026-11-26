@@ -127,13 +127,13 @@ fn empty_folder_removes_all() {
     assert_eq!(mail_api::messages(&app, &user, &format!("folder={}", trash.id)).unwrap()["messages"].as_array().unwrap().len(), 0);
 }
 
-#[test]
-fn calendar_save_and_list() {
+#[tokio::test]
+async fn calendar_save_and_list() {
     let (app, user) = App::test();
     let start = crate::store::now() + 3600;
     let saved = calendar_api::save(&app, &user, &body(serde_json::json!({
         "event": { "uid": "", "subject": "Dentist", "location": "Clinic", "start": start, "end": start + 1800, "tz": "Europe/Berlin" }
-    }))).unwrap();
+    }))).await.unwrap();
     assert!(saved["id"].as_i64().unwrap() > 0);
 
     let from = crate::store::now();
@@ -357,4 +357,36 @@ fn search_matches_body_and_attachment_name() {
     assert_eq!(app.store.search(user.id, &[inbox.id], "Flux", 20).unwrap().len(), 1);
     assert_eq!(app.store.search(user.id, &[inbox.id], "Quartalsbericht", 20).unwrap().len(), 1);
     assert!(app.store.search(user.id, &[inbox.id], "Nichtvorhandenes", 20).unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn meeting_save_sends_request_and_cancel() {
+    let (app, user) = App::test();
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    let event = serde_json::json!({
+        "uid": "mtg-1",
+        "subject": "Planning",
+        "start": 1_800_000_000i64,
+        "end": 1_800_003_600i64,
+        "tz": "Europe/Berlin",
+        "attendees": [
+            { "email": "anna@example.com", "name": "Anna" },
+            { "email": "max@other.org", "name": "Max" }
+        ]
+    });
+    let r = calendar_api::save(&app, &user, &body(serde_json::json!({ "event": event }))).await.unwrap();
+    let id = r["id"].as_i64().unwrap();
+
+    // The local attendee received the invitation.
+    let anna_inbox = app.store.folder_by_role(anna.id, "inbox").unwrap().unwrap();
+    assert_eq!(app.store.items(anna_inbox.id, 0, 10).unwrap().len(), 1);
+    // The remote attendee was queued for outbound delivery.
+    assert!(app.store.queue().unwrap().iter().any(|q| q.recipients.iter().any(|a| a == "max@other.org")));
+    // The organizer kept a Sent copy.
+    let sent = app.store.folder_by_role(user.id, "sentitems").unwrap().unwrap();
+    assert_eq!(app.store.items(sent.id, 0, 10).unwrap().len(), 1);
+
+    // Deleting the meeting cancels it for the attendees.
+    calendar_api::delete(&app, &user, &body(serde_json::json!({ "id": id }))).await.unwrap();
+    assert_eq!(app.store.items(anna_inbox.id, 0, 10).unwrap().len(), 2);
 }
