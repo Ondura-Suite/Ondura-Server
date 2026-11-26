@@ -169,6 +169,7 @@ pub async fn handle(app: Shared, user: User, _headers: &HeaderMap, body: Bytes) 
         "GetServerTimeZones" => misc::server_time_zones(&ctx, &op),
         "ConvertId" => misc::convert_id(&ctx, &op),
         "GetInboxRules" => misc::get_inbox_rules(&ctx),
+        "UpdateInboxRules" | "SetInboxRules" => misc::update_inbox_rules(&ctx, &op),
         "GetUserConfiguration" => misc::get_user_configuration(&ctx, &op),
         "CreateUserConfiguration" => misc::write_user_configuration(&ctx, &op, "Create"),
         "UpdateUserConfiguration" => misc::write_user_configuration(&ctx, &op, "Update"),

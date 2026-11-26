@@ -57,7 +57,7 @@ matches on From, To or Subject (all or any conditions) and can move the message
 to a folder, mark it read, categorize it or send it to Deleted Items, optionally
 stopping further rules. Manage rules from the account menu. Because rules run on
 the server at delivery, they apply to every client; Outlook can also display
-them read-only over EWS.
+them, and create or edit them over EWS (UpdateInboxRules).
 
 **Sweep** — right-click a message and choose Sweep to act on every message from
 that sender in the current folder at once: delete them all, keep only the newest,

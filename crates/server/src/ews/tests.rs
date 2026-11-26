@@ -168,3 +168,22 @@ async fn category_master_list_round_trip() {
     let cats = app.store.categories(user.id).unwrap();
     assert!(cats.iter().any(|(_, n, c)| n == "Urgent" && c == "red"), "{cats:?}");
 }
+
+#[tokio::test]
+async fn update_inbox_rules_create_and_delete() {
+    let (app, user) = App::test();
+    let inbox = app.store.folder_by_role(user.id, "inbox").unwrap().unwrap();
+    // Create a rule through EWS.
+    call(&app, &format!(r#"<m:UpdateInboxRules><m:MailboxSmtpAddress>niklas@example.com</m:MailboxSmtpAddress><m:Operations><t:CreateRuleOperation><t:Rule><t:DisplayName>Newsletter</t:DisplayName><t:Priority>1</t:Priority><t:IsEnabled>true</t:IsEnabled><t:Conditions><t:ContainsSenderStrings><t:String>news@shop.example</t:String></t:ContainsSenderStrings></t:Conditions><t:Actions><t:MoveToFolder><t:FolderId Id="F.{}"/></t:MoveToFolder><t:MarkAsRead>true</t:MarkAsRead><t:StopProcessingRules>true</t:StopProcessingRules></t:Actions></t:Rule></t:CreateRuleOperation></m:Operations></m:UpdateInboxRules>"#, inbox.id)).await;
+    let rules = app.store.rules(user.id).unwrap();
+    assert_eq!(rules.len(), 1);
+    assert_eq!(rules[0].name, "Newsletter");
+    assert!(rules[0].stop);
+    assert_eq!(rules[0].conditions[0].field, "from");
+    assert!(rules[0].actions.iter().any(|a| a.kind == "move" && a.folder == Some(inbox.id)));
+    assert!(rules[0].actions.iter().any(|a| a.kind == "markRead"));
+    // Delete it through EWS.
+    let id = rules[0].id;
+    call(&app, &format!(r#"<m:UpdateInboxRules><m:Operations><t:DeleteRuleOperation><t:RuleId>{id}</t:RuleId></t:DeleteRuleOperation></m:Operations></m:UpdateInboxRules>"#)).await;
+    assert!(app.store.rules(user.id).unwrap().is_empty());
+}

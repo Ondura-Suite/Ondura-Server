@@ -655,6 +655,99 @@ pub fn write_user_configuration(ctx: &Ctx, op: &Node, verb: &str) -> EwsResult<S
     ))
 }
 
+/// Parse an EWS folder id of the form `F.<numeric>` into the store folder id.
+fn parse_folder_id(id: &str) -> Option<i64> {
+    id.strip_prefix("F.").and_then(|s| s.parse::<i64>().ok())
+}
+
+/// UpdateInboxRules / SetInboxRules — let Outlook create, edit and delete the
+/// server-side inbox rules. Conditions and actions are mapped to Ondura's rule
+/// model; unsupported condition/action types are ignored.
+pub fn update_inbox_rules(ctx: &Ctx, op: &Node) -> EwsResult<String> {
+    use crate::store::{RuleAction, RuleCondition};
+    // Collect the <t:String> values under a specific condition/action element.
+    fn strings(parent: Option<&Node>) -> Vec<String> {
+        let mut out = Vec::new();
+        if let Some(p) = parent {
+            let mut nodes = Vec::new();
+            p.find_all("String", &mut nodes);
+            for n in nodes {
+                if !n.text.trim().is_empty() {
+                    out.push(n.text.trim().to_string());
+                }
+            }
+        }
+        out
+    }
+    let parse_rule = |r: &Node| -> (String, bool, bool, Vec<RuleCondition>, Vec<RuleAction>) {
+        let name = r.text_of("DisplayName").unwrap_or_default().to_string();
+        let enabled = r.text_of("IsEnabled") != Some("false");
+        let mut conditions = Vec::new();
+        if let Some(c) = r.child("Conditions") {
+            for s in strings(c.child("ContainsSubjectStrings")) {
+                conditions.push(RuleCondition { field: "subject".into(), value: s });
+            }
+            for s in strings(c.child("ContainsSenderStrings")) {
+                conditions.push(RuleCondition { field: "from".into(), value: s });
+            }
+            for s in strings(c.child("ContainsRecipientStrings")) {
+                conditions.push(RuleCondition { field: "to".into(), value: s });
+            }
+        }
+        let mut actions = Vec::new();
+        let mut stop = false;
+        if let Some(a) = r.child("Actions") {
+            if let Some(id) = a.child("MoveToFolder").and_then(|m| m.child("FolderId")).and_then(|f| f.attr("Id")).and_then(parse_folder_id) {
+                actions.push(RuleAction { kind: "move".into(), folder: Some(id), category: None });
+            }
+            if a.text_of("MarkAsRead") == Some("true") {
+                actions.push(RuleAction { kind: "markRead".into(), folder: None, category: None });
+            }
+            for cat in strings(a.child("AssignCategories")) {
+                actions.push(RuleAction { kind: "categorize".into(), folder: None, category: Some(cat) });
+            }
+            if a.text_of("Delete") == Some("true") || a.text_of("MoveToDeletedItems") == Some("true") {
+                actions.push(RuleAction { kind: "delete".into(), folder: None, category: None });
+            }
+            if a.text_of("StopProcessingRules") == Some("true") {
+                stop = true;
+            }
+        }
+        (name, enabled, stop, conditions, actions)
+    };
+    if let Some(ops) = op.child("Operations") {
+        let mut creates = Vec::new();
+        ops.find_all("CreateRuleOperation", &mut creates);
+        for c in creates {
+            if let Some(r) = c.child("Rule") {
+                let (n, e, s, co, ac) = parse_rule(r);
+                if !n.trim().is_empty() {
+                    let _ = ctx.app.store.save_rule(ctx.user.id, None, n.trim(), e, true, s, &co, &ac);
+                }
+            }
+        }
+        let mut sets = Vec::new();
+        ops.find_all("SetRuleOperation", &mut sets);
+        for c in sets {
+            if let Some(r) = c.child("Rule") {
+                let id = r.text_of("RuleId").and_then(|x| x.trim().parse::<i64>().ok());
+                let (n, e, s, co, ac) = parse_rule(r);
+                let _ = ctx.app.store.save_rule(ctx.user.id, id, n.trim(), e, true, s, &co, &ac);
+            }
+        }
+        let mut dels = Vec::new();
+        ops.find_all("DeleteRuleOperation", &mut dels);
+        for c in dels {
+            if let Some(id) = c.text_of("RuleId").and_then(|x| x.trim().parse::<i64>().ok()) {
+                let _ = ctx.app.store.delete_rule(ctx.user.id, id);
+            }
+        }
+    }
+    Ok(format!(
+        r#"<m:UpdateInboxRulesResponse xmlns:m="{NS_M}" xmlns:t="{NS_T}"><m:ResponseCode>NoError</m:ResponseCode></m:UpdateInboxRulesResponse>"#
+    ))
+}
+
 /// GetInboxRules — expose the user's server-side inbox rules so Outlook and
 /// other EWS clients can display them. Read-only (rules are managed in webmail).
 pub fn get_inbox_rules(ctx: &Ctx) -> EwsResult<String> {
