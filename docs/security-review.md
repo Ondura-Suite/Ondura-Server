@@ -52,15 +52,16 @@ a remote attacker could lock a user out of IMAP/POP by failing ten times, and
 per-IP granularity was lost. Fixed by threading the real peer IP into both
 session handlers.
 
-### 3. HTML e-mail can still load remote content — recommendation (low, privacy)
+### 3. HTML e-mail can still load remote content — FIXED (low, privacy)
 
 The reading pane renders HTML mail in an iframe with
 `sandbox="allow-same-origin"` and **without** `allow-scripts`, so scripted XSS
-from mail content cannot run — this is correct. However, the frame has no
-Content-Security-Policy, so remote images and styles load, which allows
-tracking pixels. Consider adding a CSP to the `srcdoc` (e.g. default-src 'none';
-img-src with a proxy or blocked by default and a "load remote content" button)
-to match the privacy behaviour of mainstream clients.
+from mail content cannot run — this is correct. The frame previously had no
+Content-Security-Policy, so remote images and styles loaded, allowing tracking
+pixels. The `srcdoc` now carries a CSP that blocks remote images, CSS and fonts
+by default (inline styles stay allowed); when a message references remote
+content a banner offers a one-click "Load content" that re-renders with a
+permissive CSP.
 
 ### 4. Outbound delivery uses opportunistic TLS without verification — informational
 
@@ -96,12 +97,21 @@ a defect.
 - **Resource limits**: per-IP connection limits on the protocol listeners; a
   64 KiB line cap and a 64 MiB literal cap on IMAP; a 1 MiB avatar cap.
 
-## Recommended next steps
+## Hardening applied after the review
 
-1. Add a Content-Security-Policy to the HTML-mail iframe and an opt-in to load
-   remote content (finding 3).
-2. Implement DANE/MTA-STS enforcement for outbound delivery (finding 4).
-3. Consider a global per-IP login-failure cap in addition to the per-login cap,
-   to blunt spray attacks across many accounts from one source.
-4. Add CSRF double-submit or an `Origin` check to the collab and mail APIs as
-   defence in depth behind the existing `SameSite=Strict` cookie.
+- **CSP on HTML mail** (finding 3) — remote content blocked by default with an
+  opt-in to load it.
+- **Global per-IP login cap** — in addition to the per-`(login, ip)` cap, a
+  single IP is locked after 50 failures across all accounts in the window, to
+  blunt password spraying.
+- **Origin CSRF check** — mutating mail and collab API calls now reject a
+  request whose browser `Origin` does not match the `Host`, on top of the
+  existing custom-header requirement and `SameSite=Strict` cookie.
+- **MTA-STS enforcement** (finding 4, outbound) — see below.
+
+## Still recommended
+
+1. **DANE (TLSA)** for outbound delivery requires a DNSSEC-validating resolver;
+   the current resolver does not validate DNSSEC, so TLSA records cannot be
+   trusted and DANE is intentionally not implemented. Enable DNSSEC validation
+   in the resolver first, then add TLSA verification.

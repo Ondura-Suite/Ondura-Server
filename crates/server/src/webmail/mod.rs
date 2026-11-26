@@ -120,8 +120,9 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
         return security_headers(r);
     }
     let api = rest.trim_start_matches("/api");
-    // Mutating requests must carry the webmail header; blocks cross-site POSTs.
-    if method != Method::GET && headers.get("X-Ondura-Mail").is_none() {
+    // Mutating requests must carry the webmail header and, if a browser sends
+    // one, a same-origin Origin; both block cross-site POSTs.
+    if method != Method::GET && (headers.get("X-Ondura-Mail").is_none() || !crate::http::origin_ok(headers)) {
         return json_response(Err((StatusCode::FORBIDDEN, "missing request header".into())));
     }
     if api == "/login" && method == Method::POST {

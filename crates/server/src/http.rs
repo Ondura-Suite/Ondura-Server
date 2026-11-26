@@ -101,6 +101,22 @@ pub fn unauthorized() -> Response {
 }
 
 /// HTTP Basic authentication of a request.
+/// Defence-in-depth CSRF check: when a browser sends an `Origin` on a mutating
+/// request, require it to match the `Host`. Absent `Origin` (native clients,
+/// same-origin GETs) passes, since those are already guarded by the custom
+/// request header and the `SameSite=Strict` session cookie.
+pub fn origin_ok(headers: &HeaderMap) -> bool {
+    let Some(origin) = headers.get("Origin").and_then(|v| v.to_str().ok()) else {
+        return true;
+    };
+    if origin.eq_ignore_ascii_case("null") {
+        return false;
+    }
+    let origin_host = origin.split("://").nth(1).unwrap_or("");
+    let host = headers.get(header::HOST).and_then(|v| v.to_str().ok()).unwrap_or("");
+    !host.is_empty() && origin_host.eq_ignore_ascii_case(host)
+}
+
 pub async fn basic_auth(app: &Shared, headers: &HeaderMap, ip: IpAddr) -> std::result::Result<User, Box<Response>> {
     let Some((login, password)) = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).and_then(auth::parse_basic) else {
         return Err(Box::new(unauthorized()));
@@ -272,6 +288,25 @@ mod tests {
     use super::*;
     use axum::body::Body;
     use tower::ServiceExt;
+
+    #[test]
+    fn origin_check() {
+        fn mk(pairs: &[(&'static str, &'static str)]) -> HeaderMap {
+            let mut h = HeaderMap::new();
+            for (k, v) in pairs {
+                h.insert(axum::http::HeaderName::from_static(k), HeaderValue::from_str(v).unwrap());
+            }
+            h
+        }
+        // No Origin (native client) passes.
+        assert!(origin_ok(&mk(&[("host", "mail.example.com")])));
+        // Same-origin passes.
+        assert!(origin_ok(&mk(&[("host", "mail.example.com"), ("origin", "https://mail.example.com")])));
+        // Cross-origin is rejected.
+        assert!(!origin_ok(&mk(&[("host", "mail.example.com"), ("origin", "https://evil.test")])));
+        // Opaque origin is rejected.
+        assert!(!origin_ok(&mk(&[("host", "mail.example.com"), ("origin", "null")])));
+    }
 
     #[tokio::test]
     async fn identifies_as_ondura() {

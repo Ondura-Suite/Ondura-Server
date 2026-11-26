@@ -20,6 +20,9 @@ use crate::store::{Store, User};
 
 const CACHE_TTL: Duration = Duration::from_secs(300);
 const MAX_FAILURES: u32 = 10;
+/// Global cap on failures from one IP across all accounts, to blunt password
+/// spraying (many accounts, few guesses each) from a single source.
+const MAX_IP_FAILURES: u32 = 50;
 const FAILURE_WINDOW: Duration = Duration::from_secs(900);
 
 pub fn hash_password(password: &str) -> Result<String> {
@@ -40,6 +43,8 @@ struct State {
     cache: HashMap<i64, (Vec<u8>, Instant)>,
     /// (login, ip) → (failures, first failure)
     failures: HashMap<(String, Option<IpAddr>), (u32, Instant)>,
+    /// ip → (failures across all accounts, first failure)
+    ip_failures: HashMap<IpAddr, (u32, Instant)>,
 }
 
 fn state() -> &'static Mutex<State> {
@@ -47,7 +52,7 @@ fn state() -> &'static Mutex<State> {
     STATE.get_or_init(|| {
         let mut secret = [0u8; 32];
         rand::fill(&mut secret);
-        Mutex::new(State { secret, cache: HashMap::new(), failures: HashMap::new() })
+        Mutex::new(State { secret, cache: HashMap::new(), failures: HashMap::new(), ip_failures: HashMap::new() })
     })
 }
 
@@ -81,7 +86,13 @@ pub fn login(store: &Store, login: &str, password: &str, ip: Option<IpAddr>) -> 
     {
         let mut st = state().lock().unwrap_or_else(|e| e.into_inner());
         st.failures.retain(|_, (_, first)| first.elapsed() < FAILURE_WINDOW);
+        st.ip_failures.retain(|_, (_, first)| first.elapsed() < FAILURE_WINDOW);
         if st.failures.get(&key).is_some_and(|(n, _)| *n >= MAX_FAILURES) {
+            return Err(LoginError::Locked);
+        }
+        if let Some(ip) = ip
+            && st.ip_failures.get(&ip).is_some_and(|(n, _)| *n >= MAX_IP_FAILURES)
+        {
             return Err(LoginError::Locked);
         }
     }
@@ -115,6 +126,9 @@ pub fn login(store: &Store, login: &str, password: &str, ip: Option<IpAddr>) -> 
         let d = digest(&st.secret, password);
         st.cache.insert(user.id, (d, Instant::now() + CACHE_TTL));
         st.failures.remove(&key);
+        if let Some(ip) = ip {
+            st.ip_failures.remove(&ip);
+        }
         Ok(user)
     } else {
         fail(key);
@@ -124,8 +138,11 @@ pub fn login(store: &Store, login: &str, password: &str, ip: Option<IpAddr>) -> 
 
 fn fail(key: (String, Option<IpAddr>)) {
     let mut st = state().lock().unwrap_or_else(|e| e.into_inner());
-    let e = st.failures.entry(key).or_insert((0, Instant::now()));
-    e.0 += 1;
+    let ip = key.1;
+    st.failures.entry(key).or_insert((0, Instant::now())).0 += 1;
+    if let Some(ip) = ip {
+        st.ip_failures.entry(ip).or_insert((0, Instant::now())).0 += 1;
+    }
 }
 
 /// Parse an HTTP `Authorization: Basic …` header into (login, password).
@@ -160,5 +177,22 @@ mod tests {
         assert!(login(&s, "niklas@example.com", "secret", None).is_err());
         assert!(login(&s, "niklas", "neu", None).is_ok());
         assert_eq!(parse_basic("Basic bmlrbGFzOnNlY3JldA==").unwrap(), ("niklas".into(), "secret".into()));
+    }
+
+    #[test]
+    fn global_ip_cap_blunts_spraying() {
+        let (s, _u) = crate::store::test_store();
+        let ip: IpAddr = "198.51.100.7".parse().unwrap();
+        // Fail against many distinct (non-existent) accounts from one IP; each
+        // stays under the per-account cap but trips the global per-IP cap.
+        for n in 0..MAX_IP_FAILURES {
+            let who = format!("ghost{n}@example.com");
+            assert!(matches!(login(&s, &who, "x", Some(ip)), Err(LoginError::Invalid)));
+        }
+        // The next attempt from this IP is locked even for a fresh account.
+        assert!(matches!(login(&s, "another@example.com", "x", Some(ip)), Err(LoginError::Locked)));
+        // A different IP is unaffected.
+        let ip2: IpAddr = "203.0.113.9".parse().unwrap();
+        assert!(matches!(login(&s, "another@example.com", "x", Some(ip2)), Err(LoginError::Invalid)));
     }
 }

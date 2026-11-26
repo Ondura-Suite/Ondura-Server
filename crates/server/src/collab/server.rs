@@ -290,7 +290,7 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
             };
         }
     }
-    if method != Method::GET && headers.get("X-Ondura-Collab").is_none() {
+    if method != Method::GET && (headers.get("X-Ondura-Collab").is_none() || !crate::http::origin_ok(headers)) {
         return (StatusCode::FORBIDDEN, "missing request header").into_response();
     }
     let Some(user) = collab_user(&app, headers) else {
