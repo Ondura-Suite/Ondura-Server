@@ -246,6 +246,8 @@ svg { width: 18px; height: 18px; display: block; }
 .reader .acts { display: flex; gap: 8px; padding: 10px 20px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
 .reader .bodywrap { flex: 1; min-height: 0; }
 .reader iframe { width: 100%; height: 100%; border: 0; background: #fff; }
+.rembanner { display: flex; align-items: center; gap: 10px; padding: 8px 14px; background: var(--tint-soft); color: var(--text); font-size: 12.5px; border-bottom: 1px solid var(--border); }
+.rembanner button { margin-left: auto; border: 1px solid var(--border); background: var(--surface); color: var(--tint); font-size: 12px; font-weight: 600; padding: 4px 12px; border-radius: 7px; cursor: pointer; }
 .reader pre.text { margin: 0; padding: 18px 20px; white-space: pre-wrap; word-wrap: break-word; font: inherit; }
 .atts { padding: 10px 20px; border-top: 1px solid var(--border); display: flex; gap: 8px; flex-wrap: wrap; }
 .att { display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border: 1px solid var(--border); border-radius: 20px; font-size: 12.5px; text-decoration: none; color: var(--text); }
@@ -391,6 +393,7 @@ const T = {
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
     history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", noDocuments: "No documents", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add",
     shareLink: "Share link", createLink: "Create link", copyLink: "Copy link", copied: "Link copied", linkView: "View only", linkEdit: "Can edit", anyoneCanView: "Anyone with the link can view", anyoneCanEdit: "Anyone with the link can edit", revoke: "Revoke", noLinks: "No links yet", linkInvalid: "This link is invalid or has been revoked.", guestBadge: "Guest",
+    remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
   de: {
     webmail: "Webmail", signInSub: "Bei deinem Postfach anmelden", email: "E-Mail", password: "Passwort", signIn: "Anmelden",
@@ -415,6 +418,7 @@ const T = {
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
     history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", noDocuments: "Keine Dokumente", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen",
     shareLink: "Freigabelink", createLink: "Link erstellen", copyLink: "Link kopieren", copied: "Link kopiert", linkView: "Nur ansehen", linkEdit: "Darf bearbeiten", anyoneCanView: "Jeder mit dem Link kann ansehen", anyoneCanEdit: "Jeder mit dem Link kann bearbeiten", revoke: "Entziehen", noLinks: "Noch keine Links", linkInvalid: "Dieser Link ist ungültig oder wurde entzogen.", guestBadge: "Gast",
+    remoteBlocked: "Externe Inhalte (z. B. Bilder) wurden zum Schutz deiner Privatsphäre blockiert.", loadRemote: "Inhalte laden",
   },
 };
 let lang;
@@ -1154,7 +1158,7 @@ async function openMessage(id) {
   const addr = (list) => list && list.length ? list.map(personStr).join(", ") : "";
   let bodyHtml;
   if (m.html) {
-    bodyHtml = `<iframe sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe>`;
+    bodyHtml = `<div class="rembanner" id="remBanner" style="display:none"><span>${esc(t("remoteBlocked"))}</span><button id="remLoad">${esc(t("loadRemote"))}</button></div><iframe sandbox="allow-same-origin" referrerpolicy="no-referrer"></iframe>`;
   } else {
     bodyHtml = `<pre class="text">${esc(m.text || "")}</pre>`;
   }
@@ -1180,7 +1184,24 @@ async function openMessage(id) {
     </div>
     <div class="bodywrap">${bodyHtml}</div>
     ${atts ? `<div class="atts">${atts}</div>` : ""}`;
-  if (m.html) { const f = reader.querySelector("iframe"); f.srcdoc = `<!doctype html><meta charset="utf-8"><base target="_blank"><style>body{font:14px/1.5 "Segoe UI",system-ui,sans-serif;color:#1b1f27;margin:16px}img{max-width:100%}</style>` + m.html; }
+  if (m.html) {
+    const f = reader.querySelector("iframe");
+    // Block remote content (tracking pixels, remote CSS/fonts) via CSP until the
+    // reader opts in; inline styles stay allowed so mail still renders.
+    const hasRemote = /\b(?:src|background|href)\s*[=:]\s*["'(]?\s*https?:/i.test(m.html) || /url\(\s*["']?\s*https?:/i.test(m.html);
+    const render = (allowRemote) => {
+      const csp = allowRemote
+        ? `default-src 'none'; img-src https: data: cid:; style-src 'unsafe-inline' https:; font-src https: data:; media-src https: data:`
+        : `default-src 'none'; img-src data: cid:; style-src 'unsafe-inline'; font-src data:`;
+      f.srcdoc = `<!doctype html><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${csp}"><base target="_blank"><style>body{font:14px/1.5 "Segoe UI",system-ui,sans-serif;color:#1b1f27;margin:16px}img{max-width:100%}</style>` + m.html;
+    };
+    const banner = reader.querySelector("#remBanner");
+    if (hasRemote && banner) {
+      banner.style.display = "";
+      banner.querySelector("#remLoad").onclick = () => { banner.style.display = "none"; render(true); };
+    }
+    render(false);
+  }
   const act = (name) => reader.querySelector(`[data-a="${name}"]`);
   act("reply").onclick = () => openCompose({ mode: "reply", msg: m });
   act("replyAll").onclick = () => openCompose({ mode: "replyAll", msg: m });
