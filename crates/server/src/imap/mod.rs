@@ -265,7 +265,7 @@ pub async fn serve(app: Shared, addr: SocketAddr, implicit_tls: bool) -> anyhow:
         let Some(guard) = limiter.admit(peer.ip()) else { continue };
         let app = app.clone();
         tokio::spawn(async move {
-            if let Err(e) = session(app, tcp, implicit_tls).await {
+            if let Err(e) = session(app, tcp, implicit_tls, peer.ip()).await {
                 debug!(%peer, "IMAP session ended: {e}");
             }
             drop(guard);
@@ -286,15 +286,16 @@ struct Session {
     mailbox: Option<Mailbox>,
     /// Message ids marked \Deleted this session.
     deleted: std::collections::HashSet<i64>,
+    ip: std::net::IpAddr,
 }
 
-async fn session(app: Shared, tcp: TcpStream, implicit_tls: bool) -> io::Result<()> {
+async fn session(app: Shared, tcp: TcpStream, implicit_tls: bool, ip: std::net::IpAddr) -> io::Result<()> {
     let mut conn = Conn::new(Stream::Plain(tcp));
     if implicit_tls {
         let Some(tls) = app.imap_tls() else { return Ok(()) };
         conn.start_tls(TlsAcceptor::from(tls)).await?;
     }
-    let mut s = Session { app, user: None, mailbox: None, deleted: std::collections::HashSet::new() };
+    let mut s = Session { app, user: None, mailbox: None, deleted: std::collections::HashSet::new(), ip };
     conn.write(format!("* OK [CAPABILITY {}] Ondura IMAP ready\r\n", s.capability(&conn)).as_bytes()).await?;
     loop {
         let Some((tag, args)) = read_command(&mut conn).await? else { return Ok(()) };
@@ -383,8 +384,8 @@ impl Session {
 
     async fn authed(&mut self, conn: &mut Conn, login: &str, password: &str) -> io::Result<bool> {
         let store = self.app.store.clone();
-        let (l, p) = (login.to_string(), password.to_string());
-        let res = tokio::task::spawn_blocking(move || auth::login(&store, &l, &p, None)).await;
+        let (l, p, ip) = (login.to_string(), password.to_string(), self.ip);
+        let res = tokio::task::spawn_blocking(move || auth::login(&store, &l, &p, Some(ip))).await;
         match res {
             Ok(Ok(user)) => {
                 self.user = Some(user);

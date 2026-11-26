@@ -29,7 +29,7 @@ pub async fn serve(app: Shared, addr: SocketAddr, implicit_tls: bool) -> anyhow:
         let Some(guard) = limiter.admit(peer.ip()) else { continue };
         let app = app.clone();
         tokio::spawn(async move {
-            if let Err(e) = session(app, tcp, implicit_tls).await {
+            if let Err(e) = session(app, tcp, implicit_tls, peer.ip()).await {
                 debug!(%peer, "POP3 session ended: {e}");
             }
             drop(guard);
@@ -37,7 +37,7 @@ pub async fn serve(app: Shared, addr: SocketAddr, implicit_tls: bool) -> anyhow:
     }
 }
 
-async fn session(app: Shared, tcp: TcpStream, implicit_tls: bool) -> io::Result<()> {
+async fn session(app: Shared, tcp: TcpStream, implicit_tls: bool, ip: std::net::IpAddr) -> io::Result<()> {
     let mut conn = Conn::new(Stream::Plain(tcp));
     if implicit_tls {
         let Some(tls) = app.imap_tls() else { return Ok(()) };
@@ -84,7 +84,7 @@ async fn session(app: Shared, tcp: TcpStream, implicit_tls: bool) -> io::Result<
                 };
                 let store = app.store.clone();
                 let (l, p) = (login, arg.clone());
-                let res = tokio::task::spawn_blocking(move || auth::login(&store, &l, &p, None)).await;
+                let res = tokio::task::spawn_blocking(move || auth::login(&store, &l, &p, Some(ip))).await;
                 match res {
                     Ok(Ok(u)) => {
                         if let Some(inbox) = app.store.folder_by_role(u.id, "inbox").ok().flatten() {
@@ -274,7 +274,7 @@ mod tests {
                 let (tcp, _) = listener.accept().await.unwrap();
                 let a = app2.clone();
                 tokio::spawn(async move {
-                    let _ = session(a, tcp, false).await;
+                    let _ = session(a, tcp, false, "127.0.0.1".parse().unwrap()).await;
                 });
             }
         });

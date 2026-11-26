@@ -306,21 +306,32 @@ pub fn text_to_html(text: &str) -> String {
 
 /// RFC 2047 encoding of a header value when it is not plain ASCII.
 pub fn encode_word(s: &str) -> String {
-    if s.is_ascii() && !s.contains(['\r', '\n']) {
+    // Encode when non-ASCII or when any control character is present, so a
+    // crafted value can never introduce CR/LF (header injection) into a header.
+    if s.is_ascii() && !s.chars().any(|c| c.is_control()) {
         return s.to_string();
     }
     format!("=?UTF-8?B?{}?=", B64.encode(s.as_bytes()))
 }
 
+/// Remove CR and LF from a header value to prevent header injection. Used for
+/// values (addresses, message-ids, custom headers) that are not RFC 2047 words.
+pub fn strip_crlf(s: &str) -> String {
+    s.chars().filter(|&c| c != '\r' && c != '\n').collect()
+}
+
 pub fn format_person(p: &Person) -> String {
+    // The address itself never carries CR/LF; a display name with control or
+    // non-ASCII characters is emitted as an RFC 2047 encoded-word.
+    let email = strip_crlf(&p.email);
     if p.name.is_empty() {
-        format!("<{}>", p.email)
-    } else if p.name.is_ascii() && !p.name.contains(['"', ',', ';', '<', '>', '@', '(', ')']) {
-        format!("{} <{}>", p.name, p.email)
-    } else if p.name.is_ascii() {
-        format!("\"{}\" <{}>", p.name.replace('\\', "\\\\").replace('"', "\\\""), p.email)
+        format!("<{email}>")
+    } else if !p.name.is_ascii() || p.name.chars().any(|c| c.is_control()) {
+        format!("{} <{email}>", encode_word(&p.name))
+    } else if !p.name.contains(['"', ',', ';', '<', '>', '@', '(', ')']) {
+        format!("{} <{email}>", p.name)
     } else {
-        format!("{} <{}>", encode_word(&p.name), p.email)
+        format!("\"{}\" <{email}>", p.name.replace('\\', "\\\\").replace('"', "\\\""))
     }
 }
 
@@ -403,10 +414,12 @@ impl Outgoing {
         h.push_str(&format!("Date: {}\r\n", rfc2822_now()));
         h.push_str(&format!("Message-ID: {}\r\n", new_message_id(hostname)));
         if let Some(r) = &self.in_reply_to {
+            let r = strip_crlf(r);
             h.push_str(&format!("In-Reply-To: {r}\r\nReferences: {r}\r\n"));
         }
         for (k, v) in &self.headers {
-            h.push_str(&format!("{k}: {v}\r\n"));
+            // Defence in depth: never let a header name or value break the line.
+            h.push_str(&format!("{}: {}\r\n", strip_crlf(k), strip_crlf(v)));
         }
         h.push_str("MIME-Version: 1.0\r\n");
 
@@ -673,6 +686,40 @@ fn orig_text_of(raw: &[u8]) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn display_name_cannot_inject_headers() {
+        // A CRLF in a display name must be encoded, not emitted raw.
+        let evil = Person { name: "Foo\r\nBcc: victim@evil.test".into(), email: "a@b.com".into() };
+        let line = format_person(&evil);
+        assert!(!line.contains('\n'), "{line}");
+        assert!(!line.contains("Bcc:"), "{line}");
+        // A CRLF smuggled into the address is stripped.
+        let evil2 = Person { name: String::new(), email: "a@b.com\r\nBcc: x@y".into() };
+        assert_eq!(format_person(&evil2), "<a@b.comBcc: x@y>");
+    }
+
+    #[test]
+    fn build_strips_crlf_from_custom_headers() {
+        let out = Outgoing {
+            from: Person { name: "Me".into(), email: "me@x.com".into() },
+            to: vec![Person { name: String::new(), email: "you@x.com".into() }],
+            cc: vec![],
+            subject: "Hi".into(),
+            text: "body".into(),
+            html: None,
+            calendar: None,
+            attachment: None,
+            headers: vec![("X-Test".into(), "ok\r\nBcc: evil@x".into())],
+            in_reply_to: None,
+            multipart_report: None,
+            files: vec![],
+        };
+        let raw = String::from_utf8(out.build("example.com")).unwrap();
+        let head = raw.split("\r\n\r\n").next().unwrap();
+        assert!(!head.lines().any(|l| l.starts_with("Bcc:")), "{head}");
+        assert!(head.contains("X-Test: okBcc: evil@x"));
+    }
 
     const SAMPLE: &[u8] = b"From: Max Becker <max@example.com>\r\nTo: Niklas <niklas@mirranet.de>, anna@mirranet.de\r\nBcc: secret@example.com\r\nSubject: =?UTF-8?B?w5xiZXJzaWNodA==?=\r\nDate: Sun, 22 Nov 2026 18:00:00 +0100\r\nMessage-ID: <abc@example.com>\r\nImportance: high\r\nContent-Type: multipart/mixed; boundary=X\r\n\r\n--X\r\nContent-Type: text/html; charset=utf-8\r\n\r\n<p>Hallo &amp; willkommen</p><style>p{}</style>\r\n--X\r\nContent-Type: application/pdf; name=a.pdf\r\nContent-Disposition: attachment; filename=a.pdf\r\nContent-Transfer-Encoding: base64\r\n\r\nJVBERg==\r\n--X--\r\n";
 

@@ -21,7 +21,7 @@ async fn connect() -> (TcpStream, crate::store::User, crate::app::Shared) {
     let app2 = app.clone();
     tokio::spawn(async move {
         let (tcp, _) = listener.accept().await.unwrap();
-        let _ = super::session(app2, tcp, false).await;
+        let _ = super::session(app2, tcp, false, "127.0.0.1".parse().unwrap()).await;
     });
     let client = TcpStream::connect(addr).await.unwrap();
     (client, user, app)
