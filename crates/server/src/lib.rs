@@ -589,6 +589,14 @@ async fn serve(cfg: Config) -> Result<()> {
             tasks.spawn(imap::serve(app.clone(), addr, true));
         }
     }
+    for addr in cfg.imap.pop3.clone() {
+        tasks.spawn(imap::pop3::serve(app.clone(), addr, false));
+    }
+    if app.smtp_tls.is_some() {
+        for addr in cfg.imap.pop3s.clone() {
+            tasks.spawn(imap::pop3::serve(app.clone(), addr, true));
+        }
+    }
     smtp::outbound::spawn(app.clone());
     let maintenance = app.clone();
     tokio::spawn(async move {

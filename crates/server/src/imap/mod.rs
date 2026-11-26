@@ -25,6 +25,7 @@ use crate::auth;
 use crate::model::{FolderClass, flags};
 use crate::store::{Folder, Item, NewMail, now};
 
+pub mod pop3;
 mod tests;
 
 const MAX_LINE: usize = 64 * 1024;
