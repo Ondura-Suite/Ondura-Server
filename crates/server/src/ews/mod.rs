@@ -169,6 +169,10 @@ pub async fn handle(app: Shared, user: User, _headers: &HeaderMap, body: Bytes) 
         "GetServerTimeZones" => misc::server_time_zones(&ctx, &op),
         "ConvertId" => misc::convert_id(&ctx, &op),
         "GetInboxRules" => misc::get_inbox_rules(&ctx),
+        "GetUserConfiguration" => misc::get_user_configuration(&ctx, &op),
+        "CreateUserConfiguration" => misc::write_user_configuration(&ctx, &op, "Create"),
+        "UpdateUserConfiguration" => misc::write_user_configuration(&ctx, &op, "Update"),
+        "DeleteUserConfiguration" => misc::write_user_configuration(&ctx, &op, "Delete"),
         "GetMailTips" => misc::mail_tips(&ctx, &op),
         other => {
             warn!(op = other, "unsupported EWS operation");

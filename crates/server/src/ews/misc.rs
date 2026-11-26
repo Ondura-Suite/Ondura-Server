@@ -565,6 +565,96 @@ pub fn mail_tips(ctx: &Ctx, op: &Node) -> EwsResult<String> {
     Ok(format!(r#"<m:GetMailTipsResponse ResponseClass="Success" xmlns:m="{NS_M}" xmlns:t="{NS_T}"><m:ResponseCode>NoError</m:ResponseCode><m:ResponseMessages>{out}</m:ResponseMessages></m:GetMailTipsResponse>"#))
 }
 
+// ------------------------------------------------------- master category list
+
+/// Map an Ondura category colour name to an Outlook master-category colour index.
+fn cat_color_index(name: &str) -> u8 {
+    match name {
+        "red" => 0,
+        "orange" => 1,
+        "yellow" => 3,
+        "green" => 4,
+        "teal" => 5,
+        "blue" => 7,
+        "purple" => 8,
+        "pink" => 9,
+        "gray" => 12,
+        _ => 7,
+    }
+}
+
+/// Inverse of `cat_color_index`, for categories created or recoloured in Outlook.
+fn cat_color_name(idx: u8) -> &'static str {
+    match idx {
+        0 | 15 => "red",
+        1 | 16 => "orange",
+        3 | 18 => "yellow",
+        4 | 19 => "green",
+        5 | 20 => "teal",
+        8 | 23 => "purple",
+        9 | 24 => "pink",
+        12 | 13 => "gray",
+        _ => "blue",
+    }
+}
+
+/// Deterministic GUID for a category id, stable across requests so Outlook keeps
+/// one entry per category instead of duplicating it.
+fn cat_guid(id: i64) -> String {
+    let d = <sha2::Sha256 as sha2::Digest>::digest(format!("ondura-category-{id}").as_bytes());
+    format!(
+        "{{{:02x}{:02x}{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}-{:02x}{:02x}{:02x}{:02x}{:02x}{:02x}}}",
+        d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]
+    )
+}
+
+/// GetUserConfiguration — serves the "CategoryList" master category list so
+/// Outlook renders webmail categories with their colours. Other configuration
+/// names are reported as not found.
+pub fn get_user_configuration(ctx: &Ctx, op: &Node) -> EwsResult<String> {
+    let name = op.child("UserConfigurationName").and_then(|n| n.attr("Name")).unwrap_or("");
+    if name != "CategoryList" {
+        return Err(EwsError::not_found());
+    }
+    let cats = ctx.app.store.categories(ctx.user.id)?;
+    let mut inner = String::new();
+    for (id, cname, color) in &cats {
+        let _ = write!(inner, r#"<category name="{}" color="{}" keyboardShortcut="0" guid="{}" />"#, escape(cname), cat_color_index(color), cat_guid(*id));
+    }
+    let xml = format!(r#"<?xml version="1.0" encoding="utf-8"?><categories default="" lastSavedSession="0" lastSavedTime="{}" xmlns="CategoryList.xsd">{inner}</categories>"#, utc(now()));
+    let data = B64.encode(xml.as_bytes());
+    let ck = B64.encode(&<sha2::Sha256 as sha2::Digest>::digest(xml.as_bytes())[..8]);
+    Ok(format!(
+        r#"<m:GetUserConfigurationResponse xmlns:m="{NS_M}" xmlns:t="{NS_T}"><m:ResponseMessages><m:GetUserConfigurationResponseMessage ResponseClass="Success"><m:ResponseCode>NoError</m:ResponseCode><m:UserConfiguration><t:UserConfigurationName Name="CategoryList"><t:DistinguishedFolderId Id="calendar"/></t:UserConfigurationName><t:ItemId Id="UC.CategoryList" ChangeKey="{ck}"/><t:XmlData>{data}</t:XmlData></m:UserConfiguration></m:GetUserConfigurationResponseMessage></m:ResponseMessages></m:GetUserConfigurationResponse>"#
+    ))
+}
+
+/// Create/Update/DeleteUserConfiguration — accepted so Outlook can save category
+/// edits. For the category list, new or recoloured categories are merged into the
+/// registry additively (names never deleted here, to protect webmail categories).
+pub fn write_user_configuration(ctx: &Ctx, op: &Node, verb: &str) -> EwsResult<String> {
+    if verb != "Delete"
+        && let Some(cfg) = op.child("UserConfiguration")
+        && cfg.child("UserConfigurationName").and_then(|n| n.attr("Name")) == Some("CategoryList")
+        && let Some(b64) = cfg.text_of("XmlData")
+        && let Ok(bytes) = B64.decode(b64.trim())
+        && let Ok(xml) = std::str::from_utf8(&bytes)
+        && let Ok(doc) = Node::parse(xml)
+    {
+        let mut cats = Vec::new();
+        doc.find_all("category", &mut cats);
+        for c in cats {
+            if let Some(nm) = c.attr("name").filter(|s| !s.trim().is_empty()) {
+                let idx = c.attr("color").and_then(|s| s.parse::<i64>().ok()).unwrap_or(7).clamp(0, 24) as u8;
+                let _ = ctx.app.store.create_category(ctx.user.id, nm, cat_color_name(idx));
+            }
+        }
+    }
+    Ok(format!(
+        r#"<m:{verb}UserConfigurationResponse xmlns:m="{NS_M}" xmlns:t="{NS_T}"><m:ResponseMessages><m:{verb}UserConfigurationResponseMessage ResponseClass="Success"><m:ResponseCode>NoError</m:ResponseCode></m:{verb}UserConfigurationResponseMessage></m:ResponseMessages></m:{verb}UserConfigurationResponse>"#
+    ))
+}
+
 /// GetInboxRules — expose the user's server-side inbox rules so Outlook and
 /// other EWS clients can display them. Read-only (rules are managed in webmail).
 pub fn get_inbox_rules(ctx: &Ctx) -> EwsResult<String> {

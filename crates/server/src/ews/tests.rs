@@ -148,3 +148,23 @@ async fn get_inbox_rules_lists_stored_rules() {
     assert_eq!(all(&doc, "MarkAsRead").len(), 1);
     assert_eq!(all(&doc, "StopProcessingRules").len(), 1);
 }
+
+#[tokio::test]
+async fn category_master_list_round_trip() {
+    use base64::Engine;
+    let (app, user) = App::test();
+    // A webmail category shows up in the master list with its Outlook colour index.
+    app.store.create_category(user.id, "Work", "green").unwrap();
+    let doc = call(&app, r#"<m:GetUserConfiguration><m:UserConfigurationName Name="CategoryList"><t:DistinguishedFolderId Id="calendar"/></m:UserConfigurationName><m:UserConfigurationProperties>All</m:UserConfigurationProperties></m:GetUserConfiguration>"#).await;
+    let data = doc.find("XmlData").unwrap().text.clone();
+    let xml = String::from_utf8(base64::engine::general_purpose::STANDARD.decode(data.trim()).unwrap()).unwrap();
+    assert!(xml.contains(r#"name="Work""#), "{xml}");
+    assert!(xml.contains(r#"color="4""#), "{xml}");
+
+    // A category created in Outlook is merged into the registry.
+    let newxml = r#"<?xml version="1.0"?><categories xmlns="CategoryList.xsd"><category name="Urgent" color="0" guid="{11111111-1111-1111-1111-111111111111}"/></categories>"#;
+    let b64 = base64::engine::general_purpose::STANDARD.encode(newxml.as_bytes());
+    call(&app, &format!(r#"<m:UpdateUserConfiguration><m:UserConfiguration><t:UserConfigurationName Name="CategoryList"><t:DistinguishedFolderId Id="calendar"/></t:UserConfigurationName><t:XmlData>{b64}</t:XmlData></m:UserConfiguration></m:UpdateUserConfiguration>"#)).await;
+    let cats = app.store.categories(user.id).unwrap();
+    assert!(cats.iter().any(|(_, n, c)| n == "Urgent" && c == "red"), "{cats:?}");
+}

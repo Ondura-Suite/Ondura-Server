@@ -47,8 +47,10 @@ the reading pane, the context menu or a multi-selection. Click a category chip
 to filter the current folder to it. Manage categories (create, rename, recolour,
 delete) from the account menu; deleting or renaming a category updates every
 message that carried it. Category names travel with the message over EWS and
-ActiveSync, so a category set in webmail also shows in Outlook and on phones
-(each client supplies its own colours).
+ActiveSync, so a category set in webmail also shows in Outlook and on phones.
+Outlook also reads the colours: the server serves the webmail categories as the
+Exchange master category list (EWS GetUserConfiguration "CategoryList"), and a
+category created or recoloured in Outlook is merged back into the registry.
 
 **Rules** — inbox rules run automatically on newly delivered mail. Each rule
 matches on From, To or Subject (all or any conditions) and can move the message
