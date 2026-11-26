@@ -23,6 +23,8 @@ pub struct Config {
     #[serde(default)]
     pub smtp: Smtp,
     #[serde(default)]
+    pub imap: Imap,
+    #[serde(default)]
     pub spam: Spam,
     #[serde(default)]
     pub activesync: ActiveSync,
@@ -57,6 +59,31 @@ impl Default for Database {
 pub enum DbBackend {
     Sqlite,
     Postgres,
+}
+
+/// IMAP and POP3 access for standard mail clients (Thunderbird, Apple Mail, …).
+#[derive(Debug, Clone, Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Imap {
+    /// Port 143: IMAP with STARTTLS.
+    pub imap: Vec<SocketAddr>,
+    /// Port 993: IMAP over implicit TLS.
+    pub imaps: Vec<SocketAddr>,
+    /// Port 110: POP3 with STARTTLS.
+    pub pop3: Vec<SocketAddr>,
+    /// Port 995: POP3 over implicit TLS.
+    pub pop3s: Vec<SocketAddr>,
+}
+
+impl Default for Imap {
+    fn default() -> Self {
+        Imap {
+            imap: vec!["[::]:143".parse().expect("address")],
+            imaps: vec!["[::]:993".parse().expect("address")],
+            pop3: vec!["[::]:110".parse().expect("address")],
+            pop3s: vec!["[::]:995".parse().expect("address")],
+        }
+    }
 }
 
 /// Optional real-time collaborative documents. Turn this off to run Ondura as a

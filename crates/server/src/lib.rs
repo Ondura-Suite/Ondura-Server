@@ -16,6 +16,7 @@ pub mod eas;
 pub mod ews;
 pub mod http;
 pub mod ical;
+pub mod imap;
 pub mod mime;
 pub mod model;
 pub mod netlimit;
@@ -577,6 +578,15 @@ async fn serve(cfg: Config) -> Result<()> {
                 continue;
             }
             tasks.spawn(smtp::serve(app.clone(), addr, mode));
+        }
+    }
+    // IMAP (143 STARTTLS, 993 implicit TLS). POP3 listeners are added alongside.
+    for addr in cfg.imap.imap.clone() {
+        tasks.spawn(imap::serve(app.clone(), addr, false));
+    }
+    if app.smtp_tls.is_some() {
+        for addr in cfg.imap.imaps.clone() {
+            tasks.spawn(imap::serve(app.clone(), addr, true));
         }
     }
     smtp::outbound::spawn(app.clone());

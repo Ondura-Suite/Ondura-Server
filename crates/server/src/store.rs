@@ -93,7 +93,8 @@ CREATE TABLE IF NOT EXISTS items (
     range_end INTEGER,
     in_reply_to TEXT,
     refs TEXT,
-    body_text TEXT
+    body_text TEXT,
+    imap_uid INTEGER
 );
 CREATE INDEX IF NOT EXISTS items_folder ON items(folder_id, modseq);
 CREATE INDEX IF NOT EXISTS items_folder_received ON items(folder_id, received);
@@ -337,6 +338,8 @@ pub struct Item {
     pub in_reply_to: Option<String>,
     /// Space-joined `References` message-ids for conversation threading.
     pub references: Option<String>,
+    /// Monotonic per-mailbox IMAP UID (mail items only).
+    pub imap_uid: Option<i64>,
 }
 
 /// One condition of an inbox rule: a case-insensitive substring match against
@@ -395,7 +398,7 @@ impl Item {
     }
 }
 
-const ITEM_COLUMNS: &str = "id, user_id, folder_id, kind, uid, modseq, created_modseq, received, size, flags, categories, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, data, in_reply_to, refs";
+const ITEM_COLUMNS: &str = "id, user_id, folder_id, kind, uid, modseq, created_modseq, received, size, flags, categories, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, data, in_reply_to, refs, imap_uid";
 
 /// Evaluate an inbox rule's conditions against a delivered item.
 fn rule_matches(rule: &Rule, item: &Item) -> bool {
@@ -449,6 +452,7 @@ fn item_from_row(r: &Row) -> Result<Item> {
         data: r.get(19)?,
         in_reply_to: r.get(20)?,
         references: r.get(21)?,
+        imap_uid: r.get(22)?,
     })
 }
 
@@ -1380,6 +1384,12 @@ impl Store {
                 ],
                 |r| r.get(0),
             )?;
+            // Assign a per-mailbox IMAP UID, strictly ascending by arrival. The
+            // store Mutex serializes writes, so MAX+1 is race-free.
+            tx.execute(
+                "UPDATE items SET imap_uid = (SELECT COALESCE(MAX(imap_uid), 0) + 1 FROM items WHERE user_id = ?1) WHERE id = ?2",
+                params![m.user_id, id],
+            )?;
             tx.commit()?;
             id
         };
@@ -1501,6 +1511,12 @@ impl Store {
                 "UPDATE items SET folder_id = ?1, modseq = ?2, created_modseq = ?2, writer = ?3 WHERE id = ?4",
                 params![target_folder, modseq, writer, id],
             )?;
+            // A message arriving in a mailbox takes the next (highest) IMAP UID,
+            // so UIDs stay ascending by arrival within each folder.
+            tx.execute(
+                "UPDATE items SET imap_uid = (SELECT COALESCE(MAX(imap_uid), 0) + 1 FROM items WHERE user_id = ?1) WHERE id = ?2 AND imap_uid IS NOT NULL",
+                params![item.user_id, id],
+            )?;
             tx.commit()?;
         }
         self.notify(item.user_id, item.folder_id);
@@ -1552,6 +1568,19 @@ impl Store {
         let st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE folder_id = ?1 ORDER BY received DESC, id DESC LIMIT ?2 OFFSET ?3"))?;
         let rows = st.query_map(params![folder_id, limit, offset], item_from_row)?;
         Ok(rows)
+    }
+
+    /// All mail items in a folder, ordered by IMAP UID ascending — the message
+    /// sequence an IMAP client sees. (Backs SELECT/FETCH/SEARCH.)
+    pub fn mailbox_items(&self, folder_id: i64) -> Result<Vec<Item>> {
+        let db = self.db();
+        let st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM items WHERE folder_id = ?1 AND kind = 'mail' ORDER BY imap_uid"))?;
+        st.query_map([folder_id], item_from_row)
+    }
+
+    /// The next IMAP UID a folder would assign (max UID in the mailbox + 1).
+    pub fn imap_uidnext(&self, user_id: i64) -> Result<i64> {
+        self.db().query_row("SELECT COALESCE(MAX(imap_uid), 0) + 1 FROM items WHERE user_id = ?1", [user_id], |r| r.get(0))
     }
 
 

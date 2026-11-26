@@ -1008,6 +1008,7 @@ mod tests {
             data: None,
             in_reply_to: in_reply_to.map(str::to_string),
             references: references.map(str::to_string),
+            imap_uid: None,
         }
     }
 

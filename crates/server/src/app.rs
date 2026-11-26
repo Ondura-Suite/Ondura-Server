@@ -44,6 +44,11 @@ pub struct App {
 pub type Shared = Arc<App>;
 
 impl App {
+    /// TLS configuration for IMAP/POP3 (shares the SMTP server certificate).
+    pub fn imap_tls(&self) -> Option<Arc<ServerConfig>> {
+        self.smtp_tls.clone()
+    }
+
     pub fn hostname(&self) -> &str {
         &self.cfg.hostname
     }
