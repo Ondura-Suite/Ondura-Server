@@ -469,11 +469,8 @@ fn share_doc(app: &Shared, user: &User, id: &str, body: &Bytes) -> ApiResult {
     #[serde(rename_all = "camelCase")]
     struct B {
         email: String,
-        #[serde(default = "yes")]
+        #[serde(default = "crate::serde_true")]
         can_write: bool,
-    }
-    fn yes() -> bool {
-        true
     }
     let b: B = parse(body)?;
     let target = app.store.user_by_email(&b.email).map_err(ise)?.ok_or((StatusCode::NOT_FOUND, "No such user".into()))?;

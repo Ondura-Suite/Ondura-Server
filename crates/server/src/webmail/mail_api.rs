@@ -439,9 +439,9 @@ pub fn save_rule(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         #[serde(default)]
         id: Option<i64>,
         name: String,
-        #[serde(default = "crate::webmail::default_true")]
+        #[serde(default = "crate::serde_true")]
         enabled: bool,
-        #[serde(default = "crate::webmail::default_true")]
+        #[serde(default = "crate::serde_true")]
         match_all: bool,
         #[serde(default)]
         stop: bool,

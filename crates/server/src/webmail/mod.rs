@@ -36,10 +36,6 @@ const SESSION_LIFETIME: i64 = 8 * 3600;
 /// their echoes apart (same role as "ews" or an ActiveSync device id).
 pub(crate) const WRITER: &str = "webmail";
 
-/// serde default for booleans that should default to `true`.
-pub(crate) fn default_true() -> bool {
-    true
-}
 
 pub(crate) type ApiResult = Result<Value, (StatusCode, String)>;
 

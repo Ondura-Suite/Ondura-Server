@@ -126,10 +126,10 @@ pub struct Http {
     #[serde(default)]
     pub trusted_proxies: Vec<std::net::IpAddr>,
     /// Allow the Admin Center (`/admin`).
-    #[serde(default = "yes")]
+    #[serde(default = "crate::serde_true")]
     pub admin_center: bool,
     /// Allow webmail (`/mail`) for end users.
-    #[serde(default = "yes")]
+    #[serde(default = "crate::serde_true")]
     pub webmail: bool,
 }
 
@@ -162,10 +162,10 @@ pub struct Smtp {
     #[serde(default)]
     pub relay_password: Option<String>,
     /// Check SPF, DKIM and DMARC of incoming mail.
-    #[serde(default = "yes")]
+    #[serde(default = "crate::serde_true")]
     pub verify_incoming: bool,
     /// Reject mail failing DMARC with policy `reject` (otherwise it goes to junk).
-    #[serde(default = "yes")]
+    #[serde(default = "crate::serde_true")]
     pub enforce_dmarc: bool,
     /// Days a message stays in the queue before it bounces.
     #[serde(default = "default_queue_days")]
@@ -206,7 +206,7 @@ pub struct Spam {
 #[serde(deny_unknown_fields)]
 pub struct ActiveSync {
     /// Require devices to accept the security policy (Provision).
-    #[serde(default = "yes")]
+    #[serde(default = "crate::serde_true")]
     pub provisioning: bool,
     /// Require a device PIN/password.
     #[serde(default)]
@@ -224,9 +224,6 @@ impl Default for ActiveSync {
     }
 }
 
-fn yes() -> bool {
-    true
-}
 fn default_data_dir() -> PathBuf {
     PathBuf::from("/var/lib/ondura-server")
 }

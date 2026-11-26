@@ -272,11 +272,8 @@ async fn submit(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         mime: String,
         #[serde(default)]
         recipients: Option<Vec<String>>,
-        #[serde(default = "yes")]
+        #[serde(default = "crate::serde_true")]
         save_copy: bool,
-    }
-    fn yes() -> bool {
-        true
     }
     let b: B = webmail::parse(body)?;
     let raw = decode_mime(&b.mime)?;

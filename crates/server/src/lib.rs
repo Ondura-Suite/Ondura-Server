@@ -15,6 +15,11 @@ pub mod dns;
 pub mod eas;
 pub mod ews;
 pub mod http;
+
+/// serde `default` helper for boolean fields that default to `true`.
+pub(crate) fn serde_true() -> bool {
+    true
+}
 pub mod ical;
 pub mod imap;
 pub mod mime;

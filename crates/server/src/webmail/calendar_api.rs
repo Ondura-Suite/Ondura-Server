@@ -72,7 +72,7 @@ pub async fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         #[serde(default)]
         id: Option<i64>,
         /// Send meeting invitations to attendees (default true).
-        #[serde(default = "yes")]
+        #[serde(default = "crate::serde_true")]
         send: bool,
         event: Event,
     }
@@ -114,7 +114,7 @@ pub async fn delete(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     #[derive(Deserialize)]
     struct DelBody {
         id: i64,
-        #[serde(default = "yes")]
+        #[serde(default = "crate::serde_true")]
         send: bool,
     }
     let d: DelBody = parse(body)?;
@@ -133,9 +133,6 @@ pub async fn delete(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     Ok(json!({ "ok": true }))
 }
 
-fn yes() -> bool {
-    true
-}
 
 /// POST /event/respond — accept/decline/tentative a meeting invitation.
 pub async fn respond(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
@@ -147,13 +144,10 @@ pub async fn respond(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         response: String,
         #[serde(default)]
         occurrence: Option<i64>,
-        #[serde(default = "yes")]
+        #[serde(default = "crate::serde_true")]
         send: bool,
         #[serde(default)]
         comment: String,
-    }
-    fn yes() -> bool {
-        true
     }
     let r: RespondBody = parse(body)?;
     let response = match r.response.as_str() {
