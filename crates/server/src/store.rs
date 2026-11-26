@@ -192,6 +192,13 @@ CREATE TABLE IF NOT EXISTS collab_shares (
     PRIMARY KEY (doc_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS collab_shares_user ON collab_shares(user_id);
+CREATE TABLE IF NOT EXISTS collab_links (
+    token TEXT PRIMARY KEY,
+    doc_id INTEGER NOT NULL REFERENCES collab_docs(id) ON DELETE CASCADE,
+    can_write INTEGER NOT NULL DEFAULT 0,
+    created INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS collab_links_doc ON collab_links(doc_id);
 CREATE TABLE IF NOT EXISTS mail_categories (
     id INTEGER PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

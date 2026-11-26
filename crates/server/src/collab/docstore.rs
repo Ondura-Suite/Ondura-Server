@@ -172,6 +172,56 @@ impl Store {
         Ok(rows)
     }
 
+    // ------------------------------------------------------------ share links
+
+    /// Create a shareable link for a document and return its token. The link
+    /// grants view or edit access to anyone who holds it, signed in or not.
+    pub fn create_link(&self, doc_id: i64, can_write: bool) -> Result<String> {
+        let mut bytes = [0u8; 24];
+        rand::fill(&mut bytes);
+        let token = hex::encode(bytes);
+        self.db().execute(
+            "INSERT INTO collab_links (token, doc_id, can_write, created) VALUES (?1, ?2, ?3, ?4)",
+            params![&token, doc_id, can_write as i64, now()],
+        )?;
+        Ok(token)
+    }
+
+    /// Resolve a link token to (doc_id, can_write), if it exists.
+    pub fn link(&self, token: &str) -> Result<Option<(i64, bool)>> {
+        self.db()
+            .query_row("SELECT doc_id, can_write FROM collab_links WHERE token = ?1", [token], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)? != 0)))
+            .optional()
+    }
+
+    /// The owner of the document a link points to (for authorizing changes).
+    pub fn link_owner(&self, token: &str) -> Result<Option<i64>> {
+        self.db()
+            .query_row(
+                "SELECT d.owner_id FROM collab_links l JOIN collab_docs d ON d.id = l.doc_id WHERE l.token = ?1",
+                [token],
+                |r| r.get(0),
+            )
+            .optional()
+    }
+
+    /// A document's links: (token, can_write, created).
+    pub fn doc_links(&self, doc_id: i64) -> Result<Vec<(String, bool, i64)>> {
+        let db = self.db();
+        let stmt = db.prepare("SELECT token, can_write, created FROM collab_links WHERE doc_id = ?1 ORDER BY created")?;
+        stmt.query_map([doc_id], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? != 0, r.get(2)?)))
+    }
+
+    pub fn set_link_write(&self, token: &str, can_write: bool) -> Result<()> {
+        self.db().execute("UPDATE collab_links SET can_write = ?1 WHERE token = ?2", params![can_write as i64, token])?;
+        Ok(())
+    }
+
+    pub fn revoke_link(&self, token: &str) -> Result<()> {
+        self.db().execute("DELETE FROM collab_links WHERE token = ?1", [token])?;
+        Ok(())
+    }
+
     /// Revision history, newest first: (revision, editor email, editor name,
     /// timestamp, units added, units deleted).
     pub fn doc_history(&self, doc_id: i64, limit: i64) -> Result<Vec<HistoryEntry>> {

@@ -5,10 +5,18 @@ people signed in with their accounts can edit the same document at the same
 time. This is an optional feature — set `enabled = false` under `[collab]` to run
 a mail-only server, in which case every endpoint below returns `404`.
 
-A document is plain text. Each belongs to one owner and can be shared with other
-accounts, read-only or read-write. Editing is real-time over a WebSocket; the
-server reconciles concurrent edits with Operational Transform, so no edit is
-lost and every participant converges on the same text.
+A document is plain text. Each belongs to one owner and can be shared two ways —
+with other Ondura accounts (read-only or read-write), or by a share link that
+anyone can open, signed in or as a guest, with the view or edit permission the
+link carries. Editing is real-time over a WebSocket; the server reconciles
+concurrent edits with Operational Transform, so no edit is lost and every
+participant converges on the same text.
+
+In the webmail/desktop editor, the owner's **Share** dialog creates and copies
+share links (view or edit), changes a link's permission or revokes it, and
+invites accounts by e-mail. A link looks like `https://host/mail#link=<token>`;
+opening it signs-in users straight into the document and lets guests edit it
+without an account under a "Guest" identity.
 
 ## Authentication
 
@@ -34,6 +42,10 @@ Base path `…/collab/api`. Bodies and responses are JSON.
 | `DELETE /docs/{id}` | Owner only. |
 | `POST /docs/{id}/share` | Owner only. Body `{ "email": "…", "canWrite": true }`. |
 | `POST /docs/{id}/unshare` | Owner only. Body `{ "email": "…" }`. |
+| `POST /docs/{id}/link` | Owner only. Create a share link. Body `{ "canWrite": true }`. Returns `{ "token": "…" }`. |
+| `POST /docs/{id}/link/update` | Owner only. Change a link's permission. Body `{ "token": "…", "canWrite": false }`. |
+| `POST /docs/{id}/link/revoke` | Owner only. Body `{ "token": "…" }`. |
+| `GET /link/{token}` | **Public, no auth.** Resolve a share link to `{ "docId": N, "title": "…", "canWrite": … }`. |
 | `GET /docs/{id}/ops?since=R` | Operations committed after revision `R` (for reconnect/catch-up). |
 | `GET /docs/{id}/history` | Revision log: each entry has `rev`, editor `email`/`name`, `ts`, and `added`/`removed` unit counts. |
 | `GET /docs/{id}/at/{rev}` | The document content as it stood at revision `rev` (replayed from the log). |
@@ -41,7 +53,9 @@ Base path `…/collab/api`. Bodies and responses are JSON.
 ## Real-time editing (WebSocket)
 
 Connect to `…/collab/ws?doc={id}` (use `wss://` behind TLS). The same account
-authentication applies. The connection speaks JSON text frames.
+authentication applies. A guest connects with `…/collab/ws?link={token}` and no
+credentials; the link's permission decides whether they may edit. The connection
+speaks JSON text frames.
 
 An **operation** is the compact array form: a positive number *retains* that
 many UTF-16 units, a negative number *deletes* that many, and a string is

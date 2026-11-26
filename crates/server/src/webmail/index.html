@@ -390,6 +390,7 @@ const T = {
     tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
     history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", noDocuments: "No documents", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add",
+    shareLink: "Share link", createLink: "Create link", copyLink: "Copy link", copied: "Link copied", linkView: "View only", linkEdit: "Can edit", anyoneCanView: "Anyone with the link can view", anyoneCanEdit: "Anyone with the link can edit", revoke: "Revoke", noLinks: "No links yet", linkInvalid: "This link is invalid or has been revoked.", guestBadge: "Guest",
   },
   de: {
     webmail: "Webmail", signInSub: "Bei deinem Postfach anmelden", email: "E-Mail", password: "Passwort", signIn: "Anmelden",
@@ -413,6 +414,7 @@ const T = {
     tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
     history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", noDocuments: "Keine Dokumente", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen",
+    shareLink: "Freigabelink", createLink: "Link erstellen", copyLink: "Link kopieren", copied: "Link kopiert", linkView: "Nur ansehen", linkEdit: "Darf bearbeiten", anyoneCanView: "Jeder mit dem Link kann ansehen", anyoneCanEdit: "Jeder mit dem Link kann bearbeiten", revoke: "Entziehen", noLinks: "Noch keine Links", linkInvalid: "Dieser Link ist ungültig oder wurde entzogen.", guestBadge: "Gast",
   },
 };
 let lang;
@@ -456,6 +458,7 @@ const ICON = {
   flag: '<path d="M6 21V4h11l-2 4 2 4H6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
   paperclip: '<path d="M8 12V7a4 4 0 0 1 8 0v9a2.5 2.5 0 0 1-5 0V8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   link: '<path d="M10 14a3.5 3.5 0 0 0 5 0l3-3a3.5 3.5 0 0 0-5-5l-1 1M14 10a3.5 3.5 0 0 0-5 0l-3 3a3.5 3.5 0 0 0 5 5l1-1" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  copy: '<rect x="9" y="9" width="11" height="11" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M5 15V5a1 1 0 0 1 1-1h9" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   chev: '<path d="M9 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   tasks: '<path d="M4 6h10M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="m17 6 2 2 3-3M17 13l2 2 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   note: '<path d="M5 4h14v12l-5 5H5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 21v-5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
@@ -624,13 +627,48 @@ document.addEventListener("keydown", (e) => {
 });
 
 async function start() {
+  // A share link may open a document directly (as a signed-in user or a guest).
+  const linkTok = (location.hash.match(/link=([a-f0-9]+)/) || [])[1];
+  // Probe the session without triggering the login screen.
+  let session = null;
+  try {
+    const res = await fetch("/mail/api/me", { credentials: "same-origin", headers: { "X-Ondura-Mail": "1" } });
+    if (res.ok) session = await res.json();
+  } catch (e) {}
+  if (!session) {
+    if (linkTok) return openGuestDoc(linkTok);
+    showLogin();
+    return;
+  }
+  me = session;
   $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
-  me = await api("GET", "/me");
   renderAcct();
   folders = me.folders.filter((f) => f.role !== "root");
   curFolder = folders.find((f) => f.role === "inbox") || folders[0];
   loadCategories();
+  if (linkTok) {
+    let info = null; try { info = await capi("GET", "/link/" + linkTok); } catch (e) {}
+    if (info && info.docId) { view = "documents"; renderDocuments(); setTimeout(() => openDoc(info.docId), 0); return; }
+  }
   view = "mail"; render();
+}
+
+// Open a document from a share link without an account (guest mode).
+async function openGuestDoc(token) {
+  let info;
+  try { info = await capi("GET", "/link/" + token); } catch (e) {
+    document.body.innerHTML = `<div style="display:grid;place-items:center;height:100vh;color:var(--muted);font:15px system-ui">${esc(t("linkInvalid"))}</div>`;
+    return;
+  }
+  me = { collab: true, guest: true };
+  $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
+  $("#app").innerHTML = `<div class="docgrid" style="grid-template-columns:1fr"><div class="editor" id="docEditor"></div></div>`;
+  curDoc = info.docId;
+  const ed = $("#docEditor");
+  ed.innerHTML = `<div class="eh"><h2 id="docTitle">${esc(info.title || t("documents"))}</h2><span class="pill" style="font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:999px;color:var(--muted)">${esc(t("guestBadge"))}</span><div class="pres" id="docPres"></div><span class="status" id="docStatus"><span class="dot-off"></span>${esc(t("connecting"))}</span></div>
+    <div class="editorwrap"><div class="mirror" id="docMirror" aria-hidden="true"></div><textarea id="docArea" ${info.canWrite ? "" : "readonly"} spellcheck="false"></textarea><div class="cursors" id="docCursors"></div></div>
+    ${info.canWrite ? "" : `<div style="padding:6px 16px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--border)">${esc(t("readOnlyDoc"))}</div>`}`;
+  connectDoc(info.docId, info.canWrite, token);
 }
 
 // ------------------------------------------------------------ rail + routing
@@ -1648,10 +1686,11 @@ async function openDoc(id) {
   $("#docHist").onclick = () => openHistory(id);
   connectDoc(id, meta.canWrite);
 }
-function connectDoc(id, canWrite) {
+function connectDoc(id, canWrite, linkToken) {
   if (docWs) { try { docWs.close(); } catch (e) {} }
   const proto = location.protocol === "https:" ? "wss" : "ws";
-  const ws = new WebSocket(`${proto}://${location.host}/collab/ws?doc=${id}`);
+  const q = `doc=${id}` + (linkToken ? `&link=${encodeURIComponent(linkToken)}` : "");
+  const ws = new WebSocket(`${proto}://${location.host}/collab/ws?${q}`);
   docWs = ws;
   const ta = $("#docArea");
   const E = { ws, rev: 0, docText: "", state: "sync", pending: null, buffer: null, applying: false, canWrite };
@@ -1709,7 +1748,7 @@ function connectDoc(id, canWrite) {
     } else if (m.type === "reset") {
       // The server signalled a desync (we lagged); reconnect for a fresh state.
       try { ws.close(); } catch (e) {}
-      if (curDoc === id) connectDoc(id, canWrite);
+      if (curDoc === id) connectDoc(id, canWrite, linkToken);
     }
   };
   if (ta) {
@@ -1749,16 +1788,28 @@ async function openHistory(id) {
     $("#histPrev").innerHTML = `<div class="hd" style="margin-top:12px">${esc(t("preview"))} · v${rev}</div><div class="histprev">${esc(res.content) || "<span style='color:var(--muted)'>—</span>"}</div>`;
   }));
 }
+function docLinkUrl(token) { return `${location.origin}/mail#link=${token}`; }
 function openShare(id, meta) {
-  const shares = (meta.shares || []);
   panel(t("share"),
-    `<div class="field"><label>${esc(t("addPerson"))}</label><div class="row" style="display:flex;gap:8px"><input id="shEmail" type="email" style="flex:1"><select id="shPerm"><option value="write">${esc(t("canEdit"))}</option><option value="read">${esc(t("readOnly"))}</option></select><button class="btn" id="shAdd">${esc(t("add"))}</button></div></div>
+    `<div class="field"><label>${esc(t("shareLink"))}</label><div id="shLinks"></div>
+       <div class="row" style="display:flex;gap:8px;margin-top:8px"><select id="shLinkPerm"><option value="write">${esc(t("linkEdit"))}</option><option value="read">${esc(t("linkView"))}</option></select><button class="btn" id="shLinkAdd">${icon("link")}<span>${esc(t("createLink"))}</span></button></div></div>
+     <hr style="border:0;border-top:1px solid var(--border);margin:16px 0">
+     <div class="field"><label>${esc(t("addPerson"))}</label><div class="row" style="display:flex;gap:8px"><input id="shEmail" type="email" style="flex:1"><select id="shPerm"><option value="write">${esc(t("canEdit"))}</option><option value="read">${esc(t("readOnly"))}</option></select><button class="btn" id="shAdd">${esc(t("add"))}</button></div></div>
      <h3 style="margin:18px 0 8px;font-size:14px">${esc(t("sharedWith"))}</h3>
      <div id="shList"></div>`,
     `<div style="flex:1"></div><button class="btn primary" id="shClose">${esc(t("save"))}</button>`);
-  const renderList = (list) => { $("#shList").innerHTML = list.length ? list.map((s) => `<div class="taskrow"><div class="tt">${esc(s.name || s.email)}<div class="dm" style="font-size:12px;color:var(--muted)">${esc(s.email)} · ${s.canWrite ? esc(t("canEdit")) : esc(t("readOnly"))}</div></div><button class="iconbtn danger" data-rm="${esc(s.email)}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted)">—</p>`; $("#shList").querySelectorAll("[data-rm]").forEach((b) => b.onclick = guard(async () => { await capi("POST", "/docs/" + id + "/unshare", { email: b.dataset.rm }); const m = await capi("GET", "/docs/" + id); renderList(m.shares || []); })); };
-  renderList(shares);
-  $("#shAdd").onclick = guard(async () => { const email = $("#shEmail").value.trim(); if (!email) return; await capi("POST", "/docs/" + id + "/share", { email, canWrite: $("#shPerm").value === "write" }); $("#shEmail").value = ""; const m = await capi("GET", "/docs/" + id); renderList(m.shares || []); });
+  const renderList = (list) => { $("#shList").innerHTML = list.length ? list.map((s) => `<div class="taskrow"><div class="tt">${esc(s.name || s.email)}<div class="dm" style="font-size:12px;color:var(--muted)">${esc(s.email)} · ${s.canWrite ? esc(t("canEdit")) : esc(t("readOnly"))}</div></div><button class="iconbtn danger" data-rm="${esc(s.email)}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted)">—</p>`; $("#shList").querySelectorAll("[data-rm]").forEach((b) => b.onclick = guard(async () => { await capi("POST", "/docs/" + id + "/unshare", { email: b.dataset.rm }); refresh(); })); };
+  const renderLinks = (links) => {
+    $("#shLinks").innerHTML = links.length ? links.map((l) => `<div class="taskrow"><div class="tt" style="min-width:0;flex:1"><div style="font-size:12.5px">${l.canWrite ? esc(t("anyoneCanEdit")) : esc(t("anyoneCanView"))}</div><div class="dm" style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(docLinkUrl(l.token))}</div></div><button class="iconbtn" data-copy="${esc(l.token)}" title="${esc(t("copyLink"))}">${icon("copy")}</button><select data-perm="${esc(l.token)}" style="width:auto"><option value="write" ${l.canWrite ? "selected" : ""}>${esc(t("linkEdit"))}</option><option value="read" ${l.canWrite ? "" : "selected"}>${esc(t("linkView"))}</option></select><button class="iconbtn danger" data-lrm="${esc(l.token)}" title="${esc(t("revoke"))}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">${esc(t("noLinks"))}</p>`;
+    $("#shLinks").querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => { const url = docLinkUrl(b.dataset.copy); if (navigator.clipboard) navigator.clipboard.writeText(url); toast(t("copied")); });
+    $("#shLinks").querySelectorAll("[data-perm]").forEach((s) => s.onchange = guard(async () => { await capi("POST", "/docs/" + id + "/link/update", { token: s.dataset.perm, canWrite: s.value === "write" }); }));
+    $("#shLinks").querySelectorAll("[data-lrm]").forEach((b) => b.onclick = guard(async () => { await capi("POST", "/docs/" + id + "/link/revoke", { token: b.dataset.lrm }); refresh(); }));
+  };
+  const refresh = async () => { const m = await capi("GET", "/docs/" + id); renderLinks(m.links || []); renderList(m.shares || []); };
+  renderLinks(meta.links || []);
+  renderList(meta.shares || []);
+  $("#shLinkAdd").onclick = guard(async () => { await capi("POST", "/docs/" + id + "/link", { canWrite: $("#shLinkPerm").value === "write" }); refresh(); });
+  $("#shAdd").onclick = guard(async () => { const email = $("#shEmail").value.trim(); if (!email) return; await capi("POST", "/docs/" + id + "/share", { email, canWrite: $("#shPerm").value === "write" }); $("#shEmail").value = ""; refresh(); });
   $("#shClose").onclick = closePanel;
 }
 

@@ -106,3 +106,23 @@ fn ops_since_returns_tail() {
     assert_eq!(tail[0].0, 2);
     assert_eq!(tail[1].0, 3);
 }
+
+#[test]
+fn share_links_grant_and_revoke() {
+    let (app, user) = App::test();
+    let store = &app.store;
+    let doc = store.create_doc(user.id, "Plan").unwrap();
+
+    // An edit link resolves to the doc with write access.
+    let token = store.create_link(doc, true).unwrap();
+    assert_eq!(store.link(&token).unwrap(), Some((doc, true)));
+    assert_eq!(store.link_owner(&token).unwrap(), Some(user.id));
+    assert_eq!(store.doc_links(doc).unwrap().len(), 1);
+
+    // Downgrade to view-only, then revoke.
+    store.set_link_write(&token, false).unwrap();
+    assert_eq!(store.link(&token).unwrap(), Some((doc, false)));
+    store.revoke_link(&token).unwrap();
+    assert_eq!(store.link(&token).unwrap(), None);
+    assert!(store.doc_links(doc).unwrap().is_empty());
+}

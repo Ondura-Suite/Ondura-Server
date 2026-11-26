@@ -101,35 +101,72 @@ fn collab_user(app: &Shared, headers: &HeaderMap) -> Option<User> {
 
 #[derive(Deserialize)]
 pub struct WsQuery {
+    #[serde(default)]
     doc: i64,
+    /// Optional share-link token; lets a guest (or any holder) join a document.
+    #[serde(default)]
+    link: Option<String>,
 }
 
-/// Axum route handler for `GET /collab/ws?doc=<id>` (registered in the router).
+/// Axum route handler for `GET /collab/ws?doc=<id>` or `?link=<token>`.
 pub async fn ws_route(ws: WebSocketUpgrade, State(app): State<Shared>, headers: HeaderMap, Query(q): Query<WsQuery>) -> Response {
     if !app.collab_enabled() {
         return StatusCode::NOT_FOUND.into_response();
     }
-    let Some(user) = collab_user(&app, &headers) else {
-        return (StatusCode::UNAUTHORIZED, "Not signed in").into_response();
+    let user = collab_user(&app, &headers);
+    // Resolve the document, the write permission, and the author identity from
+    // either a signed-in user's access or a share link (which guests may use).
+    let (doc_id, write, author_id, name, color) = if let Some(token) = q.link.as_deref() {
+        let Ok(Some((doc_id, link_write))) = app.store.link(token) else {
+            return (StatusCode::NOT_FOUND, "Invalid or revoked link").into_response();
+        };
+        match &user {
+            // A signed-in user keeps their own (possibly higher) access.
+            Some(u) if matches!(app.store.doc_access(u.id, doc_id), Ok(Some(_))) => {
+                let w = app.store.doc_access(u.id, doc_id).ok().flatten().map(|a| a.write).unwrap_or(false);
+                (doc_id, w || link_write, u.id, display_name(u), color_for(u.id))
+            }
+            Some(u) => (doc_id, link_write, u.id, display_name(u), color_for(u.id)),
+            // A guest joins with the link's permission under a guest identity.
+            None => (doc_id, link_write, 0, guest_name(token), guest_color(token)),
+        }
+    } else {
+        let Some(u) = &user else {
+            return (StatusCode::UNAUTHORIZED, "Not signed in").into_response();
+        };
+        match app.store.doc_access(u.id, q.doc) {
+            Ok(Some(a)) => (q.doc, a.write, u.id, display_name(u), color_for(u.id)),
+            _ => return (StatusCode::NOT_FOUND, "No such document").into_response(),
+        }
     };
-    let access = match app.store.doc_access(user.id, q.doc) {
-        Ok(Some(a)) => a,
-        _ => return (StatusCode::NOT_FOUND, "No such document").into_response(),
-    };
-    let doc_id = q.doc;
     // Bound per-message memory: operations are small; a 1 MiB cap still allows a
     // large paste but stops a hostile client allocating huge frames.
     ws.max_message_size(1 << 20)
         .max_frame_size(1 << 20)
-        .on_upgrade(move |socket| handle_socket(app, socket, user, doc_id, access.write))
+        .on_upgrade(move |socket| handle_socket(app, socket, author_id, name, color, doc_id, write))
 }
 
-async fn handle_socket(app: Shared, socket: WebSocket, user: User, doc_id: i64, can_write: bool) {
+fn display_name(u: &User) -> String {
+    if u.name.trim().is_empty() { u.email.clone() } else { u.name.clone() }
+}
+
+fn guest_name(token: &str) -> String {
+    // A short, stable label per link so two guests on the same link are distinct
+    // enough without exposing anything.
+    let n = token.bytes().map(|b| b as u32).sum::<u32>() % 1000;
+    format!("Gast {n}")
+}
+
+fn guest_color(token: &str) -> String {
+    let sum: usize = token.bytes().map(|b| b as usize).sum();
+    PALETTE[sum % PALETTE.len()].to_string()
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn handle_socket(app: Shared, socket: WebSocket, author_id: i64, name: String, color: String, doc_id: i64, can_write: bool) {
     let conn_id = CONN_SEQ.fetch_add(1, Ordering::Relaxed);
     let room = HUB.room(doc_id);
     let mut rx = room.tx.subscribe();
-    let name = if user.name.trim().is_empty() { user.email.clone() } else { user.name.clone() };
-    let color = color_for(user.id);
 
     let (mut sender, mut receiver) = socket.split();
 
@@ -183,7 +220,7 @@ async fn handle_socket(app: Shared, socket: WebSocket, user: User, doc_id: i64, 
         tokio::select! {
             msg = receiver.next() => {
                 match msg {
-                    Some(Ok(Message::Text(t))) => handle_client_frame(&app, &room, conn_id, &user, doc_id, can_write, &name, &color, t.as_str()),
+                    Some(Ok(Message::Text(t))) => handle_client_frame(&app, &room, conn_id, author_id, doc_id, can_write, &name, &color, t.as_str()),
                     Some(Ok(Message::Close(_))) | None => break,
                     Some(Ok(_)) => {}
                     Some(Err(_)) => break,
@@ -200,7 +237,7 @@ async fn handle_socket(app: Shared, socket: WebSocket, user: User, doc_id: i64, 
 }
 
 #[allow(clippy::too_many_arguments)]
-fn handle_client_frame(app: &Shared, room: &Room, conn_id: u64, user: &User, doc_id: i64, can_write: bool, name: &str, color: &str, text: &str) {
+fn handle_client_frame(app: &Shared, room: &Room, conn_id: u64, author_id: i64, doc_id: i64, can_write: bool, name: &str, color: &str, text: &str) {
     let Ok(v) = serde_json::from_str::<Value>(text) else { return };
     match v.get("type").and_then(|t| t.as_str()) {
         Some("op") => {
@@ -210,7 +247,7 @@ fn handle_client_frame(app: &Shared, room: &Room, conn_id: u64, user: &User, doc
             }
             let base = v.get("rev").and_then(|r| r.as_i64()).unwrap_or(-1);
             let op = v.get("op").cloned().unwrap_or(Value::Null);
-            match app.store.apply_op(doc_id, user.id, base, &op) {
+            match app.store.apply_op(doc_id, author_id, base, &op) {
                 Ok((rev, transformed)) => {
                     // Acknowledge to the sender with the committed (transformed) op.
                     let ack = json!({ "type": "ack", "rev": rev, "op": transformed });
@@ -239,6 +276,20 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
         return StatusCode::NOT_FOUND.into_response();
     }
     let api = path.trim_start_matches("/collab/api");
+    // Public: resolve a share link so a guest can open the document without an
+    // account. Returns only the title and whether the link grants editing.
+    if method == Method::GET {
+        let seg: Vec<&str> = api.trim_matches('/').split('/').filter(|s| !s.is_empty()).collect();
+        if let ["link", token] = seg.as_slice() {
+            return match app.store.link(token) {
+                Ok(Some((doc_id, can_write))) => {
+                    let title = app.store.doc(doc_id).ok().flatten().map(|d| d.name).unwrap_or_default();
+                    axum::Json(json!({ "docId": doc_id, "title": title, "canWrite": can_write })).into_response()
+                }
+                _ => (StatusCode::NOT_FOUND, axum::Json(json!({ "error": "Invalid or revoked link" }))).into_response(),
+            };
+        }
+    }
     if method != Method::GET && headers.get("X-Ondura-Collab").is_none() {
         return (StatusCode::FORBIDDEN, "missing request header").into_response();
     }
@@ -268,6 +319,9 @@ fn route(app: &Shared, user: &User, method: &Method, api: &str, _query: &str, bo
         (&Method::POST, ["docs", id, "rename"]) => rename_doc(app, user, id, body),
         (&Method::POST, ["docs", id, "share"]) => share_doc(app, user, id, body),
         (&Method::POST, ["docs", id, "unshare"]) => unshare_doc(app, user, id, body),
+        (&Method::POST, ["docs", id, "link"]) => create_link(app, user, id, body),
+        (&Method::POST, ["docs", id, "link", "update"]) => update_link(app, user, id, body),
+        (&Method::POST, ["docs", id, "link", "revoke"]) => revoke_link(app, user, id, body),
         (&Method::GET, ["docs", id, "ops"]) => ops_since(app, user, id, _query),
         (&Method::GET, ["docs", id, "history"]) => history(app, user, id),
         (&Method::GET, ["docs", id, "at", rev]) => content_at(app, user, id, rev),
@@ -326,9 +380,16 @@ fn get_doc(app: &Shared, user: &User, id: &str) -> ApiResult {
         .iter()
         .map(|(_, email, name, w)| json!({ "email": email, "name": name, "canWrite": w }))
         .collect();
+    let owned = doc.owner_id == user.id;
+    // Only the owner manages and sees the share links.
+    let links: Vec<Value> = if owned {
+        app.store.doc_links(id).map_err(ise)?.iter().map(|(token, w, _)| json!({ "token": token, "canWrite": w })).collect()
+    } else {
+        Vec::new()
+    };
     Ok(json!({
         "id": doc.id, "name": doc.name, "revision": doc.revision, "content": doc.content,
-        "owned": doc.owner_id == user.id, "canWrite": access.write, "shares": shares
+        "owned": owned, "canWrite": access.write, "shares": shares, "links": links
     }))
 }
 
@@ -336,6 +397,56 @@ fn delete_doc(app: &Shared, user: &User, id: &str) -> ApiResult {
     let id = owned_or_shared(app, user, id)?;
     require_owner(app, user, id)?;
     app.store.delete_doc(id).map_err(ise)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Create a shareable link (owner only).
+fn create_link(app: &Shared, user: &User, id: &str, body: &Bytes) -> ApiResult {
+    let id = owned_or_shared(app, user, id)?;
+    require_owner(app, user, id)?;
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct B {
+        #[serde(default)]
+        can_write: bool,
+    }
+    let b: B = parse(body)?;
+    let token = app.store.create_link(id, b.can_write).map_err(ise)?;
+    Ok(json!({ "ok": true, "token": token, "canWrite": b.can_write }))
+}
+
+/// Change a link's permission (owner only).
+fn update_link(app: &Shared, user: &User, id: &str, body: &Bytes) -> ApiResult {
+    let id = owned_or_shared(app, user, id)?;
+    require_owner(app, user, id)?;
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct B {
+        token: String,
+        #[serde(default)]
+        can_write: bool,
+    }
+    let b: B = parse(body)?;
+    if app.store.link(&b.token).map_err(ise)?.map(|(d, _)| d) != Some(id) {
+        return Err((StatusCode::NOT_FOUND, "Unknown link".into()));
+    }
+    app.store.set_link_write(&b.token, b.can_write).map_err(ise)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Revoke a link (owner only).
+fn revoke_link(app: &Shared, user: &User, id: &str, body: &Bytes) -> ApiResult {
+    let id = owned_or_shared(app, user, id)?;
+    require_owner(app, user, id)?;
+    #[derive(Deserialize)]
+    struct B {
+        token: String,
+    }
+    let b: B = parse(body)?;
+    if app.store.link(&b.token).map_err(ise)?.map(|(d, _)| d) != Some(id) {
+        return Err((StatusCode::NOT_FOUND, "Unknown link".into()));
+    }
+    app.store.revoke_link(&b.token).map_err(ise)?;
     Ok(json!({ "ok": true }))
 }
 
