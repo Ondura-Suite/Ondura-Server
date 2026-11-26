@@ -63,13 +63,17 @@ by default (inline styles stay allowed); when a message references remote
 content a banner offers a one-click "Load content" that re-renders with a
 permissive CSP.
 
-### 4. Outbound delivery uses opportunistic TLS without verification — informational
+### 4. Outbound delivery uses opportunistic TLS without verification — FIXED (MTA-STS)
 
-The outbound SMTP client accepts any certificate (`AcceptAny`). This is the
+The outbound SMTP client accepts any certificate (`AcceptAny`) by default — the
 standard opportunistic-TLS posture for MTA-to-MTA delivery, where most peers
-present self-signed certificates. For strict delivery security, enforce DANE
-(TLSA) and/or MTA-STS for domains that publish them; this is an enhancement, not
-a defect.
+present self-signed certificates. This is now tightened for domains that opt in:
+when a recipient domain publishes an **MTA-STS `enforce`** policy, Ondura
+fetches and caches it, restricts delivery to the policy's MX hosts, and requires
+a TLS connection whose certificate is valid for that host (WebPKI). If STARTTLS
+is missing or the certificate does not verify, the message is **deferred**, not
+sent in cleartext. Domains without a policy keep opportunistic TLS. DANE is still
+pending (see below).
 
 ## What was verified sound
 
@@ -107,7 +111,8 @@ a defect.
 - **Origin CSRF check** — mutating mail and collab API calls now reject a
   request whose browser `Origin` does not match the `Host`, on top of the
   existing custom-header requirement and `SameSite=Strict` cookie.
-- **MTA-STS enforcement** (finding 4, outbound) — see below.
+- **MTA-STS enforcement** (finding 4, outbound) — enforce-policy domains get
+  verified TLS to a policy-listed MX, or the message is deferred.
 
 ## Still recommended
 

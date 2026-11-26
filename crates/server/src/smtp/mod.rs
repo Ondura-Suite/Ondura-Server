@@ -4,6 +4,7 @@
 pub mod conn;
 pub mod delivery;
 pub mod dkim;
+pub mod mtasts;
 pub mod outbound;
 pub mod spam;
 pub mod submit;

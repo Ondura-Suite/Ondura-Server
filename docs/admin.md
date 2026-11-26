@@ -113,6 +113,9 @@ max_message_size = 52428800  # bytes
 verify_incoming = true       # SPF, DKIM and DMARC checks
 enforce_dmarc = true         # reject mail failing DMARC with p=reject
 queue_lifetime_days = 5      # then undeliverable mail bounces
+# Outbound TLS is opportunistic, but a recipient domain that publishes an
+# MTA-STS enforce policy is honoured automatically: delivery then requires a
+# verified certificate for a policy-listed MX, or the message is deferred.
 # relay = "smtp.provider.example:587"
 # relay_username = "user"
 # relay_password = "secret"

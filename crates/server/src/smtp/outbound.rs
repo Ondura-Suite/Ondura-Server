@@ -119,18 +119,28 @@ async fn deliver_domain(app: &Shared, domain: &str, sender: &str, rcpts: &[Strin
     let all = |o: Outcome| rcpts.iter().map(|r| (r.clone(), o.clone())).collect::<Vec<_>>();
     if let Some(relay) = &app.cfg.smtp.relay {
         let (host, port) = relay.rsplit_once(':').map(|(h, p)| (h.to_string(), p.parse().unwrap_or(587))).unwrap_or((relay.clone(), 587));
-        return match transmit(app, &host, port, true, sender, rcpts, raw).await {
+        return match transmit(app, &host, port, true, false, sender, rcpts, raw).await {
             Ok(r) => r,
             Err(e) => all(Outcome::Temporary(format!("relay {host}: {e:#}"))),
         };
     }
-    let hosts = match mx_hosts(app, domain).await {
+    let mut hosts = match mx_hosts(app, domain).await {
         Ok(h) => h,
         Err(o) => return all(o),
     };
+    // MTA-STS: an enforce policy requires verified TLS to a policy-listed MX.
+    let sts = super::mtasts::policy(domain).await;
+    let secure = matches!(&sts, Some(p) if p.mode == super::mtasts::Mode::Enforce);
+    if secure {
+        let policy = sts.as_ref().unwrap();
+        hosts.retain(|h| policy.allows_mx(h));
+        if hosts.is_empty() {
+            return all(Outcome::Temporary(format!("MTA-STS: no MX for {domain} matches the policy")));
+        }
+    }
     let mut last = Outcome::Temporary("no mail server reachable".into());
     for host in hosts.iter().take(5) {
-        match transmit(app, host, 25, false, sender, rcpts, raw).await {
+        match transmit(app, host, 25, false, secure, sender, rcpts, raw).await {
             Ok(results) => return results,
             Err(e) => {
                 warn!(%host, "SMTP delivery attempt failed: {e:#}");
@@ -151,7 +161,8 @@ fn expect(code: u16, lines: &[String], ok: u16) -> Result<()> {
 
 /// One SMTP transaction. `Err` means the whole attempt failed temporarily
 /// (connection problems); per-recipient results otherwise.
-async fn transmit(app: &Shared, host: &str, port: u16, relay: bool, sender: &str, rcpts: &[String], raw: &[u8]) -> Result<Vec<(String, Outcome)>> {
+#[allow(clippy::too_many_arguments)]
+async fn transmit(app: &Shared, host: &str, port: u16, relay: bool, secure: bool, sender: &str, rcpts: &[String], raw: &[u8]) -> Result<Vec<(String, Outcome)>> {
     let tcp = tokio::time::timeout(Duration::from_secs(30), TcpStream::connect((host, port))).await.map_err(|_| anyhow!("connect timeout"))??;
     let mut c = Conn::new(Stream::Plain(tcp));
     c.timeout = Duration::from_secs(300);
@@ -170,16 +181,18 @@ async fn transmit(app: &Shared, host: &str, port: u16, relay: bool, sender: &str
         c.reply("STARTTLS").await?;
         let (code, lines) = c.read_reply().await?;
         if code == 220 {
-            c.connect_tls(tls::client_config(relay), host).await?;
+            // Verify the certificate for a relay or an MTA-STS enforce target;
+            // a verification failure returns an error and the message is deferred.
+            c.connect_tls(tls::client_config(relay || secure), host).await?;
             c.reply(&format!("EHLO {}", app.hostname())).await?;
             let (code, e) = c.read_reply().await?;
             expect(code, &e, 250)?;
             ext = e;
-        } else if relay {
-            return Err(anyhow!("relay refused STARTTLS: {code} {}", lines.join(" ")));
+        } else if relay || secure {
+            return Err(anyhow!("STARTTLS required but refused: {code} {}", lines.join(" ")));
         }
-    } else if relay && !c.is_tls() {
-        return Err(anyhow!("relay does not offer STARTTLS"));
+    } else if (relay || secure) && !c.is_tls() {
+        return Err(anyhow!("STARTTLS required but not offered"));
     }
     if relay && let (Some(u), Some(p)) = (&app.cfg.smtp.relay_username, &app.cfg.smtp.relay_password) {
         c.reply(&format!("AUTH PLAIN {}", B64.encode(format!("\0{u}\0{p}")))).await?;
