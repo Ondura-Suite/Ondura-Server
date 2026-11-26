@@ -92,7 +92,8 @@ CREATE TABLE IF NOT EXISTS items (
     range_start INTEGER,
     range_end INTEGER,
     in_reply_to TEXT,
-    refs TEXT
+    refs TEXT,
+    body_text TEXT
 );
 CREATE INDEX IF NOT EXISTS items_folder ON items(folder_id, modseq);
 CREATE INDEX IF NOT EXISTS items_folder_received ON items(folder_id, received);
@@ -1353,8 +1354,8 @@ impl Store {
             let tx = db.transaction()?;
             let modseq = Self::next_modseq(&tx, m.user_id)?;
             let id: i64 = tx.query_row(
-                "INSERT INTO items (user_id, folder_id, kind, modseq, created_modseq, writer, received, size, flags, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, mime, data, in_reply_to, refs)
-                 VALUES (?1, ?2, 'mail', ?3, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19) RETURNING id",
+                "INSERT INTO items (user_id, folder_id, kind, modseq, created_modseq, writer, received, size, flags, subject, sender, recipients, preview, has_attachments, importance, message_id, message_class, mime, data, in_reply_to, refs, body_text)
+                 VALUES (?1, ?2, 'mail', ?3, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20) RETURNING id",
                 params![
                     m.user_id,
                     m.folder_id,
@@ -1375,6 +1376,7 @@ impl Store {
                     meta.calendar,
                     meta.in_reply_to,
                     meta.references,
+                    meta.search_text,
                 ],
                 |r| r.get(0),
             )?;
@@ -1454,7 +1456,7 @@ impl Store {
             let tx = db.transaction()?;
             let modseq = Self::next_modseq(&tx, item.user_id)?;
             tx.execute(
-                "UPDATE items SET mime = ?1, size = ?2, subject = ?3, sender = ?4, recipients = ?5, preview = ?6, has_attachments = ?7, message_id = ?8, modseq = ?9, writer = ?10 WHERE id = ?11",
+                "UPDATE items SET mime = ?1, size = ?2, subject = ?3, sender = ?4, recipients = ?5, preview = ?6, has_attachments = ?7, message_id = ?8, modseq = ?9, writer = ?10, body_text = ?12 WHERE id = ?11",
                 params![
                     raw,
                     raw.len() as i64,
@@ -1466,7 +1468,8 @@ impl Store {
                     meta.message_id,
                     modseq,
                     writer,
-                    id
+                    id,
+                    meta.search_text,
                 ],
             )?;
             tx.commit()?;
@@ -1571,8 +1574,9 @@ impl Store {
     }
 
 
-    /// Simple full-text search over subject, sender, recipients, preview and
-    /// (for PIM items) the JSON data. All words must match.
+    /// Simple full-text search over subject, sender, recipients, preview, the
+    /// full body text and attachment names, and (for PIM items) the JSON data.
+    /// All words must match.
     pub fn search(&self, user_id: i64, folder_ids: &[i64], query: &str, limit: i64) -> Result<Vec<Item>> {
         let words: Vec<String> = query.split_whitespace().map(|w| format!("%{}%", w.replace(['%', '_'], ""))).filter(|w| w.len() > 2).collect();
         let db = self.db();
@@ -1583,7 +1587,7 @@ impl Store {
         for i in 0..words.len() {
             let p = i + 2;
             sql.push_str(&format!(
-                " AND (subject LIKE ?{p} OR COALESCE(sender, '') LIKE ?{p} OR recipients LIKE ?{p} OR preview LIKE ?{p} OR COALESCE(data, '') LIKE ?{p})"
+                " AND (subject LIKE ?{p} OR COALESCE(sender, '') LIKE ?{p} OR recipients LIKE ?{p} OR preview LIKE ?{p} OR COALESCE(body_text, '') LIKE ?{p} OR COALESCE(data, '') LIKE ?{p})"
             ));
         }
         sql.push_str(&format!(" ORDER BY received DESC LIMIT {}", limit.max(1)));

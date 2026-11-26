@@ -334,3 +334,27 @@ fn contacts_save_list_delete() {
     let list = contacts_api::list(&app, &user).unwrap();
     assert_eq!(list["contacts"].as_array().unwrap().len(), 0);
 }
+
+#[test]
+fn search_matches_body_and_attachment_name() {
+    use crate::store::{NewMail, now};
+    let (app, user) = App::test();
+    let inbox = app.store.folder_by_role(user.id, "inbox").unwrap().unwrap();
+    // Distinctive word only in the body.
+    let body = b"From: a@example.com\r\nSubject: Hallo\r\nContent-Type: text/plain\r\n\r\nDies enthaelt das Zauberwort Flux im Text.";
+    app.store.insert_mail(NewMail { user_id: user.id, folder_id: inbox.id, mime: body, flags: 0, received: now(), writer: "smtp" }).unwrap();
+    // Distinctive word only in an attachment filename.
+    let att = concat!(
+        "From: b@example.com\r\nSubject: Rechnung\r\n",
+        "Content-Type: multipart/mixed; boundary=bd\r\n\r\n",
+        "--bd\r\nContent-Type: text/plain\r\n\r\nsiehe Anhang\r\n",
+        "--bd\r\nContent-Type: application/pdf; name=\"Quartalsbericht.pdf\"\r\n",
+        "Content-Disposition: attachment; filename=\"Quartalsbericht.pdf\"\r\n",
+        "Content-Transfer-Encoding: base64\r\n\r\nSGVsbG8=\r\n--bd--\r\n"
+    );
+    app.store.insert_mail(NewMail { user_id: user.id, folder_id: inbox.id, mime: att.as_bytes(), flags: 0, received: now(), writer: "smtp" }).unwrap();
+
+    assert_eq!(app.store.search(user.id, &[inbox.id], "Flux", 20).unwrap().len(), 1);
+    assert_eq!(app.store.search(user.id, &[inbox.id], "Quartalsbericht", 20).unwrap().len(), 1);
+    assert!(app.store.search(user.id, &[inbox.id], "Nichtvorhandenes", 20).unwrap().is_empty());
+}

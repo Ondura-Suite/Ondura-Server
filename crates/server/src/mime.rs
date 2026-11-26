@@ -23,6 +23,8 @@ pub struct MailMeta {
     pub references: Option<String>,
     pub importance: Importance,
     pub preview: String,
+    /// Full plaintext body plus attachment filenames, for server-side search.
+    pub search_text: String,
     pub has_attachments: bool,
     /// Exchange message class (`IPM.Note`, `IPM.Schedule.Meeting.Request`, …).
     pub message_class: String,
@@ -117,6 +119,7 @@ pub fn parse_meta(raw: &[u8]) -> MailMeta {
         },
         importance,
         preview,
+        search_text: search_text_of(&msg),
         has_attachments,
         message_class,
         calendar,
@@ -136,6 +139,25 @@ fn preview_of(msg: &mail_parser::Message<'_>) -> String {
         .unwrap_or_default();
     let collapsed = text.split_whitespace().collect::<Vec<_>>().join(" ");
     collapsed.chars().take(255).collect()
+}
+
+/// Full searchable text of a message: the plaintext body (or HTML converted to
+/// text) plus attachment filenames, capped so one huge message can't bloat the
+/// index. Used for server-side search across all protocols.
+fn search_text_of(msg: &mail_parser::Message<'_>) -> String {
+    let mut text = msg
+        .body_text(0)
+        .map(|t| t.into_owned())
+        .or_else(|| msg.body_html(0).map(|h| html_to_text(&h)))
+        .unwrap_or_default();
+    for a in msg.attachments() {
+        if let Some(name) = a.attachment_name() {
+            text.push(' ');
+            text.push_str(name);
+        }
+    }
+    let collapsed = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    collapsed.chars().take(64 * 1024).collect()
 }
 
 /// Bodies of a message: (plain text, HTML).
