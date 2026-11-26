@@ -34,6 +34,18 @@ Contents:
 
 ### Debian and Ubuntu
 
+Install from the MirraNET APT repository (`apt.mirranet.de`, Debian 12+, Ubuntu 22.04+, x86_64 and ARM64). Import the signing key, add the repository, then install; later releases arrive with `sudo apt upgrade`:
+
+```sh
+sudo install -d /etc/apt/keyrings
+sudo curl -fsSL https://apt.mirranet.de/mirranet.gpg -o /etc/apt/keyrings/mirranet.gpg
+echo "deb [signed-by=/etc/apt/keyrings/mirranet.gpg] https://apt.mirranet.de stable main" \
+    | sudo tee /etc/apt/sources.list.d/mirranet.list
+sudo apt update && sudo apt install ondura-server
+```
+
+Or download a release package from GitHub and install the file directly:
+
 ```sh
 sudo apt install ./ondura-server_<version>-1_amd64.deb
 ```

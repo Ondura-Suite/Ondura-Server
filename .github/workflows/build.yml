@@ -113,3 +113,46 @@ jobs:
           NOTES
           sed -i 's/^          //' notes.md
           gh release create "$TAG" dist/* --repo "$GITHUB_REPOSITORY" --title "Ondura Server ${version}" --notes-file notes.md
+
+  apt:
+    # Publish the release packages to the MirraNET APT repository (apt.mirranet.de). The reprepro
+    # repository and the signing key live on the server; the deploy user reaches it over SSH and
+    # reprepro signs the index there. Runs only for tags, and is skipped when the deploy secrets
+    # are not configured.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - name: Publish to APT repository
+        env:
+          APT_HOST: ${{ secrets.APT_HOST }}
+          APT_SSH_KEY: ${{ secrets.APT_SSH_KEY }}
+          APT_KNOWN_HOSTS: ${{ secrets.APT_KNOWN_HOSTS }}
+          APT_REPO: ${{ secrets.APT_REPO }}
+          APT_PORT: ${{ secrets.APT_PORT }}
+          APT_SUITE: stable
+        run: |
+          if [ -z "${APT_HOST:-}" ]; then
+            echo "::notice::APT deploy secrets not set; skipping APT publish."
+            exit 0
+          fi
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$APT_SSH_KEY" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          printf '%s\n' "$APT_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          opt="-o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o Port=${APT_PORT:-22} -i $HOME/.ssh/id_deploy"
+          # Copy the script and the .deb packages to a temp dir on the server and run reprepro
+          # there, with the server's signing key.
+          tmp=$(ssh $opt "$APT_HOST" mktemp -d)
+          scp $opt -q packaging/apt/publish.sh dist/*.deb "$APT_HOST:$tmp/"
+          ssh $opt "$APT_HOST" bash -s -- "$tmp" "$APT_REPO" "$APT_SUITE" <<'EOF'
+          rc=0
+          bash "$1/publish.sh" "$2" "$3" "$1"/*.deb || rc=$?
+          rm -rf "$1"
+          exit $rc
+          EOF
