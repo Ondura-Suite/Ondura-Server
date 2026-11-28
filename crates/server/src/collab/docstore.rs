@@ -180,6 +180,25 @@ impl Store {
     }
 
     /// Users a document is shared with: (user_id, email, name, can_write).
+    /// Documents shared directly with a user (not ones they own), newest first.
+    /// Returns, per document, its id, name, the drive item wrapping it, the
+    /// owner's display name and the last-updated time.
+    pub fn docs_shared_with(&self, user_id: i64) -> Result<Vec<crate::cloud::SharedDoc>> {
+        let db = self.db();
+        let stmt = db.prepare(
+            "SELECT d.id, d.name, i.id, COALESCE(NULLIF(u.name, ''), u.email), d.updated \
+             FROM collab_shares s \
+             JOIN collab_docs d ON d.id = s.doc_id \
+             JOIN users u ON u.id = d.owner_id \
+             JOIN drive_items i ON i.doc_id = d.id AND i.trashed = 0 \
+             WHERE s.user_id = ?1 AND d.owner_id <> ?1 \
+             ORDER BY d.updated DESC, d.id DESC",
+        )?;
+        stmt.query_map([user_id], |r| {
+            Ok(crate::cloud::SharedDoc { doc_id: r.get(0)?, name: r.get(1)?, item_id: r.get(2)?, owner: r.get(3)?, updated: r.get(4)? })
+        })
+    }
+
     pub fn doc_shares(&self, doc_id: i64) -> Result<Vec<(i64, String, String, bool)>> {
         let db = self.db();
         let stmt = db.prepare(

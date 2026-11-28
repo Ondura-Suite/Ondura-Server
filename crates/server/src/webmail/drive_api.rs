@@ -515,6 +515,16 @@ pub fn download_version(app: &Shared, user: &User, query: &str) -> Response {
     r
 }
 
+/// Documents shared directly with the signed-in user (not ones they own).
+pub fn shared_with_me(app: &Shared, user: &User) -> ApiResult {
+    let docs = app.store.docs_shared_with(user.id).map_err(internal)?;
+    Ok(json!({
+        "items": docs.iter().map(|d| json!({
+            "doc": d.doc_id, "item": d.item_id, "name": d.name, "owner": d.owner, "updated": d.updated,
+        })).collect::<Vec<_>>(),
+    }))
+}
+
 // ------------------------------------------------------------- item share links
 
 #[derive(Deserialize)]

@@ -80,6 +80,16 @@ pub struct RecentItem {
     pub drive_kind: String,
 }
 
+/// A document shared directly with a user, for the "Shared with me" view.
+#[derive(Debug, Clone, Serialize)]
+pub struct SharedDoc {
+    pub doc_id: i64,
+    pub name: String,
+    pub item_id: i64,
+    pub owner: String,
+    pub updated: i64,
+}
+
 /// A share link on a file or folder.
 #[derive(Debug, Clone, Serialize)]
 pub struct ItemLink {
@@ -903,6 +913,25 @@ mod tests {
         s.revoke_item_link(&token).unwrap();
         assert!(s.item_by_link(&token).unwrap().is_none());
         assert!(s.item_links(file).unwrap().is_empty());
+    }
+
+    #[test]
+    fn shared_with_me_lists_documents_shared_directly() {
+        let (app, owner) = App::test();
+        let s = &app.store;
+        let bob = s.create_user("bob@example.com", "Bob", "pw", "user").unwrap();
+        let d = s.ensure_personal_drive(owner.id).unwrap();
+        let (_it, doc) = s.create_drive_doc(d, None, "Plan", owner.id).unwrap();
+
+        // Nothing is shared with Bob yet.
+        assert!(s.docs_shared_with(bob.id).unwrap().is_empty());
+        // Share the owner's document with Bob; it now appears for him, not the owner.
+        s.share_doc(doc, bob.id, true).unwrap();
+        let shared = s.docs_shared_with(bob.id).unwrap();
+        assert_eq!(shared.len(), 1);
+        assert_eq!(shared[0].doc_id, doc);
+        assert_eq!(shared[0].owner, "Niklas Linz");
+        assert!(s.docs_shared_with(owner.id).unwrap().is_empty());
     }
 
     #[test]

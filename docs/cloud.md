@@ -80,6 +80,7 @@ Sharing and browsing:
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/mail/api/cloud/recent?limit=` | The user's most recently updated files and documents across all their drives, each with the drive it lives in. |
+| GET | `/mail/api/cloud/shared-with-me` | Documents shared directly with the user (not ones they own), each with its owner. |
 | GET | `/mail/api/cloud/links?item=` | A file or folder's share links. |
 | POST | `/mail/api/cloud/link` | Create a share link (`{ "item", "write", "expires_days" }`; `expires_days` of `0` means no expiry). |
 | POST | `/mail/api/cloud/link/update` | Change a link's access (`{ "token", "write", "expires_days" }`). |
@@ -134,7 +135,8 @@ Members (libraries only):
 ## Webmail
 
 A **Files** entry appears in the webmail navigation when the module is enabled.
-It shows the personal drive under **My Files** and a **Recent** list, with folder
+It shows the personal drive under **My Files**, a **Recent** list and a **Shared
+with me** list of documents other people have shared directly, with folder
 browsing, drag-free breadcrumb navigation, file upload and download, inline
 previews for images, PDFs and text, new folders and new documents, rename, share
 links, version history, a **Recycle bin** that restores or permanently removes
