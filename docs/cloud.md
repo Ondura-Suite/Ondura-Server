@@ -26,9 +26,10 @@ below then returns `404` and the **Files** area disappears from webmail.
   documents stored in it with the same read/write level.
 
 Uploaded file contents are stored on disk under the configured directory
-(`<files_dir>/<drive_id>/<item_id>`); the database holds only metadata (name,
-size, content type, tree position). Documents store their text in the database
-like any collab document.
+(`<files_dir>/<drive_id>/<item_id>`, with previous versions under
+`<files_dir>/<drive_id>/<item_id>.versions/<version_id>`); the database holds
+only metadata (name, size, content type, tree position). Documents store their
+text in the database like any collab document.
 
 ## Configuration
 
@@ -71,8 +72,37 @@ Items:
 | POST | `/mail/api/cloud/rename` | Rename an item (`{ "item", "name" }`). |
 | POST | `/mail/api/cloud/move` | Move an item to another folder in the same drive (`{ "item", "parent" }`). |
 | POST | `/mail/api/cloud/delete` | Move an item (and its subtree) to the recycle bin (`{ "item" }`). |
-| POST | `/mail/api/cloud/upload?drive=&parent=&name=` | Upload a file; the body is the raw file content and `Content-Type` its type. |
-| GET | `/mail/api/cloud/download/{item}` | Download a file. |
+| POST | `/mail/api/cloud/upload?drive=&parent=&name=` | Upload a file; the body is the raw file content and `Content-Type` its type. Uploading over a same-name file overwrites it and keeps the previous contents as a version. |
+| GET | `/mail/api/cloud/download/{item}` | Download a file (images, PDFs and text are served inline so they can be previewed). |
+
+Sharing and browsing:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/mail/api/cloud/recent?limit=` | The user's most recently updated files and documents across all their drives, each with the drive it lives in. |
+| GET | `/mail/api/cloud/links?item=` | A file or folder's share links. |
+| POST | `/mail/api/cloud/link` | Create a share link (`{ "item", "write" }`). |
+| POST | `/mail/api/cloud/link/update` | Change a link's access (`{ "token", "write" }`). |
+| POST | `/mail/api/cloud/link/revoke` | Revoke a link (`{ "token" }`). |
+| GET | `/mail/api/cloud/shared/{token}` | Public: a share link's target (file or folder), no account required. |
+| GET | `/mail/api/cloud/shared/{token}/items?parent=` | Public: browse a shared folder's subtree. |
+| GET | `/mail/api/cloud/shared/{token}/download?item=` | Public: download a shared file (`item` names a file inside a shared folder). |
+
+A share link opens a read-only guest view: a single file shows an inline preview
+(images, PDFs, text) with a download button, and a folder can be browsed within
+its own subtree. A link to a trashed item stops resolving until it is restored.
+
+Version history:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/mail/api/cloud/versions?item=` | A file's stored versions, newest first. |
+| POST | `/mail/api/cloud/version/restore` | Restore a version (`{ "item", "version" }`); the current contents are snapshotted first, so a restore can be undone. |
+| GET | `/mail/api/cloud/version/download?version=` | Download one stored version. |
+
+A file keeps its previous contents as a version whenever it is overwritten, over
+both the webmail upload and WebDAV. History is capped at the newest 50 versions
+per file; version data is removed with the file when it is permanently deleted.
 
 Recycle bin (per drive):
 
@@ -85,8 +115,8 @@ Recycle bin (per drive):
 
 Deleting an item is a soft delete: it moves to the drive's recycle bin and stays
 out of the normal listings, but still counts toward the storage quota until the
-bin is emptied, matching OneDrive and SharePoint. Overwriting a file on upload
-and deleting a library remain hard deletes.
+bin is emptied, matching OneDrive and SharePoint. Deleting a library is a hard
+delete of the whole library.
 
 Members (libraries only):
 
@@ -99,16 +129,15 @@ Members (libraries only):
 ## Webmail
 
 A **Files** entry appears in the webmail navigation when the module is enabled.
-It shows the personal drive and any libraries as tabs, with folder browsing,
-drag-free breadcrumb navigation, file upload and download, new folders and new
-documents, rename and delete, a **Recycle bin** view that restores or
-permanently removes deleted items, and — for libraries — a member manager.
-Opening a document hands over to the collaborative editor described in
-`collab.md`.
+It shows the personal drive under **My Files** and a **Recent** list, with folder
+browsing, drag-free breadcrumb navigation, file upload and download, inline
+previews for images, PDFs and text, new folders and new documents, rename, share
+links, version history, a **Recycle bin** that restores or permanently removes
+deleted items, and — for libraries — a member manager. Opening a document hands
+over to the collaborative editor described in `collab.md`.
 
-Collaborative documents live **only** inside the cloud now: they are created as
-items in a drive and opened from Files, and there is no separate documents
-section.
+Collaborative documents live **only** inside the cloud: they are created as items
+in a drive and opened from Files, with no separate documents section.
 
 The cloud is split into two apps with their own URLs: **Files** (`/files`, the
 personal drive, OneDrive-style) and **SharePoint** (`/sharepoint`, the shared

@@ -10,8 +10,8 @@ has its own URL:
 
 | App | URL | Contents |
 | --- | --- | --- |
-| Mail | `/mail` | Mail, calendar and contacts (like Outlook), switched from the app's own left navigation. |
-| Files | `/files` | The personal drive (OneDrive-style). |
+| Mail | `/mail` | Mail, calendar and contacts (like Outlook), switched from the app's own left navigation. Present only for accounts with a mailbox. |
+| Files | `/files` | The personal drive (OneDrive-style), with a Recent list, previews, share links and version history. |
 | SharePoint | `/sharepoint`, `/sharepoint/<id>` | Shared libraries; each library has its own link, so it can be shared or bookmarked. |
 | Tasks | `/tasks` | Tasks. |
 | Notes | `/notes` | Notes. |
@@ -22,13 +22,18 @@ home tiles or the app launcher (the grid button, top left); the Ondura logo
 returns to the dashboard. Admins also get an **Admin Center** tile linking to
 `/admin`. The Compose button and mail search appear only inside the Mail app.
 
+An account does not have to be a mailbox (see `admin.md`). An account without a
+mailbox signs in and uses Files, SharePoint, Tasks and Notes as usual, but the
+Mail, Calendar and Contacts app is not shown.
+
 ![Webmail](screenshots/webmail.png)
 
 ## Signing in
 
-Open `https://<your host name>/mail` and sign in with any enabled user mailbox
-(the same address and password used for a mail client). The root URL `/`
-redirects here. Room and shared mailboxes cannot sign in interactively.
+Open `https://<your host name>/mail` and sign in with any enabled user account
+(the same address and password used for a mail client, when the account has a
+mailbox). The root URL `/` redirects here. Room and shared mailboxes cannot sign
+in interactively.
 
 The interface is in German or English (switch with the globe icon) and follows
 the system's light or dark appearance.

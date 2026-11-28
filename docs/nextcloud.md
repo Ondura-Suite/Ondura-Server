@@ -9,7 +9,7 @@ This surface is part of the cloud module and turns off with it
 
 ## Per-user, off by default
 
-The interface is **disabled per mailbox by default**. A user turns it on under
+The interface is **disabled per account by default**. A user turns it on under
 **Settings → Mobile app (Nextcloud)** in webmail; until then every WebDAV and
 OCS request for that account is rejected and the login flow refuses to grant an
 app password. The administrator can also turn the whole module off with
@@ -19,7 +19,7 @@ app password. The administrator can also turn the whole module off with
 
 1. In the Nextcloud app, enter the server address — your Ondura host, e.g.
    `https://mail.mirranet.de`. The app detects the server via `/status.php`.
-2. The app opens a browser page (Login Flow v2). Sign in with the mailbox
+2. The app opens a browser page (Login Flow v2). Sign in with the account
    e-mail and password and press **Grant access**.
 3. The app receives an **app password** and connects. Everything the app does
    from then on maps to the user's personal drive (**My Files**).
@@ -47,7 +47,7 @@ upload reliably.
 
 ## Authentication
 
-Clients use HTTP Basic auth with the mailbox e-mail and **either** the account
+Clients use HTTP Basic auth with the account e-mail and **either** the account
 password **or** an app password obtained through the login flow. App passwords
 are long-lived tokens; each is stored and can be used until removed.
 

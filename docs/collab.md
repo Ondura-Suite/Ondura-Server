@@ -36,10 +36,12 @@ guard; native clients using Basic auth can simply always send it).
 
 Base path `…/collab/api`. Bodies and responses are JSON.
 
+Documents are created and listed through the cloud API (`cloud.md`): a document
+is an item in a drive, made with `POST /mail/api/cloud/doc` and found by browsing
+its drive. The endpoints here operate on an existing document by id.
+
 | Method & path | Purpose |
 | --- | --- |
-| `GET /docs` | List documents the user owns or that are shared with them. |
-| `POST /docs` | Create a document. Body `{ "name": "…" }`. Returns `{ "id": N }`. |
 | `GET /docs/{id}` | Full document: `name`, `revision`, `content`, `owned`, `canWrite`, `shares`. |
 | `POST /docs/{id}/rename` | Owner only. Body `{ "name": "…" }`. |
 | `DELETE /docs/{id}` | Owner only. |

@@ -4,11 +4,11 @@
 
 <h1 align="center">Ondura Server</h1>
 
-<p align="center"><b>Mail · Calendar · Contacts · Tasks</b> – one server for your domain, with Exchange ActiveSync and Exchange Web Services</p>
+<p align="center"><b>Mail · Calendar · Contacts · Tasks · Files</b> – one server for your domain, with Exchange ActiveSync and Exchange Web Services</p>
 
 <p align="center"><a href="https://ondura.mirranet.de">ondura.mirranet.de</a></p>
 
-**Ondura Server** is a complete mail server for small and medium organisations. It receives and sends e-mail for your domains and keeps calendars, contacts and tasks for every mailbox. Phones, tablets and desktop apps connect with the protocols they already speak, so people just enter their e-mail address and password:
+**Ondura Server** is a complete mail and collaboration server for small and medium organisations, in the style of Office 365. It receives and sends e-mail for your domains, keeps calendars, contacts and tasks, and provides cloud file storage with personal drives and shared libraries. Every person has an account; a mailbox is an optional capability of that account, so an account can use files and collaboration without being a mailbox. Phones, tablets and desktop apps connect with the protocols they already speak, so people just enter their e-mail address and password:
 
 - **Ondura Mail** on Windows, macOS and Linux
 - **Outlook for iOS and Android**, the built-in mail, calendar and contacts apps of **iPhone, iPad** and **Android**
@@ -42,18 +42,26 @@ Everything runs as one program with one database: no separate mail transfer agen
 - Device overview, blocking and remote wipe
 - Automatic setup through Autodiscover
 
+**Cloud storage**
+
+- **Personal drives** (like OneDrive) and shared **libraries** (like SharePoint) with members and owner/editor/viewer roles — see [Cloud storage](docs/cloud.md)
+- Folders, file upload and download, inline previews for images, PDFs and text, a Recent list, rename, move and a per-drive recycle bin
+- **Share links** for files and folders that anyone can open as a read-only guest, and **version history** that keeps previous contents of a file
+- **Nextcloud-compatible** so the official Nextcloud mobile and desktop apps connect to the personal drive for automatic photo upload — see [Nextcloud clients](docs/nextcloud.md)
+
 **Collaboration**
 
 - **Real-time collaborative documents**: several people signed in with their accounts edit the same text at once, with live presence, sharing per account (read-only or read-write), and conflict-free merging via Operational Transform
-- A document REST API and a WebSocket for editing, so the Ondura clients can integrate it — see [Collaborative documents](docs/collab.md)
+- Documents live inside the cloud storage next to ordinary files; a document REST API and a WebSocket let the Ondura clients integrate editing — see [Collaborative documents](docs/collab.md)
 
 **Modular**
 
-- Features are toggles: webmail, the Admin Center and collaboration can each be turned off. With `[collab] enabled = false` (and the HTTP toggles) Ondura runs as a pure mail server
+- Features are toggles: webmail, the Admin Center, cloud storage (`[cloud]`) and collaboration (`[collab]`) can each be turned off. Turn them all off and Ondura runs as a pure mail server
 
 **Webmail**
 
-- **Webmail** in the browser at `/mail`: sign in with any mailbox and read, write and organise mail, calendar and contacts – no extra client needed, in German and English, light and dark
+- **Webmail** in the browser at `/mail`: sign in with any account and read, write and organise mail, calendar and contacts – no extra client needed, in German and English, light and dark
+- A home dashboard with an app for each area — Mail (with calendar and contacts), Files, SharePoint, Tasks and Notes — each at its own URL
 - Compose with attachments, reply and forward, flag, move and delete; month calendar with invitations; contact management
 - Shares the same storage as ActiveSync and EWS, so changes appear everywhere at once
 
@@ -102,8 +110,10 @@ Then open `https://<your host name>/admin` and sign in with the mailbox you just
 
 ## Documentation
 
-- [Admin guide](docs/admin.md) – installation, configuration, DNS, certificates, clients, backups
-- [Webmail](docs/webmail.md) – browser access to mail, calendar and contacts at `/mail`
+- [Admin guide](docs/admin.md) – installation, configuration, DNS, certificates, clients, backups, accounts and mailboxes
+- [Webmail](docs/webmail.md) – browser access to mail, calendar, contacts, files and SharePoint at `/mail`
+- [Cloud storage](docs/cloud.md) – personal drives, shared libraries, sharing and versions
+- [Nextcloud clients](docs/nextcloud.md) – connecting the Nextcloud app for photo auto-upload
 - [Collaborative documents](docs/collab.md) – real-time co-editing, sharing, and the client API
 - [Development](docs/development.md) – architecture, protocols, building and testing
 - [Security](SECURITY.md) and [fuzzing](docs/fuzzing.md)
