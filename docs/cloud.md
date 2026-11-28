@@ -2,7 +2,10 @@
 
 Ondura Server is more than a mail server: it also provides cloud file storage in
 the style of Office 365, with personal drives (like OneDrive) and shared
-libraries (like SharePoint). The collaborative documents live inside this
+libraries (like SharePoint).
+
+![Cloud](screenshots/cloud.png)
+ The collaborative documents live inside this
 storage, so a document is an item in a drive next to ordinary files.
 
 This is an optional module. Set `enabled = false` under `[cloud]` to turn it off
