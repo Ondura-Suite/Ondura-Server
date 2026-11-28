@@ -523,6 +523,10 @@ impl Store {
                 files.push(*item);
             }
             db.execute("UPDATE drive_items SET drive_id = ?1 WHERE id = ?2", params![drive_id, *item])?;
+            // Own permissions and metadata values belong to the old library.
+            db.execute("DELETE FROM drive_item_acl WHERE item_id = ?1", [*item])?;
+            db.execute("DELETE FROM drive_restricted WHERE item_id = ?1", [*item])?;
+            db.execute("DELETE FROM drive_item_fields WHERE item_id = ?1", [*item])?;
         }
         db.execute(
             "UPDATE drive_items SET parent_id = ?1, name = ?2, updated = ?3, updated_by = ?4 WHERE id = ?5",

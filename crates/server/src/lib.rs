@@ -9,6 +9,7 @@ pub mod auth;
 pub mod autodiscover;
 pub mod calendar;
 pub mod cloud;
+pub mod library;
 pub mod config;
 pub mod db;
 pub mod directory;
@@ -139,7 +140,7 @@ enum DomainCmd {
 
 #[derive(Subcommand)]
 enum UserCmd {
-    /// Create a mailbox. Without --password a random one is printed.
+    /// Create an account. Without --password a random one is printed.
     Add {
         email: String,
         #[arg(long, default_value = "")]

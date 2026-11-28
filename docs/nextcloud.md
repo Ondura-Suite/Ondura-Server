@@ -56,6 +56,13 @@ upload reliably.
   reachable over WebDAV.
 - Library members with the **viewer** role get read-only access: the folders
   report read-only permissions and writes are refused with `403`.
+- Folders with their own permissions (see `cloud.md`) follow their access list:
+  a folder the account isn't on is not listed and can't be reached, and a
+  read-only entry makes it read-only. Accounts that only have access to such a
+  folder, without being library members, reach it through the webmail.
+- A file checked out by someone else can't be overwritten, moved or deleted;
+  those requests get `423 Locked`, as does deleting or moving a folder that
+  contains one.
 - Nothing can be created directly in `SharePoint/`, and a library folder cannot
   be renamed, moved or deleted over WebDAV.
 - `MOVE` works within a drive and between drives (personal drive ↔ library, or

@@ -12,7 +12,7 @@ has its own URL:
 | --- | --- | --- |
 | Mail | `/mail` | Mail, calendar and contacts (like Outlook), switched from the app's own left navigation. Present only for accounts with a mailbox. |
 | Files | `/files` | The personal drive (OneDrive-style), with a Recent list, previews, share links and version history. |
-| SharePoint | `/sharepoint`, `/sharepoint/<id>` | Shared libraries; each library has its own link, so it can be shared or bookmarked. |
+| SharePoint | `/sharepoint`, `/sharepoint/<id>`, `/sharepoint/<id>/<folder>` | Shared libraries with members, folder permissions, check-out, columns and guest links; each library and folder has its own link, so it can be shared or bookmarked. |
 | Tasks | `/tasks` | Tasks. |
 | Notes | `/notes` | Notes. |
 | Home | `/` | The dashboard. |

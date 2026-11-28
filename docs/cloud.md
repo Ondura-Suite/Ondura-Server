@@ -5,8 +5,9 @@ the style of Office 365, with personal drives (like OneDrive) and shared
 libraries (like SharePoint).
 
 ![Cloud](screenshots/cloud.png)
- The collaborative documents live inside this
-storage, so a document is an item in a drive next to ordinary files.
+
+The collaborative documents live inside this storage, so a document is an item
+in a drive next to ordinary files.
 
 This is an optional module. Set `enabled = false` under `[cloud]` to turn it off
 entirely, independently of mail and of the `[collab]` module; every endpoint
@@ -24,6 +25,23 @@ below then returns `404` and the **Files** area disappears from webmail.
   create, upload, rename, move and delete, and an `owner` may additionally
   manage members and the library itself. Members of a drive can open the
   documents stored in it with the same read/write level.
+- A library folder can have **its own permissions**. From then on it and
+  everything below it use the folder's access list instead of the library's
+  members; the list starts as a copy of the members and can include accounts
+  that are not library members. Library owners always keep full access. Such a
+  folder is hidden from everyone not on its list — in listings, search, recent
+  files, WebDAV and share links of the library — and appears under **Shared
+  with me** for people who were added to it without being library members.
+- A file can be **checked out**. Until it is checked in, only the person who
+  checked it out can change it (upload over it, rename, move, delete or edit its
+  properties); others get `423 Locked`, over the API and over WebDAV. A folder
+  holding a checked-out file can't be moved or deleted by others either. The
+  holder checks the file in; owners can discard someone else's check-out.
+- A library can define **columns** — metadata fields of type text, number,
+  date (`YYYY-MM-DD`), choice or yes/no. Every item in the library can carry a
+  value per column; values are validated against the column type. Columns and
+  values stay with the library: an item moved to another drive drops them, and
+  its own permissions too.
 
 Uploaded file contents are stored on disk under the configured directory
 (`<files_dir>/<drive_id>/<item_id>`, with previous versions under
@@ -66,7 +84,7 @@ Items:
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/mail/api/cloud/items?drive=&parent=` | List a folder's children (omit `parent` for the root); returns the breadcrumb, the caller's role and `canWrite`. |
+| GET | `/mail/api/cloud/items?drive=&parent=` | List a folder's children (omit `parent` for the root); returns the breadcrumb, the caller's effective role, `canWrite`, `canManage` (may manage the folder's permissions), the library's `columns`, and per item `restricted`, `checkedOut` and `fields` (values by column id). |
 | POST | `/mail/api/cloud/folder` | Create a folder (`{ "drive", "parent", "name" }`). |
 | POST | `/mail/api/cloud/doc` | Create a document (`{ "drive", "parent", "name" }`); returns the item id and the collab `doc` id. |
 | POST | `/mail/api/cloud/rename` | Rename an item (`{ "item", "name" }`). |
@@ -80,13 +98,15 @@ Sharing and browsing:
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/mail/api/cloud/recent?limit=` | The user's most recently updated files and documents across all their drives, each with the drive it lives in. |
-| GET | `/mail/api/cloud/shared-with-me` | Documents shared directly with the user (not ones they own), each with its owner. |
+| GET | `/mail/api/cloud/shared-with-me` | Documents shared directly with the user (not ones they own), and library folders the user was added to without being a library member. Each entry has a `kind` (`doc` or `folder`). |
 | GET | `/mail/api/cloud/search?q=` | Search files, folders and documents by name across every drive the user can see. |
 | GET | `/mail/api/cloud/links?item=` | A file or folder's share links. |
 | POST | `/mail/api/cloud/link` | Create a share link (`{ "item", "write", "expires_days" }`; `expires_days` of `0` means no expiry). |
-| POST | `/mail/api/cloud/link/update` | Change a link's access (`{ "token", "write", "expires_days" }`). |
-| POST | `/mail/api/cloud/link/revoke` | Revoke a link (`{ "token" }`). |
-| GET | `/mail/api/cloud/shared/{token}` | Public: a share link's target (file or folder), no account required. |
+| POST | `/mail/api/cloud/link/update` | Change a link's access (`{ "token", "write", "expires_days" }`); works for library links too. |
+| POST | `/mail/api/cloud/link/revoke` | Revoke a link (`{ "token" }`); works for library links too. |
+| GET | `/mail/api/cloud/library/links?drive=` | A library's own share links (owners). |
+| POST | `/mail/api/cloud/library/link` | Create a link to a whole library (`{ "drive", "write", "expires_days" }`, owners). |
+| GET | `/mail/api/cloud/shared/{token}` | Public: a share link's target (file, folder or library — `library: true`), no account required. |
 | GET | `/mail/api/cloud/shared/{token}/items?parent=` | Public: browse a shared folder's subtree. |
 | GET | `/mail/api/cloud/shared/{token}/download?item=` | Public: download a shared file (`item` names a file inside a shared folder). |
 | POST | `/mail/api/cloud/shared/{token}/upload?parent=&name=` | Public, edit links only: upload into a shared folder, or replace a shared file. |
@@ -98,6 +118,9 @@ lets the guest upload — into the shared folder (and its subfolders) or as a ne
 version of the shared file; guest uploads are attributed to the account that
 created the link and count toward that drive's quota. A link to a trashed item,
 or one past its expiry, stops resolving.
+
+A library link works like a folder link for the whole library. Folders with
+their own permissions stay out of reach through any link created above them.
 
 Version history:
 
@@ -133,6 +156,26 @@ Members (libraries only):
 | POST | `/mail/api/cloud/member` | Add or change a member (`{ "drive", "email", "role" }`, owner only). |
 | POST | `/mail/api/cloud/member/delete` | Remove a member (`{ "drive", "user" }`, owner only). |
 
+Folder permissions (library folders; managing needs the library's owner role or
+the owner role on the folder's own list):
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/mail/api/cloud/permissions?item=` | Whether the folder has its own permissions (`restricted`), the folder they come from otherwise (`inheritsFrom`), `canManage` and the access list. |
+| POST | `/mail/api/cloud/permissions/restrict` | `{ "item", "restricted": true }` gives the folder its own list (a copy of the members); `false` makes it use the library's members again and drops the list. |
+| POST | `/mail/api/cloud/permissions/set` | Add or change an entry (`{ "item", "email", "role" }`). |
+| POST | `/mail/api/cloud/permissions/remove` | Remove an entry (`{ "item", "user" }`). |
+
+Check-out and columns:
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| POST | `/mail/api/cloud/checkout` | Check a file out (`{ "item" }`, editors); `423` if someone else has it. |
+| POST | `/mail/api/cloud/checkin` | Check a file in (`{ "item" }`): the holder, or someone who may manage it to discard the check-out. |
+| POST | `/mail/api/cloud/column` | Add a column (`{ "drive", "name", "kind", "choices" }`, owners); `kind` is `text`, `number`, `date`, `choice` or `yesno`. |
+| POST | `/mail/api/cloud/column/delete` | Delete a column and its values (`{ "drive", "id" }`, owners). |
+| POST | `/mail/api/cloud/field` | Set an item's value for a column (`{ "item", "column", "value" }`, editors); an empty value clears it. |
+
 ## Webmail
 
 A **Files** entry appears in the webmail navigation when the module is enabled.
@@ -142,7 +185,13 @@ browsing, drag-free breadcrumb navigation, file upload and download, inline
 previews for images, PDFs and text, new folders and new documents, rename, share
 links, version history, a **Recycle bin** that restores or permanently removes
 deleted items, a search box that finds items by name across every drive, and —
-for libraries — a member manager. Opening a document hands over to the
+for libraries — a member manager, **Manage access** for folders with their own
+permissions, **Check out** / **Check in** on files, **Columns** (owners) with a
+**Properties** dialog to fill them in, and **Share library** for guest links to
+the whole library. Checked-out files show who holds them, column values show
+under the item name, and folders with their own permissions carry a lock. A
+folder someone was added to opens from **Shared with me** inside its library.
+Opening a document hands over to the
 collaborative editor described in `collab.md`.
 
 Collaborative documents live **only** inside the cloud: they are created as items

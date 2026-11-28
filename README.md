@@ -45,6 +45,7 @@ Everything runs as one program with one database: no separate mail transfer agen
 **Cloud storage**
 
 - **Personal drives** (like OneDrive) and shared **libraries** (like SharePoint) with members and owner/editor/viewer roles — see [Cloud storage](docs/cloud.md)
+- Library folders with their own permissions, file check-out and check-in, custom metadata columns, and guest links for single items or a whole library
 - Folders, file upload and download, inline previews for images, PDFs and text, a Recent list, rename, move and a per-drive recycle bin
 - **Share links** for files and folders that anyone can open as a read-only guest, and **version history** that keeps previous contents of a file
 - **Nextcloud-compatible** so the official Nextcloud mobile and desktop apps connect to the personal drive and the shared libraries, for automatic photo upload and desktop sync — see [Nextcloud clients](docs/nextcloud.md)

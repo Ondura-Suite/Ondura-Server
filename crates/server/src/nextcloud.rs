@@ -431,9 +431,24 @@ fn locate(app: &Shared, user: &User, personal: i64, rel: &str) -> Option<Loc> {
         return Some(Loc::Libraries);
     }
     let (lib, inner) = rest.split_once('/').unwrap_or((rest, ""));
-    library_dirs(app, user).into_iter().find(|(n, _, _)| n == lib).map(|(n, drive, writable)| {
-        Loc::Drive(Target { drive, rel: inner.to_string(), writable, base: format!("{LIBRARIES_DIR}/{n}") })
-    })
+    let (n, drive, _) = library_dirs(app, user).into_iter().find(|(n, _, _)| n == lib)?;
+    // Inside a library the access can differ per folder: decide by the deepest
+    // existing item on the path. A restricted folder the account isn't on the
+    // access list of is treated as if it didn't exist.
+    let role = app.store.item_role(user.id, drive, deepest_item(app, drive, inner)).ok().flatten()?;
+    Some(Loc::Drive(Target { drive, rel: inner.to_string(), writable: role.can_write(), base: format!("{LIBRARIES_DIR}/{n}") }))
+}
+
+/// The deepest existing item on a drive-relative path: the item itself, or the
+/// nearest folder above a path that doesn't exist yet (`None`: the drive root).
+fn deepest_item(app: &Shared, drive: i64, rel: &str) -> Option<i64> {
+    let parts: Vec<&str> = rel.split('/').filter(|s| !s.is_empty()).collect();
+    (1..=parts.len()).rev().find_map(|n| app.store.resolve_path(drive, &parts[..n].join("/")).ok().flatten().map(|it| it.id))
+}
+
+/// 423 Locked when someone else has the item (or something below it) checked out.
+fn locked(app: &Shared, user: &User, item: i64) -> bool {
+    app.store.locked_for(item, Some(user.id)).unwrap_or(true)
 }
 
 async fn webdav(app: &Shared, user: &User, method: &Method, path: &str, headers: &HeaderMap, body: Bytes) -> Response {
@@ -568,7 +583,16 @@ fn propfind(app: &Shared, user: &User, t: &Target, headers: &HeaderMap, prefix: 
             for it in items.iter().filter(|it| !(t.is_home() && it.name == LIBRARIES_DIR)) {
                 let href = t.href(&join(&t.rel, &it.name));
                 let (tag, perms) = if it.kind == "folder" {
-                    (collection_tag(app, t.drive, Some(it)), folder_perms(t.writable))
+                    // A restricted subfolder has its own audience and access.
+                    let writable = if app.store.is_restricted(it.id).unwrap_or(false) {
+                        match app.store.item_role(user.id, t.drive, Some(it.id)).ok().flatten() {
+                            Some(r) => r.can_write(),
+                            None => continue,
+                        }
+                    } else {
+                        t.writable
+                    };
+                    (collection_tag(app, t.drive, Some(it)), folder_perms(writable))
                 } else {
                     (etag(it), file_perms(t.writable))
                 };
@@ -700,6 +724,9 @@ fn dav_put(app: &Shared, user: &User, t: &Target, headers: &HeaderMap, body: &By
     if existing.as_ref().map(|e| e.kind != "file").unwrap_or(false) {
         return (StatusCode::METHOD_NOT_ALLOWED, "").into_response();
     }
+    if existing.as_ref().is_some_and(|e| locked(app, user, e.id)) {
+        return (StatusCode::LOCKED, "").into_response();
+    }
     if over_quota(app, drive, existing.as_ref().map(|e| e.size).unwrap_or(0), body.len() as i64) {
         return (StatusCode::INSUFFICIENT_STORAGE, "").into_response();
     }
@@ -766,6 +793,9 @@ fn dav_delete(app: &Shared, user: &User, t: &Target) -> Response {
         Ok(None) => return (StatusCode::NOT_FOUND, "").into_response(),
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };
+    if locked(app, user, it.id) {
+        return (StatusCode::LOCKED, "").into_response();
+    }
     match app.store.trash_item(it.id, user.id) {
         Ok(()) => (StatusCode::NO_CONTENT, "").into_response(),
         Err(_) => StatusCode::INTERNAL_SERVER_ERROR.into_response(),
@@ -795,6 +825,9 @@ fn dav_move(app: &Shared, user: &User, personal: i64, src: &Target, headers: &He
         Ok(None) => return (StatusCode::NOT_FOUND, "").into_response(),
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };
+    if locked(app, user, item.id) {
+        return (StatusCode::LOCKED, "").into_response();
+    }
     let Some(dest) = dest_rel(headers) else { return (StatusCode::BAD_REQUEST, "").into_response() };
     let dst = match locate(app, user, personal, &dest) {
         Some(Loc::Drive(t)) if t.writable && !t.rel.is_empty() => t,
@@ -812,6 +845,9 @@ fn dav_move(app: &Shared, user: &User, personal: i64, src: &Target, headers: &He
     if let Some(e) = existing {
         if !overwrite {
             return (StatusCode::PRECONDITION_FAILED, "").into_response();
+        }
+        if locked(app, user, e.id) {
+            return (StatusCode::LOCKED, "").into_response();
         }
         if app.store.trash_item(e.id, user.id).is_err() {
             return StatusCode::INTERNAL_SERVER_ERROR.into_response();
@@ -930,6 +966,9 @@ fn assemble_upload(app: &Shared, user: &User, t: &Target, dir: &std::path::Path,
         Err(_) => return (StatusCode::CONFLICT, "").into_response(),
     };
     let existing = app.store.child_by_name(drive, parent, fname).ok().flatten();
+    if existing.as_ref().is_some_and(|e| locked(app, user, e.id)) {
+        return (StatusCode::LOCKED, "").into_response();
+    }
     if over_quota(app, drive, existing.as_ref().map(|e| e.size).unwrap_or(0), assembled) {
         let _ = std::fs::remove_dir_all(dir);
         return (StatusCode::INSUFFICIENT_STORAGE, "").into_response();
@@ -1083,6 +1122,58 @@ mod tests {
         let mut h = h.clone();
         h.insert("Depth", HeaderValue::from_static(d));
         h
+    }
+
+    #[tokio::test]
+    async fn restricted_folders_and_checkouts_apply_over_webdav() {
+        let dir = std::env::temp_dir().join(format!("ondura-nc-{}", token()));
+        let (app, owner) = App::test_in(dir.clone());
+        let bob = app.store.create_user("bob@example.com", "Bob", "pw", "user").unwrap();
+        let lib = app.store.create_library(owner.id, "Team").unwrap();
+        app.store.set_drive_member(lib, bob.id, crate::cloud::Role::Editor).unwrap();
+        let owner_auth = nc_auth(&app, &owner);
+        let auth = nc_auth(&app, &bob);
+        let ohome = format!("/remote.php/dav/files/{}/", owner.email);
+        let home = format!("/remote.php/dav/files/{}/", bob.email);
+
+        let r = handle(app.clone(), m("PUT"), &format!("{ohome}SharePoint/Team/HR/salaries.txt"), "", &owner_auth, Bytes::from_static(b"x")).await;
+        assert_eq!(r.status(), StatusCode::CREATED);
+        let r = handle(app.clone(), m("PUT"), &format!("{ohome}SharePoint/Team/Open/spec.txt"), "", &owner_auth, Bytes::from_static(b"v1")).await;
+        assert_eq!(r.status(), StatusCode::CREATED);
+        let hr = app.store.resolve_path(lib, "HR").unwrap().unwrap().id;
+        app.store.set_restricted(hr, true).unwrap();
+        app.store.remove_item_acl(hr, bob.id).unwrap();
+
+        // Bob doesn't see HR at all, but still sees and edits the rest.
+        let r = handle(app.clone(), m("PROPFIND"), &format!("{home}SharePoint/Team/"), "", &with_depth(&auth, "1"), Bytes::new()).await;
+        let listing = body_string(r).await;
+        assert!(listing.contains("/Open/") && !listing.contains("/HR/"));
+        let r = handle(app.clone(), Method::GET, &format!("{home}SharePoint/Team/HR/salaries.txt"), "", &auth, Bytes::new()).await;
+        assert_eq!(r.status(), StatusCode::NOT_FOUND);
+        let r = handle(app.clone(), m("PUT"), &format!("{home}SharePoint/Team/HR/new.txt"), "", &auth, Bytes::from_static(b"x")).await;
+        assert_eq!(r.status(), StatusCode::FORBIDDEN);
+
+        // Read-only on the folder: listed, readable, not writable.
+        app.store.set_item_acl(hr, bob.id, crate::cloud::Role::Viewer).unwrap();
+        let r = handle(app.clone(), Method::GET, &format!("{home}SharePoint/Team/HR/salaries.txt"), "", &auth, Bytes::new()).await;
+        assert_eq!(body_string(r).await, "x");
+        let r = handle(app.clone(), m("DELETE"), &format!("{home}SharePoint/Team/HR/salaries.txt"), "", &auth, Bytes::new()).await;
+        assert_eq!(r.status(), StatusCode::FORBIDDEN);
+
+        // A file checked out by the owner can't be changed by Bob until it's checked in.
+        let spec = app.store.resolve_path(lib, "Open/spec.txt").unwrap().unwrap().id;
+        app.store.check_out(spec, owner.id).unwrap();
+        let put = format!("{home}SharePoint/Team/Open/spec.txt");
+        let r = handle(app.clone(), m("PUT"), &put, "", &auth, Bytes::from_static(b"v2")).await;
+        assert_eq!(r.status(), StatusCode::LOCKED);
+        let r = handle(app.clone(), m("DELETE"), &format!("{home}SharePoint/Team/Open"), "", &auth, Bytes::new()).await;
+        assert_eq!(r.status(), StatusCode::LOCKED);
+        let r = handle(app.clone(), m("PUT"), &format!("{ohome}SharePoint/Team/Open/spec.txt"), "", &owner_auth, Bytes::from_static(b"v2")).await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        app.store.check_in(spec).unwrap();
+        let r = handle(app.clone(), m("PUT"), &put, "", &auth, Bytes::from_static(b"v3")).await;
+        assert_eq!(r.status(), StatusCode::NO_CONTENT);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[tokio::test]

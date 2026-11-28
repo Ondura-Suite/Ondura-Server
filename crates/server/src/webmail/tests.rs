@@ -3,7 +3,7 @@
 
 use axum::body::Bytes;
 
-use super::{calendar_api, contacts_api, mail_api, me, pim_api, settings_api};
+use super::{calendar_api, contacts_api, drive_api, mail_api, me, pim_api, settings_api};
 use crate::app::App;
 
 fn body(v: serde_json::Value) -> Bytes {
@@ -587,4 +587,90 @@ async fn calendar_export_and_import_round_trip() {
     assert_eq!(r["updated"], 2);
     assert_eq!(calendar_api::list(&app, &anna, &range).unwrap()["events"].as_array().unwrap().len(), 5);
     assert!(calendar_api::import(&app, &anna, &Bytes::from_static(b"hello")).is_err());
+}
+
+#[test]
+fn library_folder_permissions_checkout_and_columns() {
+    let (app, owner) = App::test();
+    let bob = app.store.create_user("bob@example.com", "Bob", "pw", "user").unwrap();
+    let eve = app.store.create_user("eve@example.com", "Eve", "pw", "user").unwrap();
+    let lib = app.store.create_library(owner.id, "Team").unwrap();
+    app.store.set_drive_member(lib, bob.id, crate::cloud::Role::Editor).unwrap();
+    let hr = app.store.create_drive_folder(lib, None, "HR", owner.id).unwrap();
+    let open = app.store.create_drive_folder(lib, None, "Open", owner.id).unwrap();
+    let file = app.store.create_drive_file(lib, Some(open), "spec.txt", 1, "text/plain", owner.id).unwrap();
+
+    // Restrict HR to the owner and Eve (who isn't a library member).
+    drive_api::set_restricted(&app, &owner, &body(serde_json::json!({ "item": hr, "restricted": true }))).unwrap();
+    // Bob may not manage it.
+    assert!(drive_api::set_permission(&app, &bob, &body(serde_json::json!({ "item": hr, "email": "bob@example.com", "role": "owner" }))).is_err());
+    drive_api::remove_permission(&app, &owner, &body(serde_json::json!({ "item": hr, "user": bob.id }))).unwrap();
+    drive_api::set_permission(&app, &owner, &body(serde_json::json!({ "item": hr, "email": "eve@example.com", "role": "editor" }))).unwrap();
+    let p = drive_api::permissions(&app, &owner, &format!("item={hr}")).unwrap();
+    assert_eq!(p["restricted"], true);
+    assert_eq!(p["entries"].as_array().unwrap().len(), 1);
+
+    let names = |v: &serde_json::Value| v["items"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    let root = drive_api::items(&app, &bob, &format!("drive={lib}")).unwrap();
+    assert_eq!(names(&root), ["Open"]);
+    assert!(drive_api::items(&app, &bob, &format!("drive={lib}&parent={hr}")).is_err());
+    assert!(drive_api::create_folder(&app, &bob, &body(serde_json::json!({ "drive": lib, "parent": hr, "name": "x" }))).is_err());
+
+    // Eve reaches HR from "Shared with me", can work in it, but not elsewhere.
+    let shared = drive_api::shared_with_me(&app, &eve).unwrap();
+    assert!(shared["items"].as_array().unwrap().iter().any(|i| i["kind"] == "folder" && i["item"] == hr));
+    let inside = drive_api::items(&app, &eve, &format!("drive={lib}&parent={hr}")).unwrap();
+    assert_eq!(inside["canWrite"], true);
+    assert_eq!(inside["path"].as_array().unwrap().len(), 1);
+    drive_api::create_folder(&app, &eve, &body(serde_json::json!({ "drive": lib, "parent": hr, "name": "2026" }))).unwrap();
+    assert!(drive_api::items(&app, &eve, &format!("drive={lib}")).is_err());
+    assert!(drive_api::items(&app, &eve, &format!("drive={lib}&parent={open}")).is_err());
+
+    // Check-out: Bob holds the file; the owner can't rename it until it's back.
+    drive_api::check_out(&app, &bob, &body(serde_json::json!({ "item": file }))).unwrap();
+    let listing = drive_api::items(&app, &owner, &format!("drive={lib}&parent={open}")).unwrap();
+    assert_eq!(listing["items"][0]["checkedOut"]["name"], "Bob");
+    let err = drive_api::rename_item(&app, &owner, &body(serde_json::json!({ "item": file, "name": "x.txt" }))).unwrap_err();
+    assert_eq!(err.0, axum::http::StatusCode::LOCKED);
+    // The library owner can discard the check-out.
+    drive_api::check_in(&app, &owner, &body(serde_json::json!({ "item": file }))).unwrap();
+    drive_api::rename_item(&app, &owner, &body(serde_json::json!({ "item": file, "name": "x.txt" }))).unwrap();
+
+    // Columns: owners define them, editors fill them in.
+    assert!(drive_api::add_column(&app, &bob, &body(serde_json::json!({ "drive": lib, "name": "Status", "kind": "text" }))).is_err());
+    let col = drive_api::add_column(&app, &owner, &body(serde_json::json!({ "drive": lib, "name": "Status", "kind": "choice", "choices": ["Draft", "Final"] }))).unwrap()["id"].as_i64().unwrap();
+    drive_api::set_field(&app, &bob, &body(serde_json::json!({ "item": file, "column": col, "value": "Final" }))).unwrap();
+    assert!(drive_api::set_field(&app, &bob, &body(serde_json::json!({ "item": file, "column": col, "value": "Nope" }))).is_err());
+    let listing = drive_api::items(&app, &bob, &format!("drive={lib}&parent={open}")).unwrap();
+    assert_eq!(listing["columns"][0]["name"], "Status");
+    assert_eq!(listing["items"][0]["fields"][col.to_string()], "Final");
+}
+
+#[test]
+fn library_link_lets_guests_in_but_not_into_restricted_folders() {
+    let (app, owner) = App::test();
+    let lib = app.store.create_library(owner.id, "Team").unwrap();
+    let hr = app.store.create_drive_folder(lib, None, "HR", owner.id).unwrap();
+    let docs = app.store.create_drive_folder(lib, None, "Docs", owner.id).unwrap();
+    let secret = app.store.create_drive_file(lib, Some(hr), "s.txt", 1, "text/plain", owner.id).unwrap();
+    app.store.set_restricted(hr, true).unwrap();
+    let token = drive_api::create_library_link(&app, &owner, &body(serde_json::json!({ "drive": lib, "write": true }))).unwrap()["token"].as_str().unwrap().to_string();
+
+    let meta = drive_api::shared_meta(&app, &token).unwrap();
+    assert_eq!(meta["kind"], "folder");
+    assert_eq!(meta["library"], true);
+    assert_eq!(meta["name"], "Team");
+    let root = drive_api::shared_items(&app, &token, "").unwrap();
+    let names: Vec<_> = root["items"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap()).collect();
+    assert_eq!(names, ["Docs"]);
+    assert!(drive_api::shared_items(&app, &token, &format!("parent={hr}")).is_err());
+    assert!(drive_api::shared_items(&app, &token, &format!("parent={docs}")).is_ok());
+    let r = drive_api::shared_download(&app, &token, &format!("item={secret}"));
+    assert_eq!(r.status(), axum::http::StatusCode::NOT_FOUND);
+
+    // The link is listed for the owner and can be revoked like an item link.
+    let links = drive_api::library_links(&app, &owner, &format!("drive={lib}")).unwrap();
+    assert_eq!(links["links"].as_array().unwrap().len(), 1);
+    drive_api::revoke_item_link(&app, &owner, &body(serde_json::json!({ "token": token }))).unwrap();
+    assert!(drive_api::shared_meta(&app, &token).is_err());
 }

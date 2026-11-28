@@ -417,6 +417,12 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 <script>
 const T = {
   en: {
+    checkOut: "Check out", checkIn: "Check in", discardCheckout: "Discard check-out", checkedOutBy: "Checked out by", checkedOutByYou: "Checked out by you",
+    manageAccess: "Manage access", ownPermissions: "This folder has its own permissions.", inheritsLibrary: "This folder uses the library's members.", inheritsFrom: "Permissions come from the folder",
+    stopInheriting: "Give this folder its own permissions", inheritAgain: "Use the library's members again", confirmInherit: "Remove this folder's own permissions and use the library's members again?", restrictedFolder: "Own permissions",
+    libColumns: "Columns", addColumn: "Add column", columnName: "Column name", columnType: "Type", colText: "Text", colNumber: "Number", colDate: "Date", colChoice: "Choice", colYesno: "Yes/No",
+    choicesHint: "Choices, one per line", noColumns: "This library has no columns yet.", properties: "Properties", yes: "Yes", no: "No", confirmDeleteColumn: "Delete this column and its values?",
+    shareLibrary: "Share library", libraryLinkHint: "Anyone with the link can open the whole library, except folders with their own permissions.",
     webmail: "Webmail", signInSub: "Sign in to your mailbox", email: "E-mail", password: "Password", signIn: "Sign in",
     compose: "Compose", mail: "Mail", calendar: "Calendar", contacts: "Contacts", search: "Search mail",
     inbox: "Inbox", drafts: "Drafts", sentitems: "Sent Items", deleteditems: "Deleted Items", junkemail: "Junk Email", outbox: "Outbox", archive: "Archive",
@@ -442,6 +448,12 @@ const T = {
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
   de: {
+    checkOut: "Auschecken", checkIn: "Einchecken", discardCheckout: "Auschecken verwerfen", checkedOutBy: "Ausgecheckt von", checkedOutByYou: "Von dir ausgecheckt",
+    manageAccess: "Zugriff verwalten", ownPermissions: "Dieser Ordner hat eigene Berechtigungen.", inheritsLibrary: "Dieser Ordner verwendet die Mitglieder der Bibliothek.", inheritsFrom: "Berechtigungen kommen vom Ordner",
+    stopInheriting: "Eigene Berechtigungen für diesen Ordner", inheritAgain: "Wieder die Mitglieder der Bibliothek verwenden", confirmInherit: "Eigene Berechtigungen dieses Ordners entfernen und wieder die Mitglieder der Bibliothek verwenden?", restrictedFolder: "Eigene Berechtigungen",
+    libColumns: "Spalten", addColumn: "Spalte hinzufügen", columnName: "Spaltenname", columnType: "Typ", colText: "Text", colNumber: "Zahl", colDate: "Datum", colChoice: "Auswahl", colYesno: "Ja/Nein",
+    choicesHint: "Auswahlwerte, einer pro Zeile", noColumns: "Diese Bibliothek hat noch keine Spalten.", properties: "Eigenschaften", yes: "Ja", no: "Nein", confirmDeleteColumn: "Diese Spalte samt Werten löschen?",
+    shareLibrary: "Bibliothek teilen", libraryLinkHint: "Jeder mit dem Link kann die ganze Bibliothek öffnen, außer Ordnern mit eigenen Berechtigungen.",
     webmail: "Webmail", signInSub: "Bei deinem Postfach anmelden", email: "E-Mail", password: "Passwort", signIn: "Anmelden",
     compose: "Verfassen", mail: "E-Mail", calendar: "Kalender", contacts: "Kontakte", search: "E-Mail durchsuchen",
     inbox: "Posteingang", drafts: "Entwürfe", sentitems: "Gesendet", deleteditems: "Gelöscht", junkemail: "Junk", outbox: "Postausgang", archive: "Archiv",
@@ -520,6 +532,7 @@ const ICON = {
   plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
   doc: '<path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 3v4h4M9 12h6M9 15h6M9 18h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   share: '<circle cx="6" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.2 11l6.6-3.8M8.2 13l6.6 3.8" stroke="currentColor" stroke-width="1.6"/>',
+  lock: '<rect x="5.5" y="10.5" width="13" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   clock: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
 };
 const icon = (n) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] || ICON.folder) + "</svg>";
@@ -891,6 +904,7 @@ function renderRail() {
   } else if (view === "sharepoint") {
     const libs = (typeof fs !== "undefined" && fs.drives ? fs.drives : []).filter((d) => d.kind === "library");
     html += libs.map((d) => `<div class="navitem ${fs.driveId === d.id ? "active" : ""}" data-drive="${d.id}">${icon("share")}<span>${esc(d.name)}</span></div>`).join("");
+    if (fs.grant) html += `<div class="navitem active" data-grant="1">${icon("folder")}<span>${esc(fs.grant.driveName)}</span></div>`;
     html += `<div class="railsep"></div><div class="navitem" id="railNewLib" style="color:var(--muted)">${icon("plus")}<span>${esc(t("newLibrary"))}</span></div>`;
   } else if (view === "files") {
     html += `<div class="navitem ${!fs.recentView && !fs.sharedView ? "active" : ""}" id="railMyFiles">${icon("cloud")}<span>${esc(t("myFiles"))}</span></div>`;
@@ -919,6 +933,7 @@ function renderRail() {
     else { if (!confirm(t("confirmDeleteFolder"))) return; await api("POST", "/folder/delete", { id: +b.dataset.fid }); if (curFolder && curFolder.id == b.dataset.fid) curFolder = folders.find((f) => f.role === "inbox"); }
     await refreshFolders(); render();
   }));
+  $("#rail").querySelectorAll("[data-grant]").forEach((e) => e.onclick = () => { fs.parent = fs.grant.item; renderFiles(); });
   $("#rail").querySelectorAll("[data-drive]").forEach((e) => e.onclick = () => { fs.driveId = +e.dataset.drive; fs.parent = null; fs.trashView = false; history.pushState({}, "", appPath("sharepoint", { drive: fs.driveId })); renderFiles(); });
   const rnl = $("#railNewLib"); if (rnl) rnl.onclick = guard(async () => { const name = prompt(t("libraryName")); if (!name) return; const r = await api("POST", "/cloud/library", { name: name.trim() }); fs.drives = []; fs.driveId = r.id; fs.parent = null; renderFiles(); });
   const rmf = $("#railMyFiles"); if (rmf) rmf.onclick = () => { fs.recentView = false; fs.sharedView = false; fs.parent = null; renderFiles(); };
@@ -2376,17 +2391,26 @@ async function renderFiles() {
   if (fs.trashView) return renderTrash();
   if (fs.recentView && view === "files") { renderRail(); return renderRecent(); }
   if (fs.sharedView && view === "files") { renderRail(); return renderSharedWithMe(); }
+  // A folder someone was given access to in a library they aren't a member
+  // of (from "Shared with me") is browsed inside that library.
+  if (fs.grant && (view !== "sharepoint" || fs.driveId !== fs.grant.drive)) fs.grant = null;
   if (view === "files") {
     const personal = fs.drives.find((d) => d.kind === "personal");
     fs.driveId = personal ? personal.id : null;
-  } else {
+  } else if (!fs.grant) {
     const libs = fs.drives.filter((d) => d.kind === "library");
-    if (!fs.driveId || !libs.some((d) => d.id === fs.driveId)) fs.driveId = libs.length ? libs[0].id : null;
+    // A link to a folder in a library the account isn't a member of opens
+    // that folder, if it was given access to it.
+    if (fs.driveId && fs.parent && !libs.some((d) => d.id === fs.driveId)) fs.grant = { drive: fs.driveId, item: fs.parent, driveName: t("sharepoint") };
+    else if (!fs.driveId || !libs.some((d) => d.id === fs.driveId)) fs.driveId = libs.length ? libs[0].id : null;
   }
+  if (fs.grant && !fs.parent) fs.parent = fs.grant.item;
   let data = { items: [], path: [], role: "viewer", canWrite: false };
   if (fs.driveId) { try { data = await api("GET", `/cloud/items?drive=${fs.driveId}` + (fs.parent ? `&parent=${fs.parent}` : "")); } catch (e) {} }
   fs.items = data.items || []; fs.path = data.path || []; fs.role = data.role || "viewer"; fs.canWrite = !!data.canWrite;
-  const drive = fs.drives.find((d) => d.id === fs.driveId);
+  fs.columns = data.columns || []; fs.canManage = !!data.canManage; fs.libOwner = !!data.libraryOwner;
+  const drive = fs.drives.find((d) => d.id === fs.driveId) || (fs.grant ? { id: fs.grant.drive, kind: "library", name: fs.grant.driveName, role: "" } : null);
+  fs.isLibrary = !!drive && drive.kind === "library";
   // Keep the URL in step so the current library/folder can be linked.
   history.replaceState({}, "", appPath(view, { drive: view === "sharepoint" ? fs.driveId : null, parent: fs.parent }));
   const driveName = (d) => d.kind === "personal" ? t("myFiles") : d.name;
@@ -2395,11 +2419,15 @@ async function renderFiles() {
     <button class="btn" id="fNewDoc">${icon("doc")}<span>${esc(t("newDocument"))}</span></button>
     <button class="btn" id="fUpload">${icon("paperclip")}<span>${esc(t("upload"))}</span></button>
     <input type="file" id="fFile" multiple style="display:none">` : "";
-  const memBtn = drive && drive.kind === "library" ? `<button class="btn" id="fMembers">${icon("contacts")}<span>${esc(t("members"))}</span></button>` : "";
-  const linkBtn = drive && drive.kind === "library" ? `<button class="btn" id="fLink">${icon("link")}<span>${esc(t("copyLink"))}</span></button>` : "";
+  const member = fs.isLibrary && !fs.grant;
+  const memBtn = member ? `<button class="btn" id="fMembers">${icon("contacts")}<span>${esc(t("members"))}</span></button>` : "";
+  const linkBtn = member ? `<button class="btn" id="fLink">${icon("link")}<span>${esc(t("copyLink"))}</span></button>` : "";
+  const libShareBtn = member && fs.libOwner ? `<button class="btn" id="fShareLib">${icon("share")}<span>${esc(t("shareLibrary"))}</span></button>` : "";
+  const colBtn = member && fs.libOwner ? `<button class="btn" id="fColumns">${icon("settings")}<span>${esc(t("libColumns"))}</span></button>` : "";
+  const accessBtn = fs.isLibrary && fs.parent && fs.canManage ? `<button class="btn" id="fAccess">${icon("lock")}<span>${esc(t("manageAccess"))}</span></button>` : "";
   const delLibBtn = drive && drive.kind === "library" && fs.role === "owner" ? `<button class="btn" id="fDelLib">${icon("trash")}<span>${esc(t("deleteLibrary"))}</span></button>` : "";
-  const trashBtn = fs.canWrite ? `<button class="btn" id="fTrash">${icon("trash")}<span>${esc(t("recycleBin"))}</span></button>` : "";
-  const crumbs = `<button style="background:none;border:0;color:var(--muted);cursor:pointer;padding:0;font-size:13px" data-crumb="">${esc(rootName)}</button>`
+  const trashBtn = fs.canWrite && !fs.grant ? `<button class="btn" id="fTrash">${icon("trash")}<span>${esc(t("recycleBin"))}</span></button>` : "";
+  const crumbs = `<button style="background:none;border:0;color:var(--muted);cursor:pointer;padding:0;font-size:13px" data-crumb="${fs.grant ? fs.grant.item : ""}">${esc(rootName)}</button>`
     + fs.path.map((p) => `<span style="color:var(--muted)">/</span><button style="background:none;border:0;color:var(--muted);cursor:pointer;padding:0;font-size:13px" data-crumb="${p.id}">${esc(p.name)}</button>`).join("");
   const rows = fs.items.length
     ? fs.items.map((it) => fileRow(it, false)).join("")
@@ -2408,7 +2436,7 @@ async function renderFiles() {
     <div class="glass" style="display:flex;gap:8px;align-items:center;padding:10px 16px;flex-wrap:wrap;border-radius:0">
       <h2 style="font-size:16px;margin:0">${esc(rootName)}</h2>
       <input id="fSearch" placeholder="${esc(t("searchFiles"))}" style="flex:1;min-width:120px;height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);padding:0 10px">
-      <div style="display:flex;gap:6px;flex-wrap:wrap">${tools}${linkBtn}${memBtn}${trashBtn}${delLibBtn}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${tools}${accessBtn}${linkBtn}${libShareBtn}${colBtn}${memBtn}${trashBtn}${delLibBtn}</div>
     </div>
     <div id="fCrumbs" style="display:flex;gap:4px;align-items:center;padding:8px 16px;font-size:13px;flex-wrap:wrap">${crumbs}</div>
     <div id="fRows" style="flex:1;overflow:auto;padding:0 10px 16px">${rows}</div></div>`;
@@ -2423,6 +2451,9 @@ async function renderFiles() {
   const lb = $("#fLink"); if (lb) lb.onclick = () => { const url = location.origin + appPath("sharepoint", { drive: fs.driveId }); if (navigator.clipboard) navigator.clipboard.writeText(url); toast(t("copied")); };
   const dl = $("#fDelLib"); if (dl) dl.onclick = guard(async () => { if (!confirm(t("confirmDeleteLibrary"))) return; await api("POST", "/cloud/library/delete", { drive: fs.driveId }); fs.drives = []; fs.driveId = null; fs.parent = null; navTo("sharepoint"); });
   const tb = $("#fTrash"); if (tb) tb.onclick = () => { fs.trashView = true; renderFiles(); };
+  const sl = $("#fShareLib"); if (sl) sl.onclick = () => openLibraryShare(fs.driveId);
+  const cb = $("#fColumns"); if (cb) cb.onclick = () => openColumns(fs.driveId);
+  const ab = $("#fAccess"); if (ab) ab.onclick = () => openAccess({ id: fs.parent, name: (fs.path[fs.path.length - 1] || {}).name || "" });
   // Refresh the left nav (libraries) now that they are loaded.
   if (view === "sharepoint") renderRail();
 }
@@ -2438,7 +2469,12 @@ function fileRow(it, showLoc) {
   const ic = it.kind === "folder" ? "folder" : it.kind === "doc" ? "doc" : "paperclip";
   const meta = it.kind === "file" ? fmtSize(it.size) : (it.kind === "doc" ? t("documents") : "");
   const loc = showLoc ? `<div style="font-size:11px;color:var(--muted)">${esc(it.driveKind === "personal" ? t("myFiles") : (it.driveName || ""))}</div>` : "";
-  return `<div class="taskrow" data-open="${it.id}" style="cursor:pointer"><div style="color:var(--muted);display:flex">${icon(ic)}</div><div class="tt" style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</div>${loc}</div><div style="font-size:11.5px;color:var(--muted)">${esc(meta)}</div><button class="iconbtn" data-menu="${it.id}">${icon("dots")}</button></div>`;
+  const badges = [];
+  if (it.restricted) badges.push(`<span title="${esc(t("restrictedFolder"))}" style="display:inline-flex;vertical-align:-3px;color:var(--muted)">${icon("lock")}</span>`);
+  const co = it.checkedOut ? `<div style="font-size:11px;color:var(--accent)">${esc(it.checkedOut.mine ? t("checkedOutByYou") : `${t("checkedOutBy")} ${it.checkedOut.name || it.checkedOut.email}`)}</div>` : "";
+  const fv = (fs.columns || []).filter((c) => it.fields && it.fields[c.id] != null).map((c) => `${esc(c.name)}: ${esc(fieldText(c, it.fields[c.id]))}`).join(" · ");
+  const fields = fv && !showLoc ? `<div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fv}</div>` : "";
+  return `<div class="taskrow" data-open="${it.id}" style="cursor:pointer"><div style="color:var(--muted);display:flex">${icon(ic)}</div><div class="tt" style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)} ${badges.join("")}</div>${loc}${co}${fields}</div><div style="font-size:11.5px;color:var(--muted)">${esc(meta)}</div><button class="iconbtn" data-menu="${it.id}">${icon("dots")}</button></div>`;
 }
 
 // Search across the user's drives; results replace the file rows in place.
@@ -2510,7 +2546,9 @@ async function renderSharedWithMe() {
   let items = [];
   try { items = (await api("GET", "/cloud/shared-with-me")).items || []; } catch (e) {}
   const rows = items.length
-    ? items.map((it) => `<div class="taskrow" data-sopen="${it.doc}" style="cursor:pointer"><div style="color:var(--muted);display:flex">${icon("doc")}</div><div class="tt" style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</div><div style="font-size:11px;color:var(--muted)">${esc(t("sharedBy"))} ${esc(it.owner)}</div></div><div style="font-size:11.5px;color:var(--muted)">${esc(fmtShort(it.updated))}</div></div>`).join("")
+    ? items.map((it, i) => it.kind === "folder"
+      ? `<div class="taskrow" data-sfolder="${i}" style="cursor:pointer"><div style="color:var(--muted);display:flex">${icon("folder")}</div><div class="tt" style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</div><div style="font-size:11px;color:var(--muted)">${esc(it.owner)}</div></div><div style="font-size:11.5px;color:var(--muted)">${esc(fmtShort(it.updated))}</div></div>`
+      : `<div class="taskrow" data-sopen="${it.doc}" style="cursor:pointer"><div style="color:var(--muted);display:flex">${icon("doc")}</div><div class="tt" style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</div><div style="font-size:11px;color:var(--muted)">${esc(t("sharedBy"))} ${esc(it.owner)}</div></div><div style="font-size:11.5px;color:var(--muted)">${esc(fmtShort(it.updated))}</div></div>`).join("")
     : `<div class="empty">${esc(t("noShared"))}</div>`;
   $("#view").innerHTML = `<div style="display:flex;flex-direction:column;height:100%">
     <div class="glass" style="display:flex;gap:8px;align-items:center;padding:10px 16px;border-radius:0">
@@ -2518,6 +2556,15 @@ async function renderSharedWithMe() {
     </div>
     <div style="flex:1;overflow:auto;padding:8px 10px 16px">${rows}</div></div>`;
   $("#view").querySelectorAll("[data-sopen]").forEach((el) => el.onclick = () => openCloudDoc(+el.dataset.sopen));
+  $("#view").querySelectorAll("[data-sfolder]").forEach((el) => el.onclick = () => {
+    const f = items[+el.dataset.sfolder];
+    fs.sharedView = false; fs.search = false; fs.trashView = false;
+    view = "sharepoint"; fs.driveId = f.drive; fs.parent = f.item;
+    fs.grant = { drive: f.drive, item: f.item, driveName: f.owner };
+    curMsg = null;
+    history.pushState({}, "", appPath("sharepoint", { drive: f.drive, parent: f.item }));
+    render();
+  });
 }
 
 function openItem(it) {
@@ -2689,11 +2736,122 @@ function itemMenu(ev, it) {
   if (it.kind === "file") items.push({ ic: "paperclip", label: t("download"), fn: () => downloadItem(it) });
   if (fs.canWrite && it.kind !== "doc") items.push({ ic: "share", label: t("share"), fn: () => openItemShare(it) });
   if (it.kind === "file") items.push({ ic: "clock", label: t("versionHistory"), fn: () => openVersions(it) });
+  if (fs.isLibrary && it.kind === "file") {
+    const co = it.checkedOut;
+    if (!co && fs.canWrite) items.push({ ic: "lock", label: t("checkOut"), fn: guard(async () => { await api("POST", "/cloud/checkout", { item: it.id }); renderFiles(); }) });
+    if (co && co.mine) items.push({ ic: "check", label: t("checkIn"), fn: guard(async () => { await api("POST", "/cloud/checkin", { item: it.id }); renderFiles(); }) });
+    if (co && !co.mine && fs.canManage) items.push({ ic: "reply", label: t("discardCheckout"), fn: guard(async () => { await api("POST", "/cloud/checkin", { item: it.id }); renderFiles(); }) });
+  }
+  if (fs.isLibrary && (fs.columns || []).length) items.push({ ic: "settings", label: t("properties"), fn: () => openProperties(it) });
+  if (fs.isLibrary && it.kind === "folder" && fs.canManage) items.push({ ic: "lock", label: t("manageAccess"), fn: () => openAccess(it) });
   if (fs.canWrite) {
     items.push({ ic: "settings", label: t("rename"), fn: guard(async () => { const name = prompt(t("rename"), it.name); if (!name) return; await api("POST", "/cloud/rename", { item: it.id, name: name.trim() }); renderFiles(); }) });
     items.push({ ic: "trash", label: t("delete"), danger: true, fn: guard(async () => { if (!confirm(t("confirmDeleteItem"))) return; await api("POST", "/cloud/delete", { item: it.id }); renderFiles(); }) });
   }
   if (items.length) openMenu(ev, items);
+}
+
+// How a stored metadata value reads in the list.
+function fieldText(col, v) {
+  if (col.kind === "yesno") return v === "1" ? t("yes") : t("no");
+  if (col.kind === "date") { const d = new Date(v + "T00:00:00"); return isNaN(d) ? v : d.toLocaleDateString(lang === "de" ? "de-DE" : "en-GB"); }
+  return v;
+}
+
+// A folder's permissions: inherit from the library, or keep an own access list.
+async function openAccess(it) {
+  const roles = [["owner", t("owner")], ["editor", t("roleEditor")], ["viewer", t("roleViewer")]];
+  const draw = async () => {
+    let p;
+    try { p = await api("GET", "/cloud/permissions?item=" + it.id); } catch (e) { toast(e.message, true); return; }
+    const sel = (m) => `<select data-role="${m.id}" style="width:auto">${roles.map(([v, l]) => `<option value="${v}" ${m.role === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+    let body;
+    if (p.restricted) {
+      const rows = p.entries.map((m) => `<div class="taskrow"><div class="tt" style="flex:1;min-width:0"><div>${esc(m.name || m.email)}</div><div style="font-size:11px;color:var(--muted)">${esc(m.email)}</div></div>${p.canManage ? sel(m) + `<button class="iconbtn danger" data-rm="${m.id}">${icon("trash")}</button>` : ""}</div>`).join("") || `<p style="color:var(--muted)">—</p>`;
+      body = `<p style="margin:0 0 8px">${esc(t("ownPermissions"))}</p><div id="acList">${rows}</div>
+        ${p.canManage ? `<div style="display:flex;gap:6px;margin-top:10px"><input id="acEmail" placeholder="${esc(t("addMember"))}" style="flex:1"><select id="acRole" style="width:auto">${roles.slice(1).map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("")}</select><button class="btn primary" id="acAdd">${esc(t("add"))}</button></div>
+        <button class="btn" id="acInherit" style="margin-top:14px">${esc(t("inheritAgain"))}</button>` : ""}`;
+    } else {
+      const from = p.inheritsFrom ? `${esc(t("inheritsFrom"))} „${esc(p.inheritsFrom.name)}“.` : esc(t("inheritsLibrary"));
+      body = `<p style="margin:0 0 12px">${from}</p>${p.canManage ? `<button class="btn primary" id="acRestrict">${icon("lock")}<span>${esc(t("stopInheriting"))}</span></button>` : ""}`;
+    }
+    panel(`${t("manageAccess")} · ${it.name}`, body, `<div style="flex:1"></div><button class="btn" id="acClose">${esc(t("close"))}</button>`);
+    $("#acClose").onclick = () => { closePanel(); renderFiles(); };
+    const r = $("#acRestrict"); if (r) r.onclick = guard(async () => { await api("POST", "/cloud/permissions/restrict", { item: it.id, restricted: true }); draw(); });
+    const i = $("#acInherit"); if (i) i.onclick = guard(async () => { if (!confirm(t("confirmInherit"))) return; await api("POST", "/cloud/permissions/restrict", { item: it.id, restricted: false }); draw(); });
+    const a = $("#acAdd"); if (a) a.onclick = guard(async () => { const email = $("#acEmail").value.trim(); if (!email) return; await api("POST", "/cloud/permissions/set", { item: it.id, email, role: $("#acRole").value }); draw(); });
+    const list = $("#acList");
+    if (list) {
+      list.querySelectorAll("[data-rm]").forEach((b) => b.onclick = guard(async () => { await api("POST", "/cloud/permissions/remove", { item: it.id, user: +b.dataset.rm }); draw(); }));
+      list.querySelectorAll("[data-role]").forEach((s2) => s2.onchange = guard(async () => { const m = p.entries.find((x) => x.id === +s2.dataset.role); if (m) await api("POST", "/cloud/permissions/set", { item: it.id, email: m.email, role: s2.value }); }));
+    }
+  };
+  draw();
+}
+
+// The library's metadata columns (owners).
+async function openColumns(driveId) {
+  const kinds = ["text", "number", "date", "choice", "yesno"];
+  const draw = async () => {
+    let cols = [];
+    try { cols = (await api("GET", `/cloud/items?drive=${driveId}`)).columns || []; } catch (e) {}
+    const rows = cols.length ? cols.map((c) => `<div class="taskrow"><div class="tt" style="flex:1;min-width:0"><div>${esc(c.name)}</div><div style="font-size:11px;color:var(--muted)">${esc(t("col" + c.kind[0].toUpperCase() + c.kind.slice(1)))}${c.choices.length ? " · " + esc(c.choices.join(", ")) : ""}</div></div><button class="iconbtn danger" data-rm="${c.id}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted)">${esc(t("noColumns"))}</p>`;
+    panel(t("libColumns"), `<div id="colList">${rows}</div>
+      <div class="field" style="margin-top:12px"><label>${esc(t("addColumn"))}</label>
+        <div style="display:flex;gap:6px"><input id="colName" placeholder="${esc(t("columnName"))}" style="flex:1"><select id="colKind" style="width:auto">${kinds.map((k) => `<option value="${k}">${esc(t("col" + k[0].toUpperCase() + k.slice(1)))}</option>`).join("")}</select></div>
+        <textarea id="colChoices" placeholder="${esc(t("choicesHint"))}" rows="3" style="margin-top:6px;display:none"></textarea>
+        <button class="btn primary" id="colAdd" style="margin-top:8px">${esc(t("add"))}</button></div>`,
+      `<div style="flex:1"></div><button class="btn" id="colClose">${esc(t("close"))}</button>`);
+    $("#colKind").onchange = () => { $("#colChoices").style.display = $("#colKind").value === "choice" ? "" : "none"; };
+    $("#colClose").onclick = () => { closePanel(); renderFiles(); };
+    $("#colAdd").onclick = guard(async () => { const name = $("#colName").value.trim(); if (!name) return; await api("POST", "/cloud/column", { drive: driveId, name, kind: $("#colKind").value, choices: $("#colChoices").value.split("\n") }); draw(); });
+    $("#colList").querySelectorAll("[data-rm]").forEach((b) => b.onclick = guard(async () => { if (!confirm(t("confirmDeleteColumn"))) return; await api("POST", "/cloud/column/delete", { drive: driveId, id: +b.dataset.rm }); draw(); }));
+  };
+  draw();
+}
+
+// Edit an item's metadata values.
+function openProperties(it) {
+  const cols = fs.columns || [];
+  const val = (c) => (it.fields && it.fields[c.id]) || "";
+  const input = (c) => {
+    const id = `pf${c.id}`;
+    if (c.kind === "choice") return `<select id="${id}"><option value=""></option>${c.choices.map((o) => `<option ${val(c) === o ? "selected" : ""}>${esc(o)}</option>`).join("")}</select>`;
+    if (c.kind === "yesno") return `<select id="${id}"><option value=""></option><option value="1" ${val(c) === "1" ? "selected" : ""}>${esc(t("yes"))}</option><option value="0" ${val(c) === "0" ? "selected" : ""}>${esc(t("no"))}</option></select>`;
+    const type = c.kind === "number" ? "number" : c.kind === "date" ? "date" : "text";
+    return `<input id="${id}" type="${type}" ${c.kind === "number" ? 'step="any"' : ""} value="${esc(val(c))}" ${fs.canWrite ? "" : "disabled"}>`;
+  };
+  panel(`${t("properties")} · ${it.name}`, cols.map((c) => `<div class="field"><label>${esc(c.name)}</label>${input(c)}</div>`).join(""),
+    `<div style="flex:1"></div><button class="btn" id="pfCancel">${esc(t("cancel"))}</button>${fs.canWrite ? `<button class="btn primary" id="pfSave">${esc(t("save"))}</button>` : ""}`);
+  $("#pfCancel").onclick = closePanel;
+  const sv = $("#pfSave");
+  if (sv) sv.onclick = guard(async () => {
+    for (const c of cols) { const v = $(`#pf${c.id}`).value.trim(); if (v !== val(c)) await api("POST", "/cloud/field", { item: it.id, column: c.id, value: v }); }
+    closePanel(); renderFiles();
+  });
+}
+
+// Guest links for a whole library (owners).
+function openLibraryShare(driveId) {
+  const expiryOpts = [["0", t("expiryNever")], ["7", t("expiry7")], ["30", t("expiry30")], ["90", t("expiry90")]];
+  panel(t("shareLibrary"),
+    `<p style="margin:0 0 8px;color:var(--muted);font-size:12.5px">${esc(t("libraryLinkHint"))}</p><div id="llLinks"></div>
+     <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
+       <select id="llPerm"><option value="read">${esc(t("linkView"))}</option><option value="write">${esc(t("linkEdit"))}</option></select>
+       <select id="llExp">${expiryOpts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("")}</select>
+       <button class="btn primary" id="llAdd">${icon("link")}<span>${esc(t("createLink"))}</span></button></div>`,
+    `<div style="flex:1"></div><button class="btn" id="llClose">${esc(t("close"))}</button>`);
+  const expLabel = (e) => e ? `${esc(t("expiresOn"))} ${esc(fmtDate(e))}` : esc(t("expiryNever"));
+  const refresh = async () => {
+    let links = [];
+    try { links = (await api("GET", "/cloud/library/links?drive=" + driveId)).links || []; } catch (e) {}
+    $("#llLinks").innerHTML = links.length ? links.map((l) => `<div class="taskrow"><div class="tt" style="min-width:0;flex:1"><div style="font-size:12.5px">${l.canWrite ? esc(t("anyoneCanEdit")) : esc(t("anyoneCanView"))} · ${expLabel(l.expires)}</div><div class="dm" style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(itemShareUrl(l.token))}</div></div><button class="iconbtn" data-copy="${esc(l.token)}" title="${esc(t("copyLink"))}">${icon("copy")}</button><button class="iconbtn danger" data-lrm="${esc(l.token)}" title="${esc(t("revoke"))}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">${esc(t("noLinks"))}</p>`;
+    $("#llLinks").querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => { const url = itemShareUrl(b.dataset.copy); if (navigator.clipboard) navigator.clipboard.writeText(url); toast(t("copied")); });
+    $("#llLinks").querySelectorAll("[data-lrm]").forEach((b) => b.onclick = guard(async () => { await api("POST", "/cloud/link/revoke", { token: b.dataset.lrm }); refresh(); }));
+  };
+  $("#llAdd").onclick = guard(async () => { await api("POST", "/cloud/library/link", { drive: driveId, write: $("#llPerm").value === "write", expires_days: +$("#llExp").value }); refresh(); });
+  $("#llClose").onclick = closePanel;
+  refresh();
 }
 
 async function openMembers(driveId) {

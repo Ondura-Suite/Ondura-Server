@@ -271,6 +271,47 @@ CREATE TABLE IF NOT EXISTS drive_file_versions (
     created_by INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS drive_file_versions_item ON drive_file_versions(item_id);
+CREATE TABLE IF NOT EXISTS drive_restricted (
+    item_id INTEGER NOT NULL REFERENCES drive_items(id) ON DELETE CASCADE,
+    PRIMARY KEY (item_id)
+);
+CREATE TABLE IF NOT EXISTS drive_item_acl (
+    item_id INTEGER NOT NULL REFERENCES drive_items(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL,
+    PRIMARY KEY (item_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS drive_item_acl_user ON drive_item_acl(user_id);
+CREATE TABLE IF NOT EXISTS drive_checkouts (
+    item_id INTEGER NOT NULL REFERENCES drive_items(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    since INTEGER NOT NULL,
+    PRIMARY KEY (item_id)
+);
+CREATE TABLE IF NOT EXISTS drive_columns (
+    id INTEGER PRIMARY KEY,
+    drive_id INTEGER NOT NULL REFERENCES drives(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    choices TEXT NOT NULL DEFAULT '',
+    position INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS drive_columns_drive ON drive_columns(drive_id);
+CREATE TABLE IF NOT EXISTS drive_item_fields (
+    item_id INTEGER NOT NULL REFERENCES drive_items(id) ON DELETE CASCADE,
+    column_id INTEGER NOT NULL REFERENCES drive_columns(id) ON DELETE CASCADE,
+    value TEXT NOT NULL,
+    PRIMARY KEY (item_id, column_id)
+);
+CREATE TABLE IF NOT EXISTS library_links (
+    token TEXT PRIMARY KEY,
+    drive_id INTEGER NOT NULL REFERENCES drives(id) ON DELETE CASCADE,
+    can_write INTEGER NOT NULL DEFAULT 0,
+    created INTEGER NOT NULL,
+    created_by INTEGER NOT NULL,
+    expires INTEGER
+);
+CREATE INDEX IF NOT EXISTS library_links_drive ON library_links(drive_id);
 CREATE TABLE IF NOT EXISTS app_passwords (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
