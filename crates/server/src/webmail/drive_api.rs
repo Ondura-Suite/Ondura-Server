@@ -522,6 +522,9 @@ struct LinkCreate {
     item: i64,
     #[serde(default)]
     write: bool,
+    /// Days from now until the link expires; `0`/absent means it never expires.
+    #[serde(default)]
+    expires_days: i64,
 }
 
 #[derive(Deserialize)]
@@ -529,6 +532,13 @@ struct LinkRef {
     token: String,
     #[serde(default)]
     write: bool,
+    #[serde(default)]
+    expires_days: i64,
+}
+
+/// A number of days (from now) turned into an absolute expiry time, or `None`.
+fn expiry_from_days(days: i64) -> Option<i64> {
+    (days > 0).then(|| crate::store::now() + days * 86_400)
 }
 
 /// List an item's share links (anyone with write access to the drive).
@@ -540,7 +550,7 @@ pub fn item_links(app: &Shared, user: &User, query: &str) -> ApiResult {
     }
     let links = app.store.item_links(item_id).map_err(internal)?;
     Ok(json!({
-        "links": links.iter().map(|(t, w, c)| json!({ "token": t, "canWrite": w, "created": c })).collect::<Vec<_>>(),
+        "links": links.iter().map(|l| json!({ "token": l.token, "canWrite": l.can_write, "created": l.created, "expires": l.expires })).collect::<Vec<_>>(),
     }))
 }
 
@@ -554,7 +564,7 @@ pub fn create_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     if !role(app, user, it.drive_id)?.can_write() {
         return Err(forbidden());
     }
-    let token = app.store.create_item_link(b.item, b.write, user.id).map_err(internal)?;
+    let token = app.store.create_item_link(b.item, b.write, expiry_from_days(b.expires_days), user.id).map_err(internal)?;
     Ok(json!({ "token": token, "canWrite": b.write }))
 }
 
@@ -565,7 +575,7 @@ pub fn update_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     if !role(app, user, it.drive_id)?.can_write() {
         return Err(forbidden());
     }
-    app.store.set_item_link_write(&b.token, b.write).map_err(internal)?;
+    app.store.set_item_link(&b.token, b.write, expiry_from_days(b.expires_days)).map_err(internal)?;
     Ok(json!({ "ok": true }))
 }
 
@@ -599,7 +609,7 @@ pub fn shared_meta(app: &Shared, token: &str) -> ApiResult {
 /// List a folder share's children. `parent` must be the shared folder itself or
 /// a descendant of it, so a link can't reach the rest of the drive.
 pub fn shared_items(app: &Shared, token: &str, query: &str) -> ApiResult {
-    let (root, _) = app.store.item_by_link(token).map_err(internal)?.ok_or_else(not_found)?;
+    let (root, can_write) = app.store.item_by_link(token).map_err(internal)?.ok_or_else(not_found)?;
     if root.kind != "folder" {
         return Err(not_found());
     }
@@ -614,8 +624,75 @@ pub fn shared_items(app: &Shared, token: &str, query: &str) -> ApiResult {
     Ok(json!({
         "items": items.iter().map(item_json).collect::<Vec<_>>(),
         "path": path.iter().map(|(id, name)| json!({ "id": id, "name": name })).collect::<Vec<_>>(),
-        "canWrite": false,
+        "canWrite": can_write,
+        "parent": parent,
     }))
+}
+
+/// Would storing `new` bytes (replacing `old`) push a metered drive over quota?
+fn guest_over_quota(app: &Shared, drive_id: i64, old: i64, new: i64) -> bool {
+    match app.store.drive_quota(drive_id) {
+        Ok(Some(q)) if q > 0 => app.store.drive_total_size(drive_id).unwrap_or(0) - old + new > q,
+        _ => false,
+    }
+}
+
+/// Upload through an edit share link, with no account. A folder link drops the
+/// file into the shared folder (or a descendant); a file link replaces that
+/// file, keeping the old contents as a version.
+pub fn shared_upload(app: &Shared, token: &str, query: &str, headers: &HeaderMap, body: &Bytes) -> Response {
+    let json_err = |code: StatusCode, msg: &str| (code, axum::Json(json!({ "error": msg }))).into_response();
+    let Ok(Some((root, can_write))) = app.store.item_by_link(token) else {
+        return json_err(StatusCode::NOT_FOUND, "not found");
+    };
+    if !can_write {
+        return json_err(StatusCode::FORBIDDEN, "read-only");
+    }
+    if body.len() > MAX_UPLOAD {
+        return json_err(StatusCode::PAYLOAD_TOO_LARGE, "file too large");
+    }
+    let content_type = headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).filter(|v| !v.is_empty()).unwrap_or("application/octet-stream");
+    // Resolve where the upload lands and which file (if any) it overwrites.
+    let (parent, name, existing) = if root.kind == "folder" {
+        let parent: i64 = query_param(query, "parent").and_then(|v| v.parse().ok()).unwrap_or(root.id);
+        if parent != root.id && !app.store.is_within(root.id, Some(parent)).unwrap_or(false) {
+            return json_err(StatusCode::NOT_FOUND, "not found");
+        }
+        let name = query_param(query, "name").map(decode).unwrap_or_default();
+        let existing = app.store.child_by_name(root.drive_id, Some(parent), &name).ok().flatten().filter(|e| e.kind == "file");
+        (Some(parent), name, existing)
+    } else if root.kind == "file" {
+        (root.parent_id, root.name.clone(), Some(root.clone()))
+    } else {
+        return json_err(StatusCode::NOT_FOUND, "not found");
+    };
+    let old_size = existing.as_ref().map(|e| e.size).unwrap_or(0);
+    if guest_over_quota(app, root.drive_id, old_size, body.len() as i64) {
+        return json_err(StatusCode::INSUFFICIENT_STORAGE, "not enough storage");
+    }
+    // A guest's write is attributed to whoever created the link.
+    let by = app.store.item_link_creator(token).ok().flatten().unwrap_or(0);
+    let item = match &existing {
+        Some(e) => {
+            snapshot_version(app, root.drive_id, e.id, by);
+            if app.store.set_file_meta(e.id, body.len() as i64, content_type, by).is_err() {
+                return json_err(StatusCode::INTERNAL_SERVER_ERROR, "could not store file");
+            }
+            e.id
+        }
+        None => match app.store.create_drive_file(root.drive_id, parent, &name, body.len() as i64, content_type, by) {
+            Ok(id) => id,
+            Err(e) => return json_err(StatusCode::BAD_REQUEST, &e.to_string()),
+        },
+    };
+    let dir = drive_dir(app, root.drive_id);
+    if std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(dir.join(item.to_string()), body)).is_err() {
+        if existing.is_none() {
+            let _ = app.store.delete_drive_item(item);
+        }
+        return json_err(StatusCode::INTERNAL_SERVER_ERROR, "could not store file");
+    }
+    (StatusCode::OK, axum::Json(json!({ "id": item }))).into_response()
 }
 
 /// Download (or preview) a file reached through a share link. For a folder share

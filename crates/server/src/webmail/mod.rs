@@ -135,15 +135,21 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
     if api == "/login" && method == Method::POST {
         return security_headers(login(&app, &body, ip, headers).await);
     }
-    // Public cloud share links need no account: resolve, browse and download.
-    if app.cfg.cloud.enabled && method == Method::GET && let Some(rest) = api.strip_prefix("/cloud/shared/") {
+    // Public cloud share links need no account: resolve, browse, download and —
+    // for an edit link — upload.
+    if app.cfg.cloud.enabled && let Some(rest) = api.strip_prefix("/cloud/shared/") {
         let (token, sub) = rest.split_once('/').unwrap_or((rest, ""));
-        return match sub {
-            "" => security_headers(json_response(drive_api::shared_meta(&app, token))),
-            "items" => security_headers(json_response(drive_api::shared_items(&app, token, query))),
-            "download" => security_headers(drive_api::shared_download(&app, token, query)),
-            _ => json_response(Err((StatusCode::NOT_FOUND, "Not found".into()))),
-        };
+        if method == Method::POST && sub == "upload" {
+            return security_headers(drive_api::shared_upload(&app, token, query, headers, &body));
+        }
+        if method == Method::GET {
+            return match sub {
+                "" => security_headers(json_response(drive_api::shared_meta(&app, token))),
+                "items" => security_headers(json_response(drive_api::shared_items(&app, token, query))),
+                "download" => security_headers(drive_api::shared_download(&app, token, query)),
+                _ => json_response(Err((StatusCode::NOT_FOUND, "Not found".into()))),
+            };
+        }
     }
     let Some(user) = session_user(&app, headers) else {
         return json_response(Err((StatusCode::UNAUTHORIZED, "Not signed in".into())));

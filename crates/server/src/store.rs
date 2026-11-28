@@ -239,7 +239,8 @@ CREATE TABLE IF NOT EXISTS drive_links (
     item_id INTEGER NOT NULL REFERENCES drive_items(id) ON DELETE CASCADE,
     can_write INTEGER NOT NULL DEFAULT 0,
     created INTEGER NOT NULL,
-    created_by INTEGER NOT NULL
+    created_by INTEGER NOT NULL,
+    expires INTEGER
 );
 CREATE INDEX IF NOT EXISTS drive_links_item ON drive_links(item_id);
 CREATE TABLE IF NOT EXISTS drive_file_versions (

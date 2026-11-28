@@ -81,16 +81,21 @@ Sharing and browsing:
 | --- | --- | --- |
 | GET | `/mail/api/cloud/recent?limit=` | The user's most recently updated files and documents across all their drives, each with the drive it lives in. |
 | GET | `/mail/api/cloud/links?item=` | A file or folder's share links. |
-| POST | `/mail/api/cloud/link` | Create a share link (`{ "item", "write" }`). |
-| POST | `/mail/api/cloud/link/update` | Change a link's access (`{ "token", "write" }`). |
+| POST | `/mail/api/cloud/link` | Create a share link (`{ "item", "write", "expires_days" }`; `expires_days` of `0` means no expiry). |
+| POST | `/mail/api/cloud/link/update` | Change a link's access (`{ "token", "write", "expires_days" }`). |
 | POST | `/mail/api/cloud/link/revoke` | Revoke a link (`{ "token" }`). |
 | GET | `/mail/api/cloud/shared/{token}` | Public: a share link's target (file or folder), no account required. |
 | GET | `/mail/api/cloud/shared/{token}/items?parent=` | Public: browse a shared folder's subtree. |
 | GET | `/mail/api/cloud/shared/{token}/download?item=` | Public: download a shared file (`item` names a file inside a shared folder). |
+| POST | `/mail/api/cloud/shared/{token}/upload?parent=&name=` | Public, edit links only: upload into a shared folder, or replace a shared file. |
 
-A share link opens a read-only guest view: a single file shows an inline preview
-(images, PDFs, text) with a download button, and a folder can be browsed within
-its own subtree. A link to a trashed item stops resolving until it is restored.
+A share link is view or edit and may carry an expiry. It opens a guest view with
+no account: a single file shows an inline preview (images, PDFs, text) with a
+download button, and a folder can be browsed within its own subtree. An edit link
+lets the guest upload — into the shared folder (and its subfolders) or as a new
+version of the shared file; guest uploads are attributed to the account that
+created the link and count toward that drive's quota. A link to a trashed item,
+or one past its expiry, stops resolving.
 
 Version history:
 

@@ -80,6 +80,16 @@ pub struct RecentItem {
     pub drive_kind: String,
 }
 
+/// A share link on a file or folder.
+#[derive(Debug, Clone, Serialize)]
+pub struct ItemLink {
+    pub token: String,
+    pub can_write: bool,
+    pub created: i64,
+    /// Unix time the link stops working, or `None` for no expiry.
+    pub expires: Option<i64>,
+}
+
 /// A stored previous version of a file's contents.
 #[derive(Debug, Clone, Serialize)]
 pub struct FileVersion {
@@ -281,6 +291,19 @@ impl Store {
             [drive_id],
             |r| r.get(0),
         )
+    }
+
+    /// The storage quota that applies to a drive, when it is metered: a personal
+    /// drive's owner quota (`0` = unlimited). Libraries are not metered, so this
+    /// returns `None` for them.
+    pub fn drive_quota(&self, drive_id: i64) -> Result<Option<i64>> {
+        self.db()
+            .query_row(
+                "SELECT u.quota FROM drives d JOIN users u ON u.id = d.owner_id WHERE d.id = ?1 AND d.kind = 'personal'",
+                [drive_id],
+                |r| r.get(0),
+            )
+            .optional()
     }
 
     /// Find a direct child of a folder by exact name (case-sensitive), for
@@ -614,26 +637,30 @@ impl Store {
     // ------------------------------------------------------------ share links
 
     /// Create a share link for a file or folder and return its token. The link
-    /// grants view (or edit) access to anyone who holds it, signed in or not.
-    pub fn create_item_link(&self, item_id: i64, can_write: bool, by: i64) -> Result<String> {
+    /// grants view or edit access to anyone who holds it, signed in or not,
+    /// until `expires` (a Unix time, or `None` for a link that never expires).
+    pub fn create_item_link(&self, item_id: i64, can_write: bool, expires: Option<i64>, by: i64) -> Result<String> {
         let mut bytes = [0u8; 24];
         rand::fill(&mut bytes);
         let token = hex::encode(bytes);
         self.db().execute(
-            "INSERT INTO drive_links (token, item_id, can_write, created, created_by) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![&token, item_id, can_write as i64, now(), by],
+            "INSERT INTO drive_links (token, item_id, can_write, created, created_by, expires) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![&token, item_id, can_write as i64, now(), by, expires],
         )?;
         Ok(token)
     }
 
-    /// Resolve a link token to the item it points at, if the link exists and the
-    /// item is still live (not trashed).
+    /// Resolve a link token to the item it points at, if the link exists, has
+    /// not expired, and the item is still live (not trashed).
     pub fn item_by_link(&self, token: &str) -> Result<Option<(Item, bool)>> {
-        let row: Option<(i64, bool)> = self
+        let row: Option<(i64, bool, Option<i64>)> = self
             .db()
-            .query_row("SELECT item_id, can_write FROM drive_links WHERE token = ?1", [token], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)? != 0)))
+            .query_row("SELECT item_id, can_write, expires FROM drive_links WHERE token = ?1", [token], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)? != 0, r.get(2)?)))
             .optional()?;
-        let Some((item_id, can_write)) = row else { return Ok(None) };
+        let Some((item_id, can_write, expires)) = row else { return Ok(None) };
+        if expires.is_some_and(|e| e <= now()) {
+            return Ok(None);
+        }
         // A trashed item's links stop resolving until it is restored.
         let live: Option<i64> = self.db().query_row("SELECT 1 FROM drive_items WHERE id = ?1 AND trashed = 0", [item_id], |r| r.get(0)).optional()?;
         if live.is_none() {
@@ -653,15 +680,23 @@ impl Store {
             .optional()
     }
 
-    /// An item's share links: (token, can_write, created).
-    pub fn item_links(&self, item_id: i64) -> Result<Vec<(String, bool, i64)>> {
-        let db = self.db();
-        let stmt = db.prepare("SELECT token, can_write, created FROM drive_links WHERE item_id = ?1 ORDER BY created")?;
-        stmt.query_map([item_id], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? != 0, r.get(2)?)))
+    /// The account that created a share link (a guest's edits are attributed to
+    /// the person who shared the link).
+    pub fn item_link_creator(&self, token: &str) -> Result<Option<i64>> {
+        self.db()
+            .query_row("SELECT created_by FROM drive_links WHERE token = ?1", [token], |r| r.get(0))
+            .optional()
     }
 
-    pub fn set_item_link_write(&self, token: &str, can_write: bool) -> Result<()> {
-        self.db().execute("UPDATE drive_links SET can_write = ?1 WHERE token = ?2", params![can_write as i64, token])?;
+    /// An item's share links.
+    pub fn item_links(&self, item_id: i64) -> Result<Vec<ItemLink>> {
+        let db = self.db();
+        let stmt = db.prepare("SELECT token, can_write, created, expires FROM drive_links WHERE item_id = ?1 ORDER BY created")?;
+        stmt.query_map([item_id], |r| Ok(ItemLink { token: r.get(0)?, can_write: r.get::<_, i64>(1)? != 0, created: r.get(2)?, expires: r.get(3)? }))
+    }
+
+    pub fn set_item_link(&self, token: &str, can_write: bool, expires: Option<i64>) -> Result<()> {
+        self.db().execute("UPDATE drive_links SET can_write = ?1, expires = ?2 WHERE token = ?3", params![can_write as i64, expires, token])?;
         Ok(())
     }
 
@@ -852,7 +887,7 @@ mod tests {
         let d = s.ensure_personal_drive(user.id).unwrap();
         let file = s.create_drive_file(d, None, "a.txt", 3, "text/plain", user.id).unwrap();
 
-        let token = s.create_item_link(file, false, user.id).unwrap();
+        let token = s.create_item_link(file, false, None, user.id).unwrap();
         let (it, can_write) = s.item_by_link(&token).unwrap().unwrap();
         assert_eq!(it.id, file);
         assert!(!can_write);
@@ -868,6 +903,30 @@ mod tests {
         s.revoke_item_link(&token).unwrap();
         assert!(s.item_by_link(&token).unwrap().is_none());
         assert!(s.item_links(file).unwrap().is_empty());
+    }
+
+    #[test]
+    fn share_links_carry_edit_and_expiry() {
+        use crate::store::now;
+        let (app, user) = App::test();
+        let s = &app.store;
+        let d = s.ensure_personal_drive(user.id).unwrap();
+        let folder = s.create_drive_folder(d, None, "Shared", user.id).unwrap();
+
+        // An edit link resolves with write access.
+        let edit = s.create_item_link(folder, true, None, user.id).unwrap();
+        assert!(s.item_by_link(&edit).unwrap().unwrap().1);
+
+        // An already-expired link does not resolve; a future one does.
+        let past = s.create_item_link(folder, false, Some(now() - 10), user.id).unwrap();
+        assert!(s.item_by_link(&past).unwrap().is_none());
+        let future = s.create_item_link(folder, false, Some(now() + 3600), user.id).unwrap();
+        assert!(s.item_by_link(&future).unwrap().is_some());
+
+        // Changing a link to view-only with no expiry takes effect.
+        s.set_item_link(&edit, false, None).unwrap();
+        assert!(!s.item_by_link(&edit).unwrap().unwrap().1);
+        assert_eq!(s.item_link_creator(&edit).unwrap(), Some(user.id));
     }
 
     #[test]
