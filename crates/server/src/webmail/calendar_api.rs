@@ -61,6 +61,7 @@ fn occurrence_json(item_id: i64, folder: i64, e: &Event, times: (i64, i64, i64),
     let subject = ex.and_then(|x| x.subject.clone()).unwrap_or_else(|| e.subject.clone());
     let location = ex.and_then(|x| x.location.clone()).unwrap_or_else(|| e.location.clone());
     let all_day = ex.and_then(|x| x.all_day).unwrap_or(e.all_day);
+    let reminder = ex.and_then(|x| x.reminder).unwrap_or(e.reminder);
     json!({
         "id": item_id,
         "folder": folder,
@@ -78,6 +79,7 @@ fn occurrence_json(item_id: i64, folder: i64, e: &Event, times: (i64, i64, i64),
         "hasAttendees": !e.attendees.is_empty(),
         "response": format!("{:?}", e.response).to_ascii_lowercase(),
         "cancelled": e.cancelled,
+        "reminder": reminder,
     })
 }
 
@@ -114,7 +116,7 @@ pub fn list(app: &Shared, user: &User, query: &str) -> ApiResult {
                 v["canEdit"] = json!(editable);
                 if blocks_only {
                     // Only that the time is taken, not what for.
-                    for k in ["subject", "location", "organizer", "uid"] {
+                    for k in ["subject", "location", "organizer", "uid", "reminder"] {
                         v[k] = Value::Null;
                     }
                     v["blocksOnly"] = json!(true);

@@ -105,6 +105,11 @@ it as a target — but meetings with attendees stay read-only there, so no
 invitation goes out in someone else's name. Calendar and contacts have their own
 addresses (`/mail/calendar`, `/mail/contacts`).
 
+**Reminders** — while webmail is open it checks once a minute for events whose
+reminder time has come and announces each occurrence once, as a browser
+notification after **Turn on reminders** in the calendar (or as a message in the
+page otherwise). Declined and cancelled events are skipped.
+
 **Import and export** — **Export (.ics)** downloads the whole calendar as an
 iCalendar file that other calendar programs open; **Import .ics file** adds the
 events of such a file to your calendar, including recurring series and changed
