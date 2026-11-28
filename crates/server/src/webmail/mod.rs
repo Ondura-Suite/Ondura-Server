@@ -228,6 +228,7 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/cloud/member/delete") => drive_api::remove_member(app, user, body),
         (&Method::GET, "/cloud/recent") => drive_api::recent(app, user, query),
         (&Method::GET, "/cloud/shared-with-me") => drive_api::shared_with_me(app, user),
+        (&Method::GET, "/cloud/search") => drive_api::search(app, user, query),
         (&Method::GET, "/cloud/versions") => drive_api::versions(app, user, query),
         (&Method::POST, "/cloud/version/restore") => drive_api::restore_version(app, user, body),
         (&Method::GET, "/cloud/links") => drive_api::item_links(app, user, query),

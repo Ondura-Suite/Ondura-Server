@@ -81,6 +81,7 @@ Sharing and browsing:
 | --- | --- | --- |
 | GET | `/mail/api/cloud/recent?limit=` | The user's most recently updated files and documents across all their drives, each with the drive it lives in. |
 | GET | `/mail/api/cloud/shared-with-me` | Documents shared directly with the user (not ones they own), each with its owner. |
+| GET | `/mail/api/cloud/search?q=` | Search files, folders and documents by name across every drive the user can see. |
 | GET | `/mail/api/cloud/links?item=` | A file or folder's share links. |
 | POST | `/mail/api/cloud/link` | Create a share link (`{ "item", "write", "expires_days" }`; `expires_days` of `0` means no expiry). |
 | POST | `/mail/api/cloud/link/update` | Change a link's access (`{ "token", "write", "expires_days" }`). |
@@ -140,8 +141,9 @@ with me** list of documents other people have shared directly, with folder
 browsing, drag-free breadcrumb navigation, file upload and download, inline
 previews for images, PDFs and text, new folders and new documents, rename, share
 links, version history, a **Recycle bin** that restores or permanently removes
-deleted items, and — for libraries — a member manager. Opening a document hands
-over to the collaborative editor described in `collab.md`.
+deleted items, a search box that finds items by name across every drive, and —
+for libraries — a member manager. Opening a document hands over to the
+collaborative editor described in `collab.md`.
 
 Collaborative documents live **only** inside the cloud: they are created as items
 in a drive and opened from Files, with no separate documents section.

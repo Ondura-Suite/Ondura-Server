@@ -515,6 +515,25 @@ pub fn download_version(app: &Shared, user: &User, query: &str) -> Response {
     r
 }
 
+/// Search files, folders and documents by name across the user's drives.
+pub fn search(app: &Shared, user: &User, query: &str) -> ApiResult {
+    let q = query_param(query, "q").map(decode).unwrap_or_default();
+    let q = q.trim();
+    if q.is_empty() {
+        return Ok(json!({ "items": [] }));
+    }
+    let items = app.store.search_items(user.id, q, 50).map_err(internal)?;
+    Ok(json!({
+        "items": items.iter().map(|r| {
+            let mut v = item_json(&r.item);
+            v["driveId"] = json!(r.drive_id);
+            v["driveName"] = json!(r.drive_name);
+            v["driveKind"] = json!(r.drive_kind);
+            v
+        }).collect::<Vec<_>>(),
+    }))
+}
+
 /// Documents shared directly with the signed-in user (not ones they own).
 pub fn shared_with_me(app: &Shared, user: &User) -> ApiResult {
     let docs = app.store.docs_shared_with(user.id).map_err(internal)?;

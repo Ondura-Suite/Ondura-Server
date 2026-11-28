@@ -584,6 +584,32 @@ impl Store {
         })
     }
 
+    /// Search files, folders and documents by name across every drive the user
+    /// can see. Folders are included so a matching folder can be opened.
+    pub fn search_items(&self, user_id: i64, query: &str, limit: i64) -> Result<Vec<RecentItem>> {
+        self.ensure_personal_drive(user_id)?;
+        let cols: String = ITEM_COLUMNS.split(", ").map(|c| format!("i.{c}")).collect::<Vec<_>>().join(", ");
+        // Escape LIKE wildcards in the user's query, then match it anywhere.
+        let needle = format!("%{}%", query.replace('\\', "\\\\").replace('%', "\\%").replace('_', "\\_"));
+        let db = self.db();
+        let st = db.prepare(&format!(
+            "SELECT {cols}, d.id, d.name, d.kind FROM drive_items i \
+             JOIN drives d ON d.id = i.drive_id \
+             WHERE i.trashed = 0 AND i.name LIKE ?2 ESCAPE '\\' \
+               AND ((d.kind = 'personal' AND d.owner_id = ?1) \
+                    OR d.id IN (SELECT drive_id FROM drive_members WHERE user_id = ?1)) \
+             ORDER BY i.updated DESC LIMIT ?3"
+        ))?;
+        st.query_map(params![user_id, needle, limit], |r| {
+            Ok(RecentItem {
+                item: item_from_row(r)?,
+                drive_id: r.get(9)?,
+                drive_name: r.get(10)?,
+                drive_kind: r.get(11)?,
+            })
+        })
+    }
+
     // --------------------------------------------------------- file versions
 
     /// Record the file's current contents as a new version and return its id.
@@ -913,6 +939,23 @@ mod tests {
         s.revoke_item_link(&token).unwrap();
         assert!(s.item_by_link(&token).unwrap().is_none());
         assert!(s.item_links(file).unwrap().is_empty());
+    }
+
+    #[test]
+    fn search_matches_names_across_drives() {
+        let (app, user) = App::test();
+        let s = &app.store;
+        let d = s.ensure_personal_drive(user.id).unwrap();
+        let lib = s.create_library(user.id, "Team").unwrap();
+        s.create_drive_file(d, None, "budget-2026.xlsx", 1, "x", user.id).unwrap();
+        s.create_drive_file(lib, None, "team budget.txt", 1, "x", user.id).unwrap();
+        s.create_drive_file(d, None, "notes.md", 1, "x", user.id).unwrap();
+
+        // The query matches by substring across the personal drive and library.
+        let hits = s.search_items(user.id, "budget", 50).unwrap();
+        assert_eq!(hits.len(), 2);
+        // A wildcard in the query is treated literally, not as SQL LIKE syntax.
+        assert!(s.search_items(user.id, "%", 50).unwrap().is_empty());
     }
 
     #[test]
