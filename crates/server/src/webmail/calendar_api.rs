@@ -571,3 +571,151 @@ pub fn rooms(app: &Shared, _user: &User, query: &str) -> ApiResult {
     }
     Ok(json!({ "rooms": out }))
 }
+
+// ------------------------------------------------------- subscriptions
+
+/// Largest calendar file a subscription may download.
+const MAX_FEED: usize = 5 * 1024 * 1024;
+/// How often subscribed calendars are fetched again.
+pub const REFRESH_EVERY: i64 = 3600;
+
+#[derive(Debug, Clone)]
+pub struct Subscription {
+    pub id: i64,
+    pub user_id: i64,
+    pub name: String,
+    pub url: String,
+    pub fetched: i64,
+    pub error: String,
+}
+
+impl crate::store::Store {
+    pub fn subscriptions(&self, user_id: i64) -> anyhow::Result<Vec<Subscription>> {
+        let db = self.db();
+        let st = db.prepare("SELECT id, user_id, name, url, fetched, error FROM calendar_subscriptions WHERE user_id = ?1 ORDER BY LOWER(name), id")?;
+        st.query_map([user_id], |r| Ok(Subscription { id: r.get(0)?, user_id: r.get(1)?, name: r.get(2)?, url: r.get(3)?, fetched: r.get(4)?, error: r.get(5)? }))
+    }
+
+    pub fn subscription_data(&self, user_id: i64, id: i64) -> anyhow::Result<Option<String>> {
+        use crate::db::OptionalExtension;
+        self.db().query_row("SELECT data FROM calendar_subscriptions WHERE id = ?1 AND user_id = ?2", crate::db::params![id, user_id], |r| r.get(0)).optional()
+    }
+
+    pub fn add_subscription(&self, user_id: i64, name: &str, url: &str, data: &str) -> anyhow::Result<i64> {
+        self.db().query_row(
+            "INSERT INTO calendar_subscriptions (user_id, name, url, fetched, error, data) VALUES (?1, ?2, ?3, ?4, '', ?5) RETURNING id",
+            crate::db::params![user_id, name, url, crate::store::now(), data],
+            |r| r.get(0),
+        )
+    }
+
+    /// Store a fetch result: new data, or (on failure) just the error.
+    pub fn set_subscription_result(&self, id: i64, data: Result<&str, &str>) -> anyhow::Result<()> {
+        match data {
+            Ok(d) => self.db().execute("UPDATE calendar_subscriptions SET data = ?1, error = '', fetched = ?2 WHERE id = ?3", crate::db::params![d, crate::store::now(), id])?,
+            Err(e) => self.db().execute("UPDATE calendar_subscriptions SET error = ?1, fetched = ?2 WHERE id = ?3", crate::db::params![e, crate::store::now(), id])?,
+        };
+        Ok(())
+    }
+
+    pub fn delete_subscription(&self, user_id: i64, id: i64) -> anyhow::Result<()> {
+        self.db().execute("DELETE FROM calendar_subscriptions WHERE id = ?1 AND user_id = ?2", crate::db::params![id, user_id])?;
+        Ok(())
+    }
+
+    /// Subscriptions last fetched before `older_than`, oldest first.
+    pub fn stale_subscriptions(&self, older_than: i64, limit: i64) -> anyhow::Result<Vec<Subscription>> {
+        let db = self.db();
+        let st = db.prepare("SELECT id, user_id, name, url, fetched, error FROM calendar_subscriptions WHERE fetched < ?1 ORDER BY fetched LIMIT ?2")?;
+        st.query_map(crate::db::params![older_than, limit], |r| Ok(Subscription { id: r.get(0)?, user_id: r.get(1)?, name: r.get(2)?, url: r.get(3)?, fetched: r.get(4)?, error: r.get(5)? }))
+    }
+}
+
+/// Download a calendar and check that it is one.
+async fn fetch_feed(url: &str) -> Result<String, String> {
+    let body = crate::fetch::get(url, MAX_FEED).await.map_err(|e| e.to_string())?;
+    if !body.contains("BEGIN:VCALENDAR") {
+        return Err("the address does not return a calendar (.ics)".into());
+    }
+    Ok(body)
+}
+
+fn subscription_json(s: &Subscription) -> Value {
+    json!({ "id": s.id, "name": s.name, "url": s.url, "fetched": s.fetched, "error": s.error })
+}
+
+/// GET /calendar/subscriptions
+pub fn subscriptions(app: &Shared, user: &User) -> ApiResult {
+    let list = app.store.subscriptions(user.id).map_err(internal)?;
+    Ok(json!({ "subscriptions": list.iter().map(subscription_json).collect::<Vec<_>>() }))
+}
+
+/// POST /calendar/subscription { url, name? } — subscribe to a published
+/// calendar (an .ics address, `webcal://` too). It is fetched right away and
+/// then every hour; its events are shown read-only.
+pub async fn subscribe(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        url: String,
+        #[serde(default)]
+        name: String,
+    }
+    let b: B = parse(body)?;
+    if app.store.subscriptions(user.id).map_err(internal)?.len() >= 20 {
+        return Err(bad("You can subscribe to at most 20 calendars."));
+    }
+    let data = fetch_feed(&b.url).await.map_err(bad)?;
+    let name = if b.name.trim().is_empty() {
+        data.lines().find_map(|l| l.strip_prefix("X-WR-CALNAME:")).map(|s| s.trim().to_string()).filter(|s| !s.is_empty()).unwrap_or_else(|| b.url.clone())
+    } else {
+        b.name.trim().to_string()
+    };
+    let id = app.store.add_subscription(user.id, &name, b.url.trim(), &data).map_err(internal)?;
+    Ok(json!({ "id": id, "name": name }))
+}
+
+/// POST /calendar/subscription/delete { id }
+pub fn unsubscribe(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        id: i64,
+    }
+    let b: B = parse(body)?;
+    app.store.delete_subscription(user.id, b.id).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// GET /calendar/subscription/events?id=&from=&to= — a subscribed calendar's
+/// events in a range, expanded like the own calendar's.
+pub fn subscription_events(app: &Shared, user: &User, query: &str) -> ApiResult {
+    let get = |k: &str| query.split('&').filter_map(|p| p.split_once('=')).find(|(x, _)| *x == k).and_then(|(_, v)| v.parse::<i64>().ok());
+    let (id, from, to) = (get("id").ok_or_else(|| bad("id required"))?, get("from").ok_or_else(|| bad("from required"))?, get("to").ok_or_else(|| bad("to required"))?);
+    if to <= from || to - from > 62 * 86_400 {
+        return Err(bad("invalid range"));
+    }
+    let data = app.store.subscription_data(user.id, id).map_err(internal)?.ok_or_else(super::not_found)?;
+    let cal = crate::ical::parse(&data);
+    let mut out = Vec::new();
+    for e in &cal.events {
+        for o in e.occurrences(from, to) {
+            let mut v = occurrence_json(0, 0, e, (o.start, o.end, o.original_start), e.recurrence.is_some(), o.exception.as_ref());
+            v["subscription"] = json!(id);
+            v["description"] = json!(e.body);
+            out.push(v);
+        }
+    }
+    out.sort_by_key(|v| v["start"].as_i64().unwrap_or(0));
+    Ok(json!({ "events": out }))
+}
+
+/// Fetch subscribed calendars that are due again. Run in the background.
+pub async fn refresh_subscriptions(app: &Shared) {
+    let stale = app.store.stale_subscriptions(crate::store::now() - REFRESH_EVERY, 5).unwrap_or_default();
+    for s in stale {
+        let r = fetch_feed(&s.url).await;
+        if let Err(e) = &r {
+            tracing::info!(id = s.id, "calendar subscription not updated: {e}");
+        }
+        let _ = app.store.set_subscription_result(s.id, r.as_deref().map_err(|e| e.as_str()));
+    }
+}

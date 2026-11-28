@@ -236,7 +236,7 @@ pub fn notes(app: &Shared, user: &User) -> ApiResult {
     for f in folders.iter().filter(|f| matches!(f.class, FolderClass::Notes)) {
         for item in app.store.items(f.id, 0, 5000).map_err(internal)? {
             if let Some(n) = item.note() {
-                out.push(json!({ "id": item.id, "folder": f.id, "subject": n.subject, "body": n.body, "date": item.received }));
+                out.push(json!({ "id": item.id, "folder": f.id, "subject": n.subject, "body": n.body, "notebook": n.notebook, "pinned": n.pinned, "date": item.received, "note": n }));
             }
         }
     }
@@ -269,6 +269,30 @@ pub fn save_note(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
 
 pub fn delete_note(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     delete_pim(app, user, body)
+}
+
+/// POST /note/to-document { id } — turn a note into a collaborative document
+/// in the personal drive (to share it and edit it together); the note is
+/// removed. Returns the document id.
+pub fn note_to_document(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        id: i64,
+    }
+    if !app.cfg.cloud.enabled || !app.collab_enabled() {
+        return Err(not_found());
+    }
+    let b: B = parse(body)?;
+    let item = own_item(app, user, b.id)?;
+    let note = item.note().filter(|_| item.kind == ItemKind::Note).ok_or_else(|| bad("not a note"))?;
+    let drive = app.store.ensure_personal_drive(user.id).map_err(internal)?;
+    let name = if note.subject.trim().is_empty() { "Note".to_string() } else { note.subject.trim().to_string() };
+    let (_, doc) = app.store.create_drive_doc(drive, None, &name, user.id).map_err(|e| bad(e.to_string()))?;
+    if !note.body.is_empty() {
+        app.store.apply_op(doc, user.id, 0, &json!([note.body])).map_err(internal)?;
+    }
+    app.store.delete_item(item.id, WRITER).map_err(internal)?;
+    Ok(json!({ "doc": doc }))
 }
 
 fn delete_pim(app: &Shared, user: &User, body: &Bytes) -> ApiResult {

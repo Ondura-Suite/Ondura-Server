@@ -935,3 +935,106 @@ async fn send_later_waits_can_be_cancelled_and_goes_out_when_due() {
     }
     assert!(got);
 }
+
+#[test]
+fn notes_keep_notebooks_and_turn_into_documents() {
+    let (app, user) = App::test();
+    let r = pim_api::save_note(&app, &user, &body(serde_json::json!({ "note": { "subject": "Ideen", "body": "- Messe\n- Newsletter", "notebook": "Marketing", "pinned": true } }))).unwrap();
+    let id = r["id"].as_i64().unwrap();
+    let list = pim_api::notes(&app, &user).unwrap();
+    assert_eq!((list["notes"][0]["notebook"].as_str(), list["notes"][0]["pinned"].as_bool()), (Some("Marketing"), Some(true)));
+    let d = pim_api::note_to_document(&app, &user, &body(serde_json::json!({ "id": id }))).unwrap();
+    let doc = app.store.doc(d["doc"].as_i64().unwrap()).unwrap().unwrap();
+    assert_eq!((doc.name.as_str(), doc.content.as_str()), ("Ideen", "- Messe\n- Newsletter"));
+    assert!(pim_api::notes(&app, &user).unwrap()["notes"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn snoozed_mail_comes_back_unread() {
+    let (app, user) = App::test();
+    // A message in a custom folder, read.
+    let id = mail_api::draft(&app, &user, &body(serde_json::json!({ "to": "a@example.com", "subject": "Later", "text": "x" }))).unwrap()["id"].as_i64().unwrap();
+    let projects = app.store.create_folder(user.id, None, "Projekte", crate::model::FolderClass::Mail, "t").unwrap();
+    app.store.move_item(id, projects.id, "t").unwrap();
+    app.store.update_flags(id, crate::model::flags::READ, 0, None, "t").unwrap();
+    assert!(mail_api::snooze(&app, &user, &body(serde_json::json!({ "id": id, "until": 10 }))).is_err());
+    mail_api::snooze(&app, &user, &body(serde_json::json!({ "id": id, "until": crate::store::now() + 3600 }))).unwrap();
+    let snoozed = app.store.folder_by_role(user.id, "snoozed").unwrap().unwrap();
+    assert_eq!(app.store.item(id).unwrap().unwrap().folder_id, snoozed.id);
+    assert!(mail_api::snoozed(&app, &user).unwrap()[id.to_string()].as_i64().is_some());
+    // Snoozing again keeps the original folder.
+    mail_api::snooze(&app, &user, &body(serde_json::json!({ "id": id, "until": crate::store::now() + 7200 }))).unwrap();
+    app.store.db().execute("UPDATE snoozed_mail SET until = 0", crate::db::params![]).unwrap();
+    mail_api::wake_snoozed(&app);
+    let it = app.store.item(id).unwrap().unwrap();
+    assert_eq!(it.folder_id, projects.id);
+    assert_eq!(it.flags & crate::model::flags::READ, 0);
+    assert!(mail_api::snoozed(&app, &user).unwrap().as_object().unwrap().is_empty());
+}
+
+#[test]
+fn mail_templates_belong_to_their_owner() {
+    let (app, user) = App::test();
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    let id = mail_api::save_template(&app, &user, &body(serde_json::json!({ "name": "Angebot", "subject": "Ihr Angebot", "html": "<p>Hallo,</p>" }))).unwrap()["id"].as_i64().unwrap();
+    assert!(mail_api::save_template(&app, &user, &body(serde_json::json!({ "name": " " }))).is_err());
+    assert!(mail_api::save_template(&app, &anna, &body(serde_json::json!({ "id": id, "name": "x" }))).is_err());
+    assert!(mail_api::templates(&app, &anna).unwrap()["templates"].as_array().unwrap().is_empty());
+    assert_eq!(mail_api::templates(&app, &user).unwrap()["templates"][0]["subject"], "Ihr Angebot");
+    mail_api::delete_template(&app, &user, &body(serde_json::json!({ "id": id }))).unwrap();
+    assert!(mail_api::templates(&app, &user).unwrap()["templates"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn calendar_subscriptions_show_their_events() {
+    let (app, user) = App::test();
+    // Internal addresses are refused.
+    assert!(calendar_api::subscribe(&app, &user, &body(serde_json::json!({ "url": "http://127.0.0.1/cal.ics" }))).await.is_err());
+    let ics = "BEGIN:VCALENDAR\r\nX-WR-CALNAME:Feiertage\r\nBEGIN:VEVENT\r\nUID:a\r\nSUMMARY:Weihnachten\r\nDTSTART;VALUE=DATE:20261225\r\nDTEND;VALUE=DATE:20261226\r\nRRULE:FREQ=YEARLY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    let id = app.store.add_subscription(user.id, "Feiertage", "https://example.org/f.ics", ics).unwrap();
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    let from = 1_798_000_000i64; // Dec 2026
+    let q = format!("id={id}&from={from}&to={}", from + 40 * 86_400);
+    let r = calendar_api::subscription_events(&app, &user, &q).unwrap();
+    assert_eq!(r["events"][0]["subject"], "Weihnachten");
+    assert_eq!(r["events"][0]["allDay"], true);
+    assert!(calendar_api::subscription_events(&app, &anna, &q).is_err());
+    assert_eq!(calendar_api::subscriptions(&app, &user).unwrap()["subscriptions"][0]["name"], "Feiertage");
+    calendar_api::unsubscribe(&app, &user, &body(serde_json::json!({ "id": id }))).unwrap();
+    assert!(calendar_api::subscriptions(&app, &user).unwrap()["subscriptions"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn password_protected_links_and_favorites() {
+    use axum::http::{HeaderMap, HeaderValue, StatusCode};
+    let (app, user) = App::test();
+    let drive = app.store.ensure_personal_drive(user.id).unwrap();
+    let folder = app.store.create_drive_folder(drive, None, "Angebote", user.id).unwrap();
+    let r = drive_api::create_item_link(&app, &user, &body(serde_json::json!({ "item": folder, "password": "geheim123" }))).unwrap();
+    let token = r["token"].as_str().unwrap().to_string();
+    let links = drive_api::item_links(&app, &user, &format!("item={folder}")).unwrap();
+    assert_eq!(links["links"][0]["hasPassword"], true);
+    assert!(!drive_api::link_unlocked(&app, &token, &HeaderMap::new()));
+    assert_eq!(drive_api::unlock_link(&app, &token, &body(serde_json::json!({ "password": "falsch" })), false).status(), StatusCode::FORBIDDEN);
+    let ok = drive_api::unlock_link(&app, &token, &body(serde_json::json!({ "password": "geheim123" })), false);
+    assert_eq!(ok.status(), StatusCode::OK);
+    let set = ok.headers().get("set-cookie").unwrap().to_str().unwrap().split(';').next().unwrap().to_string();
+    let mut h = HeaderMap::new();
+    h.insert("cookie", HeaderValue::from_str(&format!("other=1; {set}")).unwrap());
+    assert!(drive_api::link_unlocked(&app, &token, &h));
+    // A new password makes the old cookie useless; an empty one removes it.
+    drive_api::update_item_link(&app, &user, &body(serde_json::json!({ "token": token, "password": "anders456" }))).unwrap();
+    assert!(!drive_api::link_unlocked(&app, &token, &h));
+    drive_api::update_item_link(&app, &user, &body(serde_json::json!({ "token": token, "password": "" }))).unwrap();
+    assert!(drive_api::link_unlocked(&app, &token, &HeaderMap::new()));
+
+    // Favorites.
+    drive_api::set_favorite(&app, &user, &body(serde_json::json!({ "item": folder, "on": true }))).unwrap();
+    let favs = drive_api::favorites(&app, &user).unwrap();
+    assert_eq!(favs["items"][0]["name"], "Angebote");
+    assert_eq!(drive_api::items(&app, &user, &format!("drive={drive}")).unwrap()["items"][0]["favorite"], true);
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    assert!(drive_api::set_favorite(&app, &anna, &body(serde_json::json!({ "item": folder, "on": true }))).is_err());
+    drive_api::set_favorite(&app, &user, &body(serde_json::json!({ "item": folder, "on": false }))).unwrap();
+    assert!(drive_api::favorites(&app, &user).unwrap()["items"].as_array().unwrap().is_empty());
+}

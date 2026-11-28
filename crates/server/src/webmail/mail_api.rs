@@ -663,3 +663,187 @@ impl crate::store::Store {
         Ok(body)
     }
 }
+
+// ------------------------------------------------------------------ snooze
+
+/// The folder snoozed messages wait in (created on first use).
+fn snooze_folder(app: &Shared, user: &User) -> Result<crate::store::Folder, (StatusCode, String)> {
+    if let Some(f) = app.store.folder_by_role(user.id, "snoozed").map_err(internal)? {
+        return Ok(f);
+    }
+    let f = app.store.create_folder(user.id, None, "Snoozed", crate::model::FolderClass::Mail, WRITER).map_err(internal)?;
+    app.store.set_folder_role(f.id, "snoozed").map_err(internal)?;
+    Ok(f)
+}
+
+/// POST /snooze { id, until } — move a message out of the way until a time;
+/// it then returns to the folder it came from, unread.
+pub fn snooze(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        id: i64,
+        until: i64,
+    }
+    let b: B = parse(body)?;
+    let now = crate::store::now();
+    if b.until <= now + 60 || b.until > now + 366 * 86_400 {
+        return Err(bad("Choose a time in the future."));
+    }
+    let item = own_item(app, user, b.id)?;
+    if item.kind != crate::model::ItemKind::Mail {
+        return Err(bad("not a message"));
+    }
+    let folder = snooze_folder(app, user)?;
+    let back = app.store.snoozed_origin(item.id).map_err(internal)?.unwrap_or(item.folder_id);
+    app.store.move_item(item.id, folder.id, WRITER).map_err(internal)?;
+    app.store.snooze_mail(item.id, user.id, b.until, back).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// POST /unsnooze { id } — bring a snoozed message back now.
+pub fn unsnooze(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        id: i64,
+    }
+    let b: B = parse(body)?;
+    let item = own_item(app, user, b.id)?;
+    let back = app.store.snoozed_origin(item.id).map_err(internal)?.ok_or_else(not_found)?;
+    return_snoozed(app, user.id, item.id, back);
+    Ok(json!({ "ok": true }))
+}
+
+/// GET /snoozed — when each snoozed message comes back: `{ id: until }`.
+pub fn snoozed(app: &Shared, user: &User) -> ApiResult {
+    let map: serde_json::Map<String, Value> = app.store.snoozed_mail(user.id).map_err(internal)?.into_iter().map(|(id, until)| (id.to_string(), json!(until))).collect();
+    Ok(Value::Object(map))
+}
+
+fn return_snoozed(app: &Shared, user_id: i64, item_id: i64, folder_id: i64) {
+    let target = match app.store.folder(folder_id) {
+        Ok(Some(f)) if f.user_id == user_id => f.id,
+        _ => match app.store.folder_by_role(user_id, "inbox") {
+            Ok(Some(f)) => f.id,
+            _ => return,
+        },
+    };
+    let _ = app.store.unsnooze_mail(item_id);
+    if app.store.item(item_id).ok().flatten().is_some_and(|i| i.user_id == user_id) {
+        let _ = app.store.move_item(item_id, target, WRITER);
+        let _ = app.store.update_flags(item_id, 0, crate::model::flags::READ, None, WRITER);
+    }
+}
+
+/// Bring back every snoozed message whose time has come. Run with the
+/// scheduled-mail job.
+pub fn wake_snoozed(app: &Shared) {
+    for (item, user, folder) in app.store.due_snoozed_mail(crate::store::now()).unwrap_or_default() {
+        return_snoozed(app, user, item, folder);
+    }
+}
+
+// --------------------------------------------------------------- templates
+
+/// GET /templates
+pub fn templates(app: &Shared, user: &User) -> ApiResult {
+    let list = app.store.mail_templates(user.id).map_err(internal)?;
+    Ok(json!({ "templates": list.iter().map(|(id, name, subject, html)| json!({ "id": id, "name": name, "subject": subject, "html": html })).collect::<Vec<_>>() }))
+}
+
+/// POST /template { id?, name, subject, html } — save a reusable message.
+pub fn save_template(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        #[serde(default)]
+        id: Option<i64>,
+        name: String,
+        #[serde(default)]
+        subject: String,
+        #[serde(default)]
+        html: String,
+    }
+    let b: B = parse(body)?;
+    if b.name.trim().is_empty() {
+        return Err(bad("The template needs a name."));
+    }
+    if b.html.len() > 512 * 1024 {
+        return Err(bad("The template is too large."));
+    }
+    let id = app.store.save_mail_template(user.id, b.id, b.name.trim(), &b.subject, &b.html).map_err(|e| bad(e.to_string()))?;
+    Ok(json!({ "id": id }))
+}
+
+/// POST /template/delete { id }
+pub fn delete_template(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        id: i64,
+    }
+    let b: B = parse(body)?;
+    app.store.delete_mail_template(user.id, b.id).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+impl crate::store::Store {
+    pub fn set_folder_role(&self, folder_id: i64, role: &str) -> anyhow::Result<()> {
+        self.db().execute("UPDATE folders SET role = ?1 WHERE id = ?2", crate::db::params![role, folder_id])?;
+        Ok(())
+    }
+
+    pub fn snooze_mail(&self, item_id: i64, user_id: i64, until: i64, folder_id: i64) -> anyhow::Result<()> {
+        self.db().execute(
+            "INSERT INTO snoozed_mail (item_id, user_id, until, folder_id) VALUES (?1, ?2, ?3, ?4) \
+             ON CONFLICT (item_id) DO UPDATE SET until = excluded.until, folder_id = excluded.folder_id",
+            crate::db::params![item_id, user_id, until, folder_id],
+        )?;
+        Ok(())
+    }
+
+    /// The folder a snoozed message came from.
+    pub fn snoozed_origin(&self, item_id: i64) -> anyhow::Result<Option<i64>> {
+        use crate::db::OptionalExtension;
+        self.db().query_row("SELECT folder_id FROM snoozed_mail WHERE item_id = ?1", [item_id], |r| r.get(0)).optional()
+    }
+
+    pub fn unsnooze_mail(&self, item_id: i64) -> anyhow::Result<()> {
+        self.db().execute("DELETE FROM snoozed_mail WHERE item_id = ?1", [item_id])?;
+        Ok(())
+    }
+
+    pub fn snoozed_mail(&self, user_id: i64) -> anyhow::Result<Vec<(i64, i64)>> {
+        let db = self.db();
+        let st = db.prepare("SELECT item_id, until FROM snoozed_mail WHERE user_id = ?1")?;
+        st.query_map([user_id], |r| Ok((r.get(0)?, r.get(1)?)))
+    }
+
+    /// Snoozed messages due at `now`: `(item, user, folder to return to)`.
+    pub fn due_snoozed_mail(&self, now: i64) -> anyhow::Result<Vec<(i64, i64, i64)>> {
+        let db = self.db();
+        let st = db.prepare("SELECT item_id, user_id, folder_id FROM snoozed_mail WHERE until <= ?1 LIMIT 500")?;
+        st.query_map([now], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+    }
+
+    pub fn mail_templates(&self, user_id: i64) -> anyhow::Result<Vec<(i64, String, String, String)>> {
+        let db = self.db();
+        let st = db.prepare("SELECT id, name, subject, html FROM mail_templates WHERE user_id = ?1 ORDER BY LOWER(name), id")?;
+        st.query_map([user_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+    }
+
+    pub fn save_mail_template(&self, user_id: i64, id: Option<i64>, name: &str, subject: &str, html: &str) -> anyhow::Result<i64> {
+        let db = self.db();
+        match id {
+            Some(id) => {
+                if db.execute("UPDATE mail_templates SET name = ?1, subject = ?2, html = ?3 WHERE id = ?4 AND user_id = ?5", crate::db::params![name, subject, html, id, user_id])? == 0 {
+                    anyhow::bail!("no such template");
+                }
+                Ok(id)
+            }
+            None => db.query_row("INSERT INTO mail_templates (user_id, name, subject, html) VALUES (?1, ?2, ?3, ?4) RETURNING id", crate::db::params![user_id, name, subject, html], |r| r.get(0)),
+        }
+    }
+
+    pub fn delete_mail_template(&self, user_id: i64, id: i64) -> anyhow::Result<()> {
+        self.db().execute("DELETE FROM mail_templates WHERE id = ?1 AND user_id = ?2", crate::db::params![id, user_id])?;
+        Ok(())
+    }
+}

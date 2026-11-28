@@ -876,6 +876,11 @@ pub struct Note {
     pub subject: String,
     pub body: String,
     pub categories: Vec<String>,
+    /// The notebook it is filed in (empty: none).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub notebook: String,
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub pinned: bool,
 }
 
 // -------------------------------------------------------------------- mail

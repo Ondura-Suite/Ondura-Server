@@ -364,6 +364,43 @@ CREATE TABLE IF NOT EXISTS scheduled_mail (
     created INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS scheduled_mail_due ON scheduled_mail(send_at);
+CREATE TABLE IF NOT EXISTS snoozed_mail (
+    item_id INTEGER NOT NULL REFERENCES items(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    until INTEGER NOT NULL,
+    folder_id INTEGER NOT NULL,
+    PRIMARY KEY (item_id)
+);
+CREATE INDEX IF NOT EXISTS snoozed_mail_due ON snoozed_mail(until);
+CREATE TABLE IF NOT EXISTS mail_templates (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    subject TEXT NOT NULL DEFAULT '',
+    html TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS mail_templates_user ON mail_templates(user_id);
+CREATE TABLE IF NOT EXISTS calendar_subscriptions (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    url TEXT NOT NULL,
+    fetched INTEGER NOT NULL DEFAULT 0,
+    error TEXT NOT NULL DEFAULT '',
+    data TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS calendar_subscriptions_user ON calendar_subscriptions(user_id);
+CREATE TABLE IF NOT EXISTS link_passwords (
+    token TEXT NOT NULL,
+    hash TEXT NOT NULL,
+    PRIMARY KEY (token)
+);
+CREATE TABLE IF NOT EXISTS drive_favorites (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    item_id INTEGER NOT NULL REFERENCES drive_items(id) ON DELETE CASCADE,
+    created INTEGER NOT NULL,
+    PRIMARY KEY (user_id, item_id)
+);
 CREATE TABLE IF NOT EXISTS app_passwords (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

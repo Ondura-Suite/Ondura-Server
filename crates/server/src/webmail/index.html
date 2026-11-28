@@ -238,6 +238,19 @@ label.calrow { cursor: pointer; }
 .taskrow.done .tt { text-decoration: line-through; color: var(--muted); }
 .taskrow .tt { flex: 1; cursor: pointer; }
 .taskrow .td { color: var(--muted); font-size: 12.5px; }
+.notesgrid { height: 100%; }
+.nbooks { display: flex; gap: 6px; flex-wrap: wrap; padding: 4px 14px 8px; }
+.chip { border: 1px solid var(--border); background: transparent; color: var(--text); border-radius: 14px; padding: 3px 10px; font: inherit; font-size: 12.5px; cursor: pointer; }
+.chip.on { background: var(--tint-soft); color: var(--tint); border-color: transparent; font-weight: 600; }
+.notecard.sel { background: var(--tint-soft); }
+.notecard p { margin: 0; color: var(--muted); font-size: 13px; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.nmeta { font-size: 11px; color: var(--muted); margin-top: 4px; }
+.nhead { display: flex; gap: 8px; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--border); }
+.nhead input { height: 32px; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); padding: 0 10px; font: inherit; }
+.nhead .ntitle { flex: 1; font-size: 16px; font-weight: 600; border-color: transparent; background: transparent; }
+.nhead .iconbtn.on { background: var(--tint-soft); }
+.nbody { flex: 1; border: 0; resize: none; padding: 18px 22px; background: transparent; color: var(--text); font: 14px/1.6 ui-monospace, "SF Mono", Menlo, Consolas, monospace; outline: none; }
+.nstatus { font-size: 11.5px; color: var(--muted); padding: 4px 16px 8px; min-height: 18px; }
 .notecard { padding: 14px 16px; border-bottom: 1px solid var(--border); cursor: pointer; }
 .notecard:hover { background: var(--surface-hover); }
 .notecard h3 { margin: 0 0 4px; font-size: 15px; }
@@ -457,6 +470,14 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 <script>
 const T = {
   en: {
+    linkProtected: "This link is protected", linkProtectedHint: "Enter the password you were given to open it.", open: "Open", linkPasswordOpt: "Password (optional)", linkPassword: "Password", linkPasswordSet: "Password for this link:", linkPasswordChange: "New password for this link (empty to remove it):",
+    favorite: "Add to favorites", unfavorite: "Remove from favorites", favorites: "Favorites", noFavorites: "Star files and folders to find them here.",
+    subscriptions: "Subscriptions", subscribeCalendar: "Subscribe to a calendar", subscribeHint: "Add a published calendar by its address, e.g. public holidays, school holidays or a team calendar from another service. It is updated every hour and shown read-only.",
+    calendarUrl: "Calendar address", calendarName: "Name", optional: "optional", subscribe: "Subscribe", unsubscribeConfirm: "Remove this calendar subscription?", subError: "Last update failed", fromSubscription: "Subscribed calendar",
+    snooze: "Snooze", snoozed: "Snoozed", snoozedUntil: "Snoozed until {t}", unsnooze: "Bring back now", snoozeUntilLabel: "Bring back at", nextWeek: "Next week",
+    templates: "Templates", saveAsTemplate: "Save as template", templateName: "Template name", manageTemplates: "Delete templates…",
+    searchNotes: "Search notes", selectNote: "Select a note or create one", allNotes: "All", untitled: "Untitled", notebook: "Notebook", pinNote: "Pin to top", noteHint: "Write here. Markdown formatting works: # heading, **bold**, - lists, [ ] tasks.",
+    noteToDoc: "Share as a document", noteToDocConfirm: "Turn this note into a document in Files? You can then share it and edit it together; the note is removed.",
     sendLater: "Send later", laterToday: "Later today", tomorrowMorning: "Tomorrow morning", mondayMorning: "Monday morning", pickTime: "Choose a time…", sendAtLabel: "Send at", pickFuture: "Choose a time in the future.",
     scheduledFor: "Will be sent {t}", scheduledMail: "Scheduled", scheduledHint: "These messages go out at the time shown. Editing one stops it and opens it as a draft.", act_send_failed: "A scheduled message “{s}” could not be sent and is back in Drafts",
     cantMove: "Only the organizer can move this event.",
@@ -513,6 +534,14 @@ const T = {
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
   de: {
+    linkProtected: "Dieser Link ist geschützt", linkProtectedHint: "Gib das Passwort ein, das du bekommen hast.", open: "Öffnen", linkPasswordOpt: "Passwort (optional)", linkPassword: "Passwort", linkPasswordSet: "Passwort für diesen Link:", linkPasswordChange: "Neues Passwort für diesen Link (leer zum Entfernen):",
+    favorite: "Zu Favoriten", unfavorite: "Aus Favoriten entfernen", favorites: "Favoriten", noFavorites: "Markiere Dateien und Ordner mit einem Stern, um sie hier zu finden.",
+    subscriptions: "Abonnements", subscribeCalendar: "Kalender abonnieren", subscribeHint: "Füge einen veröffentlichten Kalender über seine Adresse hinzu, z. B. Feiertage, Schulferien oder einen Teamkalender aus einem anderen Dienst. Er wird stündlich aktualisiert und schreibgeschützt angezeigt.",
+    calendarUrl: "Adresse des Kalenders", calendarName: "Name", optional: "optional", subscribe: "Abonnieren", unsubscribeConfirm: "Dieses Kalender-Abo entfernen?", subError: "Letzte Aktualisierung fehlgeschlagen", fromSubscription: "Abonnierter Kalender",
+    snooze: "Zurückstellen", snoozed: "Zurückgestellt", snoozedUntil: "Zurückgestellt bis {t}", unsnooze: "Jetzt zurückholen", snoozeUntilLabel: "Zurückholen am", nextWeek: "Nächste Woche",
+    templates: "Vorlagen", saveAsTemplate: "Als Vorlage speichern", templateName: "Name der Vorlage", manageTemplates: "Vorlagen löschen…",
+    searchNotes: "Notizen durchsuchen", selectNote: "Notiz auswählen oder neu anlegen", allNotes: "Alle", untitled: "Ohne Titel", notebook: "Notizbuch", pinNote: "Oben anheften", noteHint: "Hier schreiben. Markdown geht: # Überschrift, **fett**, - Listen, [ ] Aufgaben.",
+    noteToDoc: "Als Dokument teilen", noteToDocConfirm: "Diese Notiz in ein Dokument in Dateien umwandeln? Dann kannst du es teilen und gemeinsam bearbeiten; die Notiz wird entfernt.",
     sendLater: "Später senden", laterToday: "Heute später", tomorrowMorning: "Morgen früh", mondayMorning: "Montag früh", pickTime: "Zeitpunkt wählen…", sendAtLabel: "Senden am", pickFuture: "Wähle einen Zeitpunkt in der Zukunft.",
     scheduledFor: "Wird gesendet: {t}", scheduledMail: "Geplant", scheduledHint: "Diese Nachrichten gehen zum angezeigten Zeitpunkt raus. Bearbeiten stoppt den Versand und öffnet sie als Entwurf.", act_send_failed: "Die geplante Nachricht „{s}“ konnte nicht gesendet werden und liegt wieder in den Entwürfen",
     cantMove: "Nur der Organisator kann diesen Termin verschieben.",
@@ -622,6 +651,8 @@ const ICON = {
   plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
   doc: '<path d="M6 3h8l4 4v14H6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 3v4h4M9 12h6M9 15h6M9 18h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   share: '<circle cx="6" cy="12" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="6" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="17" cy="18" r="2.4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.2 11l6.6-3.8M8.2 13l6.6 3.8" stroke="currentColor" stroke-width="1.6"/>',
+  snoozed: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  star: '<path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8L3.5 9.7l5.9-.9z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
   lock: '<rect x="5.5" y="10.5" width="13" height="9" rx="2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   clock: '<circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
 };
@@ -730,7 +761,7 @@ function renderAcct() {
   $("#amOut").onclick = guard(async () => { await api("POST", "/logout"); showLogin(); });
 }
 $("#acctBtn").addEventListener("click", (e) => { e.stopPropagation(); $("#acctMenu").classList.toggle("hidden"); });
-document.addEventListener("click", (e) => { if (!e.target.closest(".acctwrap")) $("#acctMenu").classList.add("hidden"); });
+document.addEventListener("click", (e) => { const m = $("#acctMenu"); if (m && !e.target.closest(".acctwrap")) m.classList.add("hidden"); });
 $("#avFile").addEventListener("change", guard(async () => {
   const f = $("#avFile").files[0]; if (!f) return;
   const res = await fetch("/mail/api/avatar", { method: "POST", credentials: "same-origin", headers: { "Content-Type": f.type, "X-Ondura-Mail": "1" }, body: f });
@@ -891,6 +922,7 @@ async function openGuestShare(token) {
   gs.token = token;
   let meta;
   try { meta = await (await fetch(`/mail/api/cloud/shared/${token}`)).json(); } catch (e) { meta = null; }
+  if (meta && meta.locked) return guestPassword(token);
   if (!meta || meta.error || !meta.kind) {
     document.body.innerHTML = `<div style="display:grid;place-items:center;height:100vh;color:var(--muted);font:15px system-ui">${esc(t("linkInvalid"))}</div>`;
     return;
@@ -902,6 +934,23 @@ async function openGuestShare(token) {
   return renderGuestFile(meta, `/mail/api/cloud/shared/${token}/download`);
 }
 
+// A password-protected share link asks for its password first.
+function guestPassword(token) {
+  me = { guest: true };
+  $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); $("#app").classList.add("norail");
+  guestChrome(`<div style="display:grid;place-items:center;flex:1"><form id="gpForm" class="card glass" style="width:min(360px,90vw);padding:24px">
+    <h2 style="margin:0 0 6px;font-size:17px">${esc(t("linkProtected"))}</h2><p style="margin:0 0 14px;color:var(--muted);font-size:13px">${esc(t("linkProtectedHint"))}</p>
+    <div class="field"><input id="gpPw" type="password" autocomplete="off" placeholder="${esc(t("password"))}" required></div><div class="error" id="gpErr"></div>
+    <button class="btn primary" style="width:100%;justify-content:center">${esc(t("open"))}</button></form></div>`);
+  $("#gpPw").focus();
+  $("#gpForm").onsubmit = async (e) => {
+    e.preventDefault();
+    const res = await fetch(`/mail/api/cloud/shared/${token}/unlock`, { method: "POST", headers: { "Content-Type": "application/json", "X-Ondura-Mail": "1" }, body: JSON.stringify({ password: $("#gpPw").value }) });
+    if (res.ok) return openGuestShare(token);
+    const d = await res.json().catch(() => null);
+    $("#gpErr").textContent = (d && d.error) || res.statusText;
+  };
+}
 function guestChrome(inner) {
   $("#app").innerHTML = `<div style="display:flex;flex-direction:column;height:100vh">
     <div class="glass" style="display:flex;gap:10px;align-items:center;padding:12px 18px;border-radius:0">
@@ -1021,7 +1070,12 @@ function renderRail() {
       html += `<div class="railsep"></div><div class="raillabel">${esc(t("calendars"))}</div>`;
       html += `<div class="folder calrow"><span class="caldot" style="background:${calColor(me.id)}"></span><span class="nm">${esc(t("myCalendar"))}</span></div>`;
       html += (cal.shared || []).map((c) => `<label class="folder calrow"><input type="checkbox" data-calown="${c.id}" ${cal.visible.has(c.id) ? "checked" : ""}><span class="caldot" style="background:${calColor(c.id)}"></span><span class="nm" title="${esc(c.email)}">${esc(c.name || c.email)}</span></label>`).join("");
+      if ((cal.subs || []).length) {
+        html += `<div class="raillabel" style="margin-top:8px">${esc(t("subscriptions"))}</div>`;
+        html += cal.subs.map((c) => `<label class="folder calrow" title="${esc(c.error ? t("subError") + ": " + c.error : c.url)}"><input type="checkbox" data-calsub="${c.id}" ${cal.subVisible.has(c.id) ? "checked" : ""}><span class="caldot" style="background:${subColor(c.id)}"></span><span class="nm">${esc(c.name)}${c.error ? " ⚠" : ""}</span><button class="iconbtn fmenu" data-subdel="${c.id}" style="width:22px;height:22px">${icon("trash")}</button></label>`).join("");
+      }
       html += `<div class="folder" id="calShare" style="color:var(--muted)">${icon("share")}<span class="nm">${esc(t("shareCalendar"))}</span></div>`;
+      html += `<div class="folder" id="calSubscribe" style="color:var(--muted)">${icon("link")}<span class="nm">${esc(t("subscribeCalendar"))}</span></div>`;
       html += `<a class="folder" href="/mail/api/calendar/export.ics" download="calendar.ics" style="color:var(--muted);text-decoration:none">${icon("inbox")}<span class="nm">${esc(t("exportIcs"))}</span></a>`;
       html += `<div class="folder" id="calImport" style="color:var(--muted)">${icon("outbox")}<span class="nm">${esc(t("importIcs"))}</span></div><input type="file" id="calImportFile" accept=".ics,text/calendar" style="display:none">`;
     }
@@ -1031,14 +1085,18 @@ function renderRail() {
     if (fs.grant) html += `<div class="navitem active" data-grant="1">${icon("folder")}<span>${esc(fs.grant.driveName)}</span></div>`;
     html += `<div class="railsep"></div><div class="navitem" id="railNewLib" style="color:var(--muted)">${icon("plus")}<span>${esc(t("newLibrary"))}</span></div>`;
   } else if (view === "files") {
-    html += `<div class="navitem ${!fs.recentView && !fs.sharedView ? "active" : ""}" id="railMyFiles">${icon("cloud")}<span>${esc(t("myFiles"))}</span></div>`;
+    html += `<div class="navitem ${!fs.recentView && !fs.sharedView && !fs.favView ? "active" : ""}" id="railMyFiles">${icon("cloud")}<span>${esc(t("myFiles"))}</span></div>`;
     html += `<div class="navitem ${fs.recentView ? "active" : ""}" id="railRecent">${icon("clock")}<span>${esc(t("recent"))}</span></div>`;
+    html += `<div class="navitem ${fs.favView ? "active" : ""}" id="railFav">${icon("star")}<span>${esc(t("favorites"))}</span></div>`;
     html += `<div class="navitem ${fs.sharedView ? "active" : ""}" id="railShared">${icon("share")}<span>${esc(t("sharedWithMe"))}</span></div>`;
   }
   $("#rail").innerHTML = html;
   $("#rail").querySelectorAll("[data-view]").forEach((e) => e.onclick = () => { if (view !== e.dataset.view) navTo(e.dataset.view); });
   $("#rail").querySelectorAll("[data-calown]").forEach((c) => c.onchange = () => { const id = +c.dataset.calown; if (c.checked) cal.visible.add(id); else cal.visible.delete(id); saveCalVisible(); renderCalendar(); });
   const cs = $("#calShare"); if (cs) cs.onclick = () => openCalendarShare();
+  $("#rail").querySelectorAll("[data-calsub]").forEach((c) => c.onchange = () => { const id = +c.dataset.calsub; if (c.checked) cal.subVisible.add(id); else cal.subVisible.delete(id); saveCalVisible(); renderCalendar(); });
+  $("#rail").querySelectorAll("[data-subdel]").forEach((b) => b.onclick = guard(async (e) => { e.preventDefault(); e.stopPropagation(); if (!confirm(t("unsubscribeConfirm"))) return; await api("POST", "/calendar/subscription/delete", { id: +b.dataset.subdel }); cal.loadedAt = 0; renderCalendar(); }));
+  const csub = $("#calSubscribe"); if (csub) csub.onclick = () => openSubscribe();
   const ci = $("#calImport"), cf = $("#calImportFile");
   if (ci && cf) { ci.onclick = () => cf.click(); cf.onchange = guard(async () => {
     const f = cf.files[0]; if (!f) return;
@@ -1061,9 +1119,10 @@ function renderRail() {
   $("#rail").querySelectorAll("[data-grant]").forEach((e) => e.onclick = () => { fs.parent = fs.grant.item; renderFiles(); });
   $("#rail").querySelectorAll("[data-drive]").forEach((e) => e.onclick = () => { fs.driveId = +e.dataset.drive; fs.parent = null; fs.trashView = false; history.pushState({}, "", appPath("sharepoint", { drive: fs.driveId })); renderFiles(); });
   const rnl = $("#railNewLib"); if (rnl) rnl.onclick = guard(async () => { const name = prompt(t("libraryName")); if (!name) return; const r = await api("POST", "/cloud/library", { name: name.trim() }); fs.drives = []; fs.driveId = r.id; fs.parent = null; renderFiles(); });
-  const rmf = $("#railMyFiles"); if (rmf) rmf.onclick = () => { fs.recentView = false; fs.sharedView = false; fs.parent = null; renderFiles(); };
-  const rr = $("#railRecent"); if (rr) rr.onclick = () => { fs.recentView = true; fs.sharedView = false; renderFiles(); };
-  const rsh = $("#railShared"); if (rsh) rsh.onclick = () => { fs.sharedView = true; fs.recentView = false; renderFiles(); };
+  const rmf = $("#railMyFiles"); if (rmf) rmf.onclick = () => { fs.recentView = false; fs.sharedView = false; fs.favView = false; fs.parent = null; renderFiles(); };
+  const rr = $("#railRecent"); if (rr) rr.onclick = () => { fs.recentView = true; fs.sharedView = false; fs.favView = false; renderFiles(); };
+  const rsh = $("#railShared"); if (rsh) rsh.onclick = () => { fs.sharedView = true; fs.recentView = false; fs.favView = false; renderFiles(); };
+  const rfv = $("#railFav"); if (rfv) rfv.onclick = () => { fs.favView = true; fs.sharedView = false; fs.recentView = false; renderFiles(); };
 }
 
 // Top-level apps shown on the home dashboard and in the app launcher. Mail
@@ -1239,6 +1298,34 @@ function actPrint(m) {
     `${m.cc && m.cc.length ? "<br>" + esc(t("cc")) + ": " + esc(m.cc.map(personStr).join(", ")) : ""}</div>${body}`);
   w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 300);
 }
+function manageTemplates(list) {
+  const draw = () => {
+    panel(t("templates"), list.map((tp) => `<div class="taskrow"><div class="tt" style="flex:1;min-width:0"><div>${esc(tp.name)}</div><div style="font-size:11.5px;color:var(--muted)">${esc(tp.subject)}</div></div><button class="iconbtn danger" data-tpdel="${tp.id}">${icon("trash")}</button></div>`).join("") || `<p style="color:var(--muted)">—</p>`,
+      `<div style="flex:1"></div><button class="btn" id="tpClose">${esc(t("close"))}</button>`);
+    $("#tpClose").onclick = closePanel;
+    document.querySelectorAll("[data-tpdel]").forEach((b) => b.onclick = guard(async () => { await api("POST", "/template/delete", { id: +b.dataset.tpdel }); list = list.filter((x) => x.id !== +b.dataset.tpdel); draw(); }));
+  };
+  draw();
+}
+// Common "later" times: later today (before 4 pm), tomorrow and Monday morning,
+// next week.
+function quickTimes() {
+  const at = (days, h, weekday) => { const d = new Date(); d.setSeconds(0, 0); if (weekday != null) { const add = ((weekday - d.getDay()) + 7) % 7 || 7; d.setDate(d.getDate() + add); } else d.setDate(d.getDate() + days); d.setHours(h, 0); return Math.floor(d / 1000); };
+  const out = [];
+  if (new Date().getHours() < 16) out.push([t("laterToday"), at(0, 17)]);
+  out.push([t("tomorrowMorning"), at(1, 8)], [t("mondayMorning"), at(0, 8, 1)], [t("nextWeek"), at(7, 8)]);
+  return out;
+}
+// Snooze a message: it leaves the folder and comes back, unread, at the time.
+function snoozeMenu(ev, id) {
+  ev.stopPropagation && ev.stopPropagation();
+  const go = (ts) => guard(async () => { await api("POST", "/snooze", { id, until: ts }); afterMsgGone(id); toast(t("snoozedUntil").replace("{t}", fmtDate(ts))); });
+  openMenu(ev, quickTimes().map(([l, ts]) => ({ ic: "clock", label: `${l} · ${fmtDate(ts)}`, fn: go(ts) })).concat([{ sep: true }, { ic: "calendar", label: t("pickTime"), fn: () => {
+    const d = new Date(); d.setDate(d.getDate() + 1); d.setHours(8, 0, 0, 0);
+    panel(t("snooze"), `<div class="field"><label>${esc(t("snoozeUntilLabel"))}</label><input id="szAt" type="datetime-local" value="${toLocalInput(Math.floor(d / 1000))}"></div>`, `<div style="flex:1"></div><button class="btn primary" id="szOk">${esc(t("snooze"))}</button>`);
+    $("#szOk").onclick = () => { const ts = fromLocalInput($("#szAt").value); if (!(ts > Date.now() / 1000 + 60)) { toast(t("pickFuture"), true); return; } closePanel(); go(ts)(); };
+  } }]));
+}
 // Turn an e-mail into a task: the subject becomes the title, the sender and
 // the start of the text the notes, and the task links back to the message.
 // The message is flagged, as in Outlook.
@@ -1265,6 +1352,7 @@ function openMsgContext(ev, id) {
     { ic: "mail", label: read ? t("markUnread") : t("markRead"), fn: () => actRead(id, !read) },
     { ic: "flag", label: flagged ? t("unflag") : t("flag"), fn: () => actFlag(id, !flagged) },
     { ic: "check", label: t("makeTask"), fn: async () => mailToTask(id, await api("GET", "/message/" + id)) },
+    { ic: "clock", label: t("snooze"), keepOpen: true, fn: () => snoozeMenu(ev, id) },
     { ic: "tag", label: t("categorize"), keepOpen: true, fn: () => openCategoryPicker(anchor, (it.categories || []), (cats) => assignCategories(id, cats)) },
     (it.from && it.from.email) ? { ic: "clock", label: t("sweep"), fn: () => openSweep(it.from.email, it.from.name) } : null,
     (archiveFolder() && !inArchive()) ? { ic: "archive", label: t("archive"), fn: () => actArchive(id) } : null,
@@ -1599,6 +1687,7 @@ async function openMessage(id) {
       ${archiveFolder() && !inArchive() ? `<button class="btn" data-a="archive">${icon("archive")}<span>${esc(t("archive"))}</span></button>` : ""}
       <button class="btn" data-a="move">${icon("folder")}<span>${esc(t("moveTo"))}</span></button>
       <button class="btn" data-a="categorize">${icon("tag")}<span>${esc(t("categorize"))}</span></button>
+      <button class="btn" data-a="snooze">${icon("clock")}<span>${esc(t("snooze"))}</span></button>
       <button class="btn danger" data-a="delete">${icon("trash")}<span>${esc(t("delete"))}</span></button>
       <span class="sep"></span>
       <button class="btn" data-a="unread">${icon("mail")}<span>${esc(t("markUnread"))}</span></button>
@@ -1636,6 +1725,17 @@ async function openMessage(id) {
   act("unread").onclick = guard(() => actRead(id, false));
   act("flag").onclick = guard(() => actFlag(id, !(m.flags && m.flags.flagged)));
   act("task").onclick = () => mailToTask(id, m);
+  act("snooze").onclick = (e) => snoozeMenu(e, id);
+  // In the Snoozed folder: when it comes back, and bring it back now.
+  if (curFolder && curFolder.role === "snoozed") {
+    api("GET", "/snoozed").then((map) => {
+      const until = map[id]; if (!until) return;
+      const bar = document.createElement("div"); bar.className = "rembanner";
+      bar.innerHTML = `<span>${esc(t("snoozedUntil").replace("{t}", fmtDate(until)))}</span><button id="unsnooze">${esc(t("unsnooze"))}</button>`;
+      const body = reader.querySelector(".rbody") || reader.firstElementChild; if (body) body.parentNode.insertBefore(bar, body);
+      bar.querySelector("#unsnooze").onclick = guard(async () => { await api("POST", "/unsnooze", { id }); afterMsgGone(id); toast(t("saved")); });
+    }).catch(() => {});
+  }
   act("print").onclick = () => actPrint(m);
   act("categorize").onclick = (e) => openCategoryPicker(e.target.closest("button"), m.categories || [], async (cats) => {
     await api("POST", "/categorize", { id, categories: cats });
@@ -1733,6 +1833,7 @@ function openCompose(opt) {
         `<div style="flex:1"></div>` +
         `<button class="btn" id="cdiscard">${esc(t("discard"))}</button>` +
         `<button class="btn" id="cdraft">${esc(t("saveDraft"))}</button>` +
+        `<button class="btn" id="ctpl">${icon("doc")}<span>${esc(t("templates"))}</span></button>` +
         `<button class="btn" id="clater" title="${esc(t("sendLater"))}">${icon("clock")}<span>${esc(t("sendLater"))}</span></button>` +
         `<button class="btn primary" id="csend">${esc(t("send"))}</button></div>` +
     `</div>`;
@@ -1795,6 +1896,25 @@ function openCompose(opt) {
     if (view === "mail") loadMessages(); refreshFolders(); loadScheduled();
   };
   $("#csend").onclick = guard(() => doSend(null));
+  // Templates: insert one, or save this message as one.
+  $("#ctpl").onclick = guard(async (ev) => {
+    ev.stopPropagation();
+    let list = [];
+    try { list = (await api("GET", "/templates")).templates || []; } catch (e) {}
+    openMenu(ev, list.map((tp) => ({ ic: "doc", label: tp.name, fn: () => {
+      if (!$("#csub").value.trim() && tp.subject) $("#csub").value = tp.subject;
+      const b = $("#cbody"); b.focus();
+      const blank = !b.innerText.trim() || b.innerText.trim().startsWith("--");
+      if (blank) b.innerHTML = tp.html + b.innerHTML; else document.execCommand("insertHTML", false, tp.html);
+      scheduleSave();
+    } })).concat([{ sep: true },
+      { ic: "plus", label: t("saveAsTemplate"), fn: guard(async () => {
+        const name = prompt(t("templateName"), $("#csub").value || ""); if (!name) return;
+        const html = $("#cbody").innerHTML.replace(/<div>--\s*<\/div>[\s\S]*$|--\s*<br>[\s\S]*$/, "");
+        await api("POST", "/template", { name, subject: $("#csub").value, html }); toast(t("saved"));
+      }) },
+      list.length ? { ic: "trash", label: t("manageTemplates"), fn: () => manageTemplates(list) } : null]));
+  });
   // Send later: a few common times, or any time.
   $("#clater").onclick = (ev) => {
     ev.stopPropagation();
@@ -1865,7 +1985,33 @@ let calRef = new Date();
 // Calendars shared with this account, and which of them are overlaid.
 const cal = { mode: (() => { try { return localStorage.getItem("ondura.calMode") || "month"; } catch (e) { return "month"; } })(), shared: null, loadedAt: 0, visible: new Set(), palette: ["#0ea5e9", "#16a34a", "#f59e0b", "#e11d48", "#8b5cf6", "#14b8a6", "#f97316"] };
 try { JSON.parse(localStorage.getItem("ondura.cal.visible") || "[]").forEach((id) => cal.visible.add(id)); } catch (e) {}
-function saveCalVisible() { try { localStorage.setItem("ondura.cal.visible", JSON.stringify([...cal.visible])); } catch (e) {} }
+cal.subVisible = new Set();
+try { JSON.parse(localStorage.getItem("ondura.cal.subs") || "[]").forEach((id) => cal.subVisible.add(id)); } catch (e) {}
+function saveCalVisible() { try { localStorage.setItem("ondura.cal.visible", JSON.stringify([...cal.visible])); localStorage.setItem("ondura.cal.subs", JSON.stringify([...cal.subVisible])); } catch (e) {} }
+const SUB_COLORS = ["#a855f7", "#0d9488", "#ca8a04", "#db2777", "#2563eb", "#65a30d"];
+function subColor(id) { return SUB_COLORS[id % SUB_COLORS.length]; }
+// Subscribe to a published calendar by its address (.ics or webcal://).
+function openSubscribe() {
+  panel(t("subscribeCalendar"), `<p style="margin:0 0 10px;color:var(--muted);font-size:12.5px">${esc(t("subscribeHint"))}</p>
+    <div class="field"><label>${esc(t("calendarUrl"))}</label><input id="subUrl" placeholder="https://… .ics / webcal://…"></div>
+    <div class="field"><label>${esc(t("calendarName"))}</label><input id="subName" placeholder="${esc(t("optional"))}"></div>`,
+    `<div style="flex:1"></div><button class="btn primary" id="subOk">${esc(t("subscribe"))}</button>`);
+  $("#subOk").onclick = guard(async () => {
+    $("#subOk").disabled = true;
+    try {
+      const r = await api("POST", "/calendar/subscription", { url: $("#subUrl").value, name: $("#subName").value });
+      cal.subVisible.add(r.id); saveCalVisible(); cal.loadedAt = 0; closePanel(); toast(t("saved")); renderCalendar();
+    } finally { const b = $("#subOk"); if (b) b.disabled = false; }
+  });
+}
+// Read-only view of an event from a subscribed calendar.
+function showSubEvent(e) {
+  const when = e.allDay ? fmtDate(e.start).split(",")[0] : `${fmtDate(e.start)} – ${hhmm(e.end)}`;
+  const sub = (cal.subs || []).find((c) => c.id === e.subscription);
+  panel(e.subject || t("event"), `<p style="margin:0 0 6px">${esc(when)}</p>${e.location ? `<p style="margin:0 0 6px;color:var(--muted)">${esc(e.location)}</p>` : ""}${e.description ? `<p style="white-space:pre-wrap">${esc(e.description)}</p>` : ""}<p style="font-size:12px;color:var(--muted)">${esc(t("fromSubscription"))}: ${esc(sub ? sub.name : "")}</p>`,
+    `<div style="flex:1"></div><button class="btn" id="seClose">${esc(t("close"))}</button>`);
+  $("#seClose").onclick = closePanel;
+}
 function calColor(owner) { return !me || owner === me.id ? "var(--tint)" : cal.palette[(owner * 7) % cal.palette.length]; }
 function calName(owner) { const c = (cal.shared || []).find((x) => x.id === owner); return c ? (c.name || c.email) : ""; }
 // The calendar in month, week or day view. Week and day show a time grid;
@@ -1917,6 +2063,7 @@ async function renderCalendar() {
   // Refresh the list of shared calendars now and then; it feeds the rail.
   if (!cal.shared || Date.now() - cal.loadedAt > 60000) {
     try { cal.shared = (await api("GET", "/calendar/shares")).received; } catch (e) { cal.shared = cal.shared || []; }
+    try { cal.subs = (await api("GET", "/calendar/subscriptions")).subscriptions || []; } catch (e) { cal.subs = cal.subs || []; }
     cal.loadedAt = Date.now();
     renderRail();
   }
@@ -1926,14 +2073,19 @@ async function renderCalendar() {
     if (!cal.shared.some((c) => c.id === owner)) continue;
     try { events = events.concat((await api("GET", `/calendar?from=${from}&to=${to}&owner=${owner}`)).events); } catch (e) {}
   }
+  for (const sid of cal.subVisible) {
+    if (!(cal.subs || []).some((c) => c.id === sid)) continue;
+    try { events = events.concat((await api("GET", `/calendar/subscription/events?id=${sid}&from=${from}&to=${to}`)).events); } catch (e) {}
+  }
   if (mode === "month") renderMonthGrid(events, from, calRef.getMonth());
   else renderTimeGrid(events, from, days);
-  $("#calGrid").querySelectorAll("[data-evi]").forEach((el) => el.onclick = (e) => { e.stopPropagation(); const ev = events[+el.dataset.evi]; if (ev && !ev.blocksOnly) openEvent(ev); });
+  $("#calGrid").querySelectorAll("[data-evi]").forEach((el) => el.onclick = (e) => { e.stopPropagation(); const ev = events[+el.dataset.evi]; if (!ev || ev.blocksOnly) return; if (ev.subscription) showSubEvent(ev); else openEvent(ev); });
 }
 
 // How an event looks in the grid: label and, for other people's calendars,
 // their colour.
 function evLook(e) {
+  if (e.subscription) { const col = subColor(e.subscription); return { label: e.subject, style: `color:${col};background:color-mix(in srgb, ${col} 14%, transparent);border-left:3px solid ${col}` }; }
   const shared = me && e.owner && e.owner !== me.id;
   const label = (shared ? calName(e.owner) + ": " : "") + (e.blocksOnly ? t("busyBusy") : e.subject);
   const col = calColor(e.owner);
@@ -1975,7 +2127,7 @@ function renderMonthGrid(events, from, month) {
 
 const HOUR_PX = 48;
 // Own events (not free/busy blocks of others) can be moved by dragging.
-function canDrag(e) { return !e.blocksOnly && (!e.owner || !me || e.owner === me.id); }
+function canDrag(e) { return !e.blocksOnly && !e.subscription && (!e.owner || !me || e.owner === me.id); }
 // Save a dragged event: the whole event, or just this occurrence of a series.
 // Only the organizer (or the owner of a personal event) can move it.
 async function moveEvent(ev, start, end) {
@@ -2513,26 +2665,95 @@ function openTask(tk, prefill, afterSave) {
 }
 
 // ------------------------------------------------------------ NOTES
+// Notes: a list with search and notebooks on the left, the note on the right.
+// Changes are saved as you type; a note can be shown formatted (Markdown) and
+// turned into a collaborative document to share it.
+const notesState = { notebook: "", q: "", current: null, notes: [] };
 async function renderNotes() {
-  $("#view").innerHTML = `<div class="listpane"><div class="list" style="border:0"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 16px;display:flex;gap:8px;position:sticky;top:0;background:var(--bg)"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("notes"))}</h2><button class="btn primary" id="newNote">${icon("plus")}<span>${esc(t("newNote"))}</span></button></div><div id="noteList" class="listscroll"></div></div></div>`;
-  $("#newNote").onclick = () => openNote();
-  let notes = [];
-  try { notes = (await api("GET", "/notes")).notes; } catch (e) {}
-  const box = $("#noteList");
-  box.innerHTML = notes.length ? notes.map((n) => `<div class="notecard" data-id="${n.id}"><h3>${esc(n.subject || "(" + t("notes") + ")")}</h3><p>${esc(n.body)}</p></div>`).join("") : `<div class="empty" style="height:auto;padding:40px">${esc(t("noNotes"))}</div>`;
-  box.querySelectorAll(".notecard").forEach((e) => e.onclick = () => { const n = notes.find((x) => x.id == e.dataset.id); openNote(n); });
+  $("#view").innerHTML = `<div class="cgrid notesgrid"><div class="clist">
+      <div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 14px;display:flex;gap:8px;position:sticky;top:0;background:var(--bg);align-items:center;z-index:2">
+        <input id="nQ" placeholder="${esc(t("searchNotes"))}" value="${esc(notesState.q)}" style="flex:1;height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);padding:0 10px">
+        <button class="btn primary" id="newNote" title="${esc(t("newNote"))}">${icon("plus")}</button></div>
+      <div id="nBooks" class="nbooks"></div><div id="noteList"></div></div>
+    <div class="cdetail" id="noteDetail" style="padding:0;display:flex;flex-direction:column"><div class="empty">${esc(t("selectNote"))}</div></div></div>`;
+  $("#newNote").onclick = () => showNote(null);
+  $("#nQ").oninput = () => { notesState.q = $("#nQ").value; drawNoteList(); };
+  try { notesState.notes = (await api("GET", "/notes")).notes || []; } catch (e) { notesState.notes = []; }
+  drawNoteList();
+  if (notesState.current) { const n = notesState.notes.find((x) => x.id === notesState.current); if (n) showNote(n); }
 }
-function openNote(n) {
-  panel(n ? t("editNote") : t("newNote"),
-    `<div class="field"><label>${esc(t("title"))}</label><input id="nSub" value="${esc(n ? n.subject : "")}"></div>
-     <div class="field"><label>${esc(t("content"))}</label><textarea id="nBody" style="min-height:220px">${esc(n ? n.body : "")}</textarea></div>`,
-    `${n ? `<button class="btn danger" id="nDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div><button class="btn primary" id="nSave">${esc(t("save"))}</button>`);
-  $("#nSave").onclick = guard(async () => {
-    const note = { subject: $("#nSub").value, body: $("#nBody").value, categories: (n && n.note ? n.note.categories : []) || [] };
-    const b = { note }; if (n) b.id = n.id;
-    await api("POST", "/note", b); closePanel(); toast(t("saved")); renderNotes();
-  });
-  if ($("#nDel")) $("#nDel").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("POST", "/note/delete", { id: n.id }); closePanel(); toast(t("deleted")); renderNotes(); });
+function drawNoteList() {
+  const books = [...new Set(notesState.notes.map((n) => n.notebook).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+  if (notesState.notebook && !books.includes(notesState.notebook)) notesState.notebook = "";
+  $("#nBooks").innerHTML = books.length ? [["", t("allNotes")]].concat(books.map((b) => [b, b])).map(([v, l]) => `<button class="chip ${notesState.notebook === v ? "on" : ""}" data-book="${esc(v)}">${esc(l)}</button>`).join("") : "";
+  $("#nBooks").querySelectorAll("[data-book]").forEach((b) => b.onclick = () => { notesState.notebook = b.dataset.book; drawNoteList(); });
+  const q = notesState.q.trim().toLowerCase();
+  const list = notesState.notes
+    .filter((n) => !notesState.notebook || n.notebook === notesState.notebook)
+    .filter((n) => !q || (n.subject + "\n" + n.body).toLowerCase().includes(q))
+    .sort((a, b) => (b.pinned - a.pinned) || (b.date - a.date));
+  $("#noteList").innerHTML = list.length ? list.map((n) => `<div class="notecard ${notesState.current === n.id ? "sel" : ""}" data-id="${n.id}"><h3>${n.pinned ? "📌 " : ""}${esc(n.subject || t("untitled"))}</h3><p>${esc((n.body || "").slice(0, 160))}</p><div class="nmeta">${esc(fmtShort(n.date))}${n.notebook ? " · " + esc(n.notebook) : ""}</div></div>`).join("")
+    : `<div class="empty" style="height:auto;padding:40px">${esc(q ? t("noResults") : t("noNotes"))}</div>`;
+  $("#noteList").querySelectorAll(".notecard").forEach((e) => e.onclick = () => showNote(notesState.notes.find((x) => x.id == e.dataset.id)));
+}
+function showNote(n) {
+  notesState.current = n ? n.id : null;
+  const books = [...new Set(notesState.notes.map((x) => x.notebook).filter(Boolean))];
+  const note = n ? Object.assign({}, n.note || { subject: n.subject, body: n.body }) : { subject: "", body: "", notebook: notesState.notebook || "" };
+  const box = $("#noteDetail");
+  box.innerHTML = `<div class="nhead">
+      <input id="nSub" class="ntitle" placeholder="${esc(t("title"))}" value="${esc(note.subject || "")}">
+      <input id="nBook" list="nBookList" placeholder="${esc(t("notebook"))}" value="${esc(note.notebook || "")}" style="width:160px"><datalist id="nBookList">${books.map((b) => `<option value="${esc(b)}">`).join("")}</datalist>
+      <button class="iconbtn ${note.pinned ? "on" : ""}" id="nPin" title="${esc(t("pinNote"))}">📌</button>
+      ${me && me.collab !== false ? `<button class="btn" id="nPrevBtn">${esc(t("preview"))}</button>` : ""}
+      <button class="iconbtn" id="nMore" title="${esc(t("more"))}">${icon("dots")}</button></div>
+    <div style="flex:1;display:flex;min-height:0"><textarea id="nBody" class="nbody" placeholder="${esc(t("noteHint"))}">${esc(note.body || "")}</textarea><div class="docprev md hidden" id="nPrev"></div></div>
+    <div class="nstatus" id="nStatus"></div>`;
+  let id = n ? n.id : null, timer = null, saving = Promise.resolve();
+  const save = () => {
+    saving = saving.then(async () => {
+      const out = Object.assign({}, note, { subject: $("#nSub").value, body: $("#nBody").value, notebook: $("#nBook").value.trim(), pinned: $("#nPin").classList.contains("on") });
+      if (!id && !out.subject.trim() && !out.body.trim()) return;
+      const b = { note: out }; if (id) b.id = id;
+      const r = await api("POST", "/note", b);
+      if (!id) { id = r.id; notesState.current = id; }
+      const ex = notesState.notes.find((x) => x.id === id);
+      const row = { id, subject: out.subject, body: out.body, notebook: out.notebook, pinned: out.pinned, date: Math.floor(Date.now() / 1000), note: out };
+      if (ex) Object.assign(ex, row); else notesState.notes.unshift(row);
+      $("#nStatus").textContent = t("saved");
+      drawNoteList();
+    }).catch((e) => toast(e.message, true));
+    return saving;
+  };
+  const later = () => { $("#nStatus").textContent = ""; clearTimeout(timer); timer = setTimeout(save, 700); };
+  ["#nSub", "#nBody", "#nBook"].forEach((sel) => $(sel).addEventListener("input", later));
+  $("#nBook").addEventListener("change", later);
+  $("#nPin").onclick = () => { $("#nPin").classList.toggle("on"); save(); };
+  const prev = $("#nPrev");
+  const renderPrev = async () => { if (prev.classList.contains("hidden")) return; try { const r = await capi("POST", "/render", { text: $("#nBody").value }); prev.innerHTML = r.html || ""; } catch (e) {} };
+  if ($("#nPrevBtn")) $("#nPrevBtn").onclick = () => { prev.classList.toggle("hidden"); $("#nBody").classList.toggle("hidden", !prev.classList.contains("hidden")); $("#nPrevBtn").classList.toggle("on"); renderPrev(); };
+  $("#nMore").onclick = (ev) => {
+    ev.stopPropagation();
+    openMenu(ev, [
+      me && me.cloud && me.collab !== false ? { ic: "share", label: t("noteToDoc"), fn: guard(async () => {
+        clearTimeout(timer); await save(); if (!id) return;
+        if (!confirm(t("noteToDocConfirm"))) return;
+        const r = await api("POST", "/note/to-document", { id });
+        notesState.notes = notesState.notes.filter((x) => x.id !== id); notesState.current = null;
+        view = "files"; openCloudDoc(r.doc);
+      }) } : null,
+      id ? { ic: "trash", label: t("delete"), danger: true, fn: guard(async () => {
+        if (!confirm(t("confirmDelete"))) return;
+        clearTimeout(timer);
+        await api("POST", "/note/delete", { id });
+        notesState.notes = notesState.notes.filter((x) => x.id !== id); notesState.current = null; renderNotes();
+      }) } : null,
+    ]);
+  };
+  // Leaving the note saves what's pending.
+  box.addEventListener("focusout", () => { if (timer) { clearTimeout(timer); timer = null; save(); } });
+  if (!n) $("#nSub").focus();
+  drawNoteList();
 }
 
 // ------------------------------------------------------------ SETTINGS
@@ -2839,6 +3060,18 @@ function openShare(id, meta) {
 function itemShareUrl(token) { return `${location.origin}/mail#s=${token}`; }
 // Share a file or folder with a link anyone can open (guests included), as view
 // or edit, optionally with an expiry.
+// Set, change or remove a share link's password (the link keeps its access
+// and expiry).
+function wireLinkPassword(box, links, refresh) {
+  box.querySelectorAll("[data-lpw]").forEach((b) => b.onclick = guard(async () => {
+    const l = links.find((x) => x.token === b.dataset.lpw); if (!l) return;
+    const pw = prompt(l.hasPassword ? t("linkPasswordChange") : t("linkPasswordSet"), "");
+    if (pw === null) return;
+    const days = l.expires ? Math.max(1, Math.ceil((l.expires - Date.now() / 1000) / 86400)) : 0;
+    await api("POST", "/cloud/link/update", { token: l.token, write: l.canWrite, expires_days: days, password: pw });
+    toast(t("saved")); refresh();
+  }));
+}
 function openItemShare(it) {
   const expiryOpts = [["0", t("expiryNever")], ["7", t("expiry7")], ["30", t("expiry30")], ["90", t("expiry90")]];
   panel(t("share"),
@@ -2847,17 +3080,19 @@ function openItemShare(it) {
        <div class="row" style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
          <select id="ilPerm"><option value="read">${esc(t("linkView"))}</option><option value="write">${esc(t("linkEdit"))}</option></select>
          <select id="ilExp">${expiryOpts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("")}</select>
+         <input id="ilPw" type="password" autocomplete="new-password" placeholder="${esc(t("linkPasswordOpt"))}" style="flex:1;min-width:140px">
          <button class="btn primary" id="ilAdd">${icon("link")}<span>${esc(t("createLink"))}</span></button>
        </div></div>`,
     `<div style="flex:1"></div><button class="btn" id="ilClose">${esc(t("close"))}</button>`);
   const expLabel = (e) => e ? `${esc(t("expiresOn"))} ${esc(fmtDate(e))}` : esc(t("expiryNever"));
   const renderLinks = (links) => {
-    $("#ilLinks").innerHTML = links.length ? links.map((l) => `<div class="taskrow"><div class="tt" style="min-width:0;flex:1"><div style="font-size:12.5px">${l.canWrite ? esc(t("anyoneCanEdit")) : esc(t("anyoneCanView"))} · ${expLabel(l.expires)}</div><div class="dm" style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(itemShareUrl(l.token))}</div></div><button class="iconbtn" data-copy="${esc(l.token)}" title="${esc(t("copyLink"))}">${icon("copy")}</button><button class="iconbtn danger" data-lrm="${esc(l.token)}" title="${esc(t("revoke"))}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">${esc(t("noLinks"))}</p>`;
+    $("#ilLinks").innerHTML = links.length ? links.map((l) => `<div class="taskrow"><div class="tt" style="min-width:0;flex:1"><div style="font-size:12.5px">${l.hasPassword ? "🔒 " : ""}${l.canWrite ? esc(t("anyoneCanEdit")) : esc(t("anyoneCanView"))} · ${expLabel(l.expires)}</div><div class="dm" style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(itemShareUrl(l.token))}</div></div><button class="iconbtn" data-copy="${esc(l.token)}" title="${esc(t("copyLink"))}">${icon("copy")}</button><button class="iconbtn" data-lpw="${esc(l.token)}" title="${esc(t("linkPassword"))}">${icon("lock")}</button><button class="iconbtn danger" data-lrm="${esc(l.token)}" title="${esc(t("revoke"))}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">${esc(t("noLinks"))}</p>`;
+    wireLinkPassword($("#ilLinks"), links, refresh);
     $("#ilLinks").querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => { const url = itemShareUrl(b.dataset.copy); if (navigator.clipboard) navigator.clipboard.writeText(url); toast(t("copied")); });
     $("#ilLinks").querySelectorAll("[data-lrm]").forEach((b) => b.onclick = guard(async () => { await api("POST", "/cloud/link/revoke", { token: b.dataset.lrm }); refresh(); }));
   };
   const refresh = async () => { let r = { links: [] }; try { r = await api("GET", "/cloud/links?item=" + it.id); } catch (e) {} renderLinks(r.links || []); };
-  $("#ilAdd").onclick = guard(async () => { await api("POST", "/cloud/link", { item: it.id, write: $("#ilPerm").value === "write", expires_days: +$("#ilExp").value }); refresh(); });
+  $("#ilAdd").onclick = guard(async () => { await api("POST", "/cloud/link", { item: it.id, write: $("#ilPerm").value === "write", expires_days: +$("#ilExp").value, password: $("#ilPw").value || undefined }); $("#ilPw").value = ""; refresh(); });
   $("#ilClose").onclick = closePanel;
   refresh();
 }
@@ -2902,6 +3137,7 @@ async function renderFiles() {
   if (!fs.drives.length) { try { const r = await api("GET", "/cloud/drives"); fs.drives = r.drives || []; } catch (e) { fs.drives = []; } }
   if (fs.trashView) return renderTrash();
   if (fs.recentView && view === "files") { renderRail(); return renderRecent(); }
+  if (fs.favView && view === "files") { renderRail(); return renderFavorites(); }
   if (fs.sharedView && view === "files") { renderRail(); return renderSharedWithMe(); }
   // A folder someone was given access to in a library they aren't a member
   // of (from "Shared with me") is browsed inside that library.
@@ -3024,6 +3260,7 @@ function fileRow(it, showLoc) {
   const meta = it.kind === "file" ? fmtSize(it.size) : (it.kind === "doc" ? t("documents") : "");
   const loc = showLoc ? `<div style="font-size:11px;color:var(--muted)">${esc(it.driveKind === "personal" ? t("myFiles") : (it.driveName || ""))}</div>` : "";
   const badges = [];
+  if (it.favorite) badges.push(`<span title="${esc(t("favorite"))}" style="color:#f5b301">★</span>`);
   if (it.restricted) badges.push(`<span title="${esc(t("restrictedFolder"))}" style="display:inline-flex;vertical-align:-3px;color:var(--muted)">${icon("lock")}</span>`);
   const ap = it.approval && it.approval.status !== "approved" ? `<div style="font-size:11px;color:${it.approval.status === "rejected" ? "var(--danger)" : "var(--muted)"}">${esc(it.approval.status === "rejected" ? t("approvalRejected") + (it.approval.note ? ": " + it.approval.note : "") : t("approvalPending"))}</div>` : "";
   const co = it.checkedOut ? `<div style="font-size:11px;color:var(--accent)">${esc(it.checkedOut.mine ? t("checkedOutByYou") : `${t("checkedOutBy")} ${it.checkedOut.name || it.checkedOut.email}`)}</div>` : "";
@@ -3069,6 +3306,18 @@ async function renderTrash() {
   const eb = $("#fEmptyBin"); if (eb) eb.onclick = guard(async () => { if (!confirm(t("confirmEmptyBin"))) return; await api("POST", "/cloud/trash/empty", { drive: fs.driveId }); renderTrash(); });
   $("#view").querySelectorAll("[data-restore]").forEach((el) => el.onclick = guard(async () => { await api("POST", "/cloud/trash/restore", { item: +el.dataset.restore }); renderTrash(); toast(t("restored")); }));
   $("#view").querySelectorAll("[data-purge]").forEach((el) => el.onclick = guard(async () => { if (!confirm(t("confirmPurge"))) return; await api("POST", "/cloud/trash/delete", { item: +el.dataset.purge }); renderTrash(); }));
+}
+
+// Favorites across the personal drive and libraries; they open where they live.
+async function renderFavorites() {
+  let items = [];
+  try { items = (await api("GET", "/cloud/favorites")).items || []; } catch (e) {}
+  fs.items = items;
+  $("#view").innerHTML = `<div style="display:flex;flex-direction:column;height:100%">
+    <div class="glass" style="display:flex;gap:8px;align-items:center;padding:10px 16px;border-radius:0"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("favorites"))}</h2></div>
+    <div id="fRows" style="flex:1;overflow:auto;padding:8px 10px 16px">${items.length ? items.map((it) => fileRow(it, true)).join("") : `<div class="empty">${esc(t("noFavorites"))}</div>`}</div></div>`;
+  $("#fRows").querySelectorAll("[data-open]").forEach((el) => el.onclick = () => { const it = fs.items.find((x) => x.id === +el.dataset.open); fs.favView = false; openItem(it); });
+  $("#fRows").querySelectorAll("[data-menu]").forEach((el) => el.onclick = (ev) => { ev.stopPropagation(); itemMenu(ev, fs.items.find((x) => x.id === +el.dataset.menu)); });
 }
 
 // Recently updated files and documents across the personal drive and libraries.
@@ -3291,6 +3540,7 @@ function itemMenu(ev, it) {
   if (it.kind === "file") items.push({ ic: "paperclip", label: t("download"), fn: () => downloadItem(it) });
   if (fs.canWrite && it.kind !== "doc") items.push({ ic: "share", label: t("share"), fn: () => openItemShare(it) });
   if (it.kind === "file") items.push({ ic: "clock", label: t("versionHistory"), fn: () => openVersions(it) });
+  items.push({ ic: "star", label: it.favorite ? t("unfavorite") : t("favorite"), fn: guard(async () => { await api("POST", "/cloud/favorite", { item: it.id, on: !it.favorite }); it.favorite = !it.favorite; if (fs.favView) renderFavorites(); else renderFiles(); }) });
   if (fs.isLibrary && it.kind === "file") {
     const co = it.checkedOut;
     if (!co && fs.canWrite) items.push({ ic: "lock", label: t("checkOut"), fn: guard(async () => { await api("POST", "/cloud/checkout", { item: it.id }); renderFiles(); }) });
@@ -3400,17 +3650,19 @@ function openLibraryShare(driveId) {
      <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">
        <select id="llPerm"><option value="read">${esc(t("linkView"))}</option><option value="write">${esc(t("linkEdit"))}</option></select>
        <select id="llExp">${expiryOpts.map(([v, l]) => `<option value="${v}">${esc(l)}</option>`).join("")}</select>
+       <input id="llPw" type="password" autocomplete="new-password" placeholder="${esc(t("linkPasswordOpt"))}" style="flex:1;min-width:140px">
        <button class="btn primary" id="llAdd">${icon("link")}<span>${esc(t("createLink"))}</span></button></div>`,
     `<div style="flex:1"></div><button class="btn" id="llClose">${esc(t("close"))}</button>`);
   const expLabel = (e) => e ? `${esc(t("expiresOn"))} ${esc(fmtDate(e))}` : esc(t("expiryNever"));
   const refresh = async () => {
     let links = [];
     try { links = (await api("GET", "/cloud/library/links?drive=" + driveId)).links || []; } catch (e) {}
-    $("#llLinks").innerHTML = links.length ? links.map((l) => `<div class="taskrow"><div class="tt" style="min-width:0;flex:1"><div style="font-size:12.5px">${l.canWrite ? esc(t("anyoneCanEdit")) : esc(t("anyoneCanView"))} · ${expLabel(l.expires)}</div><div class="dm" style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(itemShareUrl(l.token))}</div></div><button class="iconbtn" data-copy="${esc(l.token)}" title="${esc(t("copyLink"))}">${icon("copy")}</button><button class="iconbtn danger" data-lrm="${esc(l.token)}" title="${esc(t("revoke"))}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">${esc(t("noLinks"))}</p>`;
+    $("#llLinks").innerHTML = links.length ? links.map((l) => `<div class="taskrow"><div class="tt" style="min-width:0;flex:1"><div style="font-size:12.5px">${l.hasPassword ? "🔒 " : ""}${l.canWrite ? esc(t("anyoneCanEdit")) : esc(t("anyoneCanView"))} · ${expLabel(l.expires)}</div><div class="dm" style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(itemShareUrl(l.token))}</div></div><button class="iconbtn" data-copy="${esc(l.token)}" title="${esc(t("copyLink"))}">${icon("copy")}</button><button class="iconbtn" data-lpw="${esc(l.token)}" title="${esc(t("linkPassword"))}">${icon("lock")}</button><button class="iconbtn danger" data-lrm="${esc(l.token)}" title="${esc(t("revoke"))}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">${esc(t("noLinks"))}</p>`;
+    wireLinkPassword($("#llLinks"), links, refresh);
     $("#llLinks").querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => { const url = itemShareUrl(b.dataset.copy); if (navigator.clipboard) navigator.clipboard.writeText(url); toast(t("copied")); });
     $("#llLinks").querySelectorAll("[data-lrm]").forEach((b) => b.onclick = guard(async () => { await api("POST", "/cloud/link/revoke", { token: b.dataset.lrm }); refresh(); }));
   };
-  $("#llAdd").onclick = guard(async () => { await api("POST", "/cloud/library/link", { drive: driveId, write: $("#llPerm").value === "write", expires_days: +$("#llExp").value }); refresh(); });
+  $("#llAdd").onclick = guard(async () => { await api("POST", "/cloud/library/link", { drive: driveId, write: $("#llPerm").value === "write", expires_days: +$("#llExp").value, password: $("#llPw").value || undefined }); $("#llPw").value = ""; refresh(); });
   $("#llClose").onclick = closePanel;
   refresh();
 }

@@ -70,6 +70,18 @@ with a notice. Endpoints: `POST /mail/api/send` with `"sendAt"`, `GET
 menu) opens a new task with the subject, the sender and the start of the text,
 due tomorrow; the message is flagged, and the task links back to it.
 
+**Snooze** — **Snooze** in the reading pane (or the context menu) moves a
+message to the *Snoozed* folder until a chosen time; then it returns to its
+folder, unread. In the Snoozed folder the message shows when it comes back and
+can be brought back at once. Endpoints: `POST /mail/api/snooze` (`{ "id",
+"until" }`), `POST /mail/api/unsnooze`, `GET /mail/api/snoozed`.
+
+**Templates** — **Templates** in the composer inserts a saved message (its
+subject is used if the subject is still empty), saves the current message as a
+template, or deletes templates. Endpoints: `GET /mail/api/templates`, `POST
+/mail/api/template` (`{ "id"?, "name", "subject", "html" }`), `POST
+/mail/api/template/delete`.
+
 **Keyboard shortcuts** — the mail view is fully keyboard-drivable: arrow keys or
 `j`/`k` move through the list, `Enter` opens, `c`/`n` compose, `r` reply,
 `Shift+R` reply all, `f` forward, `e` archive, `Delete` delete, `u` toggle
@@ -134,6 +146,16 @@ reminder time has come and announces each occurrence once, as a browser
 notification after **Turn on reminders** in the calendar (or as a message in the
 page otherwise). Declined and cancelled events are skipped.
 
+**Subscriptions** — **Subscribe to a calendar** adds a published calendar by
+its address (`https://…/…ics` or `webcal://…`), e.g. public holidays or a team
+calendar from another service. The server fetches it right away and then every
+hour, and it shows read-only in its own colour, with a checkbox to show or hide
+it. Only addresses on the internet can be subscribed (no local or private
+network addresses), files up to 5 MB, at most 20 per account. Endpoints: `GET
+/mail/api/calendar/subscriptions`, `POST /mail/api/calendar/subscription`
+(`{ "url", "name"? }`), `POST /mail/api/calendar/subscription/delete`, `GET
+/mail/api/calendar/subscription/events?id=&from=&to=`.
+
 **Import and export** — **Export (.ics)** downloads the whole calendar as an
 iCalendar file that other calendar programs open; **Import .ics file** adds the
 events of such a file to your calendar, including recurring series and changed
@@ -171,7 +193,15 @@ bell; clicking one opens what it is about. The newest 200 per account are kept.
 The list is `GET /mail/api/activity` (`items`, `unread`); `POST
 /mail/api/activity/read` with `{ "id": N }` marks one as read, with `{}` all.
 
-**Tasks and notes** — keep a task list and simple notes. A task has a due
+**Notes** — a list with search on the left and the note on the right; changes
+are saved as you type. Notes can be filed in **notebooks** (chips above the
+list filter by notebook) and pinned to the top. A note is written in the same
+Markdown dialect as documents and can be shown formatted (**Preview**). **Share
+as a document** turns a note into a collaborative document in Files, where it
+can be shared and edited together (the note is removed). Endpoint for that:
+`POST /mail/api/note/to-document` (`{ "id" }`).
+
+**Tasks** — a task has a due
 date, an importance, a reminder (announced like event reminders while the web
 app is open), a list of steps to tick off, and can repeat daily, on weekdays,
 weekly, monthly or yearly: completing a repeating task starts the next one with

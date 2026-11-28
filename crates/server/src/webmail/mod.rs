@@ -20,7 +20,7 @@ use crate::auth::{self, LoginError};
 use crate::model::flags;
 use crate::store::User;
 
-mod calendar_api;
+pub(crate) mod calendar_api;
 mod contacts_api;
 pub(crate) mod drive_api;
 pub(crate) mod mail_api;
@@ -139,6 +139,15 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
     // for an edit link — upload.
     if app.cfg.cloud.enabled && let Some(rest) = api.strip_prefix("/cloud/shared/") {
         let (token, sub) = rest.split_once('/').unwrap_or((rest, ""));
+        if method == Method::POST && sub == "unlock" {
+            let plain = headers.get("X-Forwarded-Proto").is_some_and(|v| v.as_bytes() == b"http") || (!app.cfg.http.behind_proxy && app.https_tls.is_none());
+            return security_headers(drive_api::unlock_link(&app, token, &body, !plain));
+        }
+        // A password-protected link only says that it is locked until the
+        // password has been entered.
+        if !drive_api::link_unlocked(&app, token, headers) {
+            return security_headers((StatusCode::UNAUTHORIZED, axum::Json(json!({ "error": "This link is protected by a password.", "locked": true }))).into_response());
+        }
         if method == Method::POST && sub == "upload" {
             return security_headers(drive_api::shared_upload(&app, token, query, headers, &body));
         }
@@ -252,10 +261,16 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/cloud/column") => drive_api::add_column(app, user, body),
         (&Method::POST, "/cloud/column/delete") => drive_api::delete_column(app, user, body),
         (&Method::POST, "/cloud/field") => drive_api::set_field(app, user, body),
+        (&Method::POST, "/cloud/favorite") => drive_api::set_favorite(app, user, body),
+        (&Method::GET, "/cloud/favorites") => drive_api::favorites(app, user),
         (&Method::POST, "/cloud/library/settings") => drive_api::library_settings(app, user, body),
         (&Method::POST, "/cloud/review") => drive_api::review(app, user, body),
         (&Method::GET, "/activity") => activity_list(app, user),
         (&Method::POST, "/activity/read") => activity_read(app, user, body),
+        (&Method::GET, "/calendar/subscriptions") => calendar_api::subscriptions(app, user),
+        (&Method::POST, "/calendar/subscription") => calendar_api::subscribe(app, user, body).await,
+        (&Method::POST, "/calendar/subscription/delete") => calendar_api::unsubscribe(app, user, body),
+        (&Method::GET, "/calendar/subscription/events") => calendar_api::subscription_events(app, user, query),
         (&Method::GET, "/calendar/rooms") => calendar_api::rooms(app, user, query),
         (&Method::GET, "/security/app-passwords") => settings_api::app_passwords(app, user),
         (&Method::POST, "/security/app-password") => settings_api::create_app_password(app, user, body),
@@ -271,6 +286,12 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::GET, "/contacts") => contacts_api::list(app, user),
         (&Method::POST, "/send") => mail_api::send(app, user, body).await,
         (&Method::GET, "/scheduled") => mail_api::scheduled(app, user),
+        (&Method::POST, "/snooze") => mail_api::snooze(app, user, body),
+        (&Method::POST, "/unsnooze") => mail_api::unsnooze(app, user, body),
+        (&Method::GET, "/snoozed") => mail_api::snoozed(app, user),
+        (&Method::GET, "/templates") => mail_api::templates(app, user),
+        (&Method::POST, "/template") => mail_api::save_template(app, user, body),
+        (&Method::POST, "/template/delete") => mail_api::delete_template(app, user, body),
         (&Method::POST, "/scheduled/cancel") => mail_api::cancel_scheduled(app, user, body),
         (&Method::POST, "/draft") => mail_api::draft(app, user, body),
         (&Method::POST, "/flag") => mail_api::flag(app, user, body),
@@ -305,6 +326,7 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/task/delete") => pim_api::delete_task(app, user, body),
         (&Method::GET, "/notes") => pim_api::notes(app, user),
         (&Method::POST, "/note") => pim_api::save_note(app, user, body),
+        (&Method::POST, "/note/to-document") => pim_api::note_to_document(app, user, body),
         (&Method::POST, "/note/delete") => pim_api::delete_note(app, user, body),
         (&Method::GET, "/settings") => settings_api::get(app, user),
         (&Method::POST, "/settings") => settings_api::save(app, user, body),

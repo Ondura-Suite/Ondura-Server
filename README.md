@@ -66,7 +66,7 @@ Everything runs as one program with one database: no separate mail transfer agen
 - A home dashboard with an app for each area — Mail (with calendar and contacts), Files, SharePoint, Tasks and Notes — each at its own URL
 - Compose with attachments, reply and forward, flag, move and delete; month, week and day calendar views with invitations and room booking; a notification bell for mentions, shares, approvals and assigned tasks; contacts with groups and vCard import/export; tasks with steps, reminders, repeats and assignment
 - Two-step sign-in with an authenticator app for the web app, the Admin Center and the Nextcloud login, and app passwords for mail apps
-- Send later, e-mail to task, and drag-and-drop in the calendar
+- Send later, snooze, templates, e-mail to task; drag-and-drop and subscriptions (ICS by URL) in the calendar; notes with notebooks and search; favorites and password-protected share links
 - Shares the same storage as ActiveSync and EWS, so changes appear everywhere at once
 
 ![Webmail](docs/screenshots/webmail.png)

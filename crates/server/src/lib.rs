@@ -17,6 +17,7 @@ pub mod db;
 pub mod directory;
 pub mod dns;
 pub mod eas;
+pub mod fetch;
 pub mod ews;
 pub mod http;
 
@@ -636,13 +637,24 @@ async fn serve(cfg: Config) -> Result<()> {
         }
     }
     smtp::outbound::spawn(app.clone());
+    let feeds = app.clone();
+    tokio::spawn(async move {
+        // Subscribed calendars due for a refresh (network fetches, so apart
+        // from the jobs above).
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(300));
+        loop {
+            tick.tick().await;
+            webmail::calendar_api::refresh_subscriptions(&feeds).await;
+        }
+    });
     let later = app.clone();
     tokio::spawn(async move {
-        // Messages scheduled with "send later".
+        // Messages scheduled with "send later", and snoozed messages coming back.
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(30));
         loop {
             tick.tick().await;
             webmail::mail_api::send_due(&later).await;
+            webmail::mail_api::wake_snoozed(&later);
         }
     });
     let maintenance = app.clone();

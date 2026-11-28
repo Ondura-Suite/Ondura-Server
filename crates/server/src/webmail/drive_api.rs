@@ -256,6 +256,7 @@ pub fn items(app: &Shared, user: &User, query: &str) -> ApiResult {
     let fields = app.store.fields_in_folder(drive_id, parent).map_err(internal)?;
     let columns = app.store.drive_columns(drive_id).map_err(internal)?;
     let approvals = app.store.approvals_in_folder(drive_id, parent).map_err(internal)?;
+    let favs = app.store.favorite_ids(user.id).map_err(internal)?;
     let require_approval = app.store.requires_approval(drive_id).map_err(internal)?;
     Ok(json!({
         "requireApproval": require_approval,
@@ -275,6 +276,9 @@ pub fn items(app: &Shared, user: &User, query: &str) -> ApiResult {
             }
             if let Some((_, c)) = checkouts.iter().find(|(id, _)| *id == it.id) {
                 v["checkedOut"] = json!({ "id": c.user_id, "name": c.name, "email": c.email, "since": c.since, "mine": c.user_id == user.id });
+            }
+            if favs.contains(&it.id) {
+                v["favorite"] = json!(true);
             }
             if require_approval && let Some((_, a)) = approvals.iter().find(|(id, _)| *id == it.id) {
                 v["approval"] = json!({ "status": a.status, "note": a.note, "by": a.submitted_by, "at": a.submitted_at, "mine": a.submitted_by == user.id });
@@ -683,6 +687,9 @@ struct LinkCreate {
     /// Days from now until the link expires; `0`/absent means it never expires.
     #[serde(default)]
     expires_days: i64,
+    /// Guests must enter this password to open the link.
+    #[serde(default)]
+    password: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -692,6 +699,9 @@ struct LinkRef {
     write: bool,
     #[serde(default)]
     expires_days: i64,
+    /// Absent: unchanged; empty: no password; otherwise the new password.
+    #[serde(default)]
+    password: Option<String>,
 }
 
 /// A number of days (from now) turned into an absolute expiry time, or `None`.
@@ -708,7 +718,7 @@ pub fn item_links(app: &Shared, user: &User, query: &str) -> ApiResult {
     }
     let links = app.store.item_links(item_id).map_err(internal)?;
     Ok(json!({
-        "links": links.iter().map(|l| json!({ "token": l.token, "canWrite": l.can_write, "created": l.created, "expires": l.expires })).collect::<Vec<_>>(),
+        "links": links.iter().map(|l| json!({ "token": l.token, "canWrite": l.can_write, "created": l.created, "expires": l.expires, "hasPassword": app.store.link_password_hash(&l.token).ok().flatten().is_some() })).collect::<Vec<_>>(),
     }))
 }
 
@@ -723,6 +733,7 @@ pub fn create_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         return Err(forbidden());
     }
     let token = app.store.create_item_link(b.item, b.write, expiry_from_days(b.expires_days), user.id).map_err(internal)?;
+    app.store.set_link_password(&token, b.password.as_deref()).map_err(internal)?;
     Ok(json!({ "token": token, "canWrite": b.write }))
 }
 
@@ -733,6 +744,9 @@ pub fn update_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
             return Err(forbidden());
         }
         app.store.set_library_link(&b.token, b.write, expiry_from_days(b.expires_days)).map_err(internal)?;
+        if b.password.is_some() {
+            app.store.set_link_password(&b.token, b.password.as_deref()).map_err(internal)?;
+        }
         return Ok(json!({ "ok": true }));
     }
     let item_id = app.store.item_link_item(&b.token).map_err(internal)?.ok_or_else(not_found)?;
@@ -741,6 +755,9 @@ pub fn update_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         return Err(forbidden());
     }
     app.store.set_item_link(&b.token, b.write, expiry_from_days(b.expires_days)).map_err(internal)?;
+    if b.password.is_some() {
+        app.store.set_link_password(&b.token, b.password.as_deref()).map_err(internal)?;
+    }
     Ok(json!({ "ok": true }))
 }
 
@@ -996,7 +1013,7 @@ pub fn library_links(app: &Shared, user: &User, query: &str) -> ApiResult {
     }
     let links = app.store.library_links(drive).map_err(internal)?;
     Ok(json!({
-        "links": links.iter().map(|l| json!({ "token": l.token, "canWrite": l.can_write, "created": l.created, "expires": l.expires })).collect::<Vec<_>>(),
+        "links": links.iter().map(|l| json!({ "token": l.token, "canWrite": l.can_write, "created": l.created, "expires": l.expires, "hasPassword": app.store.link_password_hash(&l.token).ok().flatten().is_some() })).collect::<Vec<_>>(),
     }))
 }
 
@@ -1007,6 +1024,8 @@ struct LibraryLinkCreate {
     write: bool,
     #[serde(default)]
     expires_days: i64,
+    #[serde(default)]
+    password: Option<String>,
 }
 
 pub fn create_library_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
@@ -1018,6 +1037,7 @@ pub fn create_library_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult
         return Err(forbidden());
     }
     let token = app.store.create_library_link(b.drive, b.write, expiry_from_days(b.expires_days), user.id).map_err(internal)?;
+    app.store.set_link_password(&token, b.password.as_deref()).map_err(internal)?;
     Ok(json!({ "token": token, "canWrite": b.write }))
 }
 
@@ -1224,4 +1244,112 @@ pub fn review(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     let kind = if b.approve { "approved" } else { "rejected" };
     let _ = app.store.add_activity(before.submitted_by, (user.id, &crate::activity::display_name(user)), kind, &it.name, b.note.trim(), &link);
     Ok(json!({ "ok": true }))
+}
+
+// ------------------------------------------------------ link passwords (guests)
+
+/// The cookie that remembers an unlocked share link in the guest's browser.
+fn unlock_cookie_name(token: &str) -> String {
+    format!("olk_{}", &token[..token.len().min(16)])
+}
+
+/// What the unlock cookie holds: derived from the stored password hash, so it
+/// can't be made up and stops working when the password changes.
+fn unlock_cookie_value(hash: &str, token: &str) -> String {
+    use sha2::Digest;
+    hex::encode(sha2::Sha256::digest(format!("{hash}\n{token}").as_bytes()))
+}
+
+/// Whether a guest may use a share link: it has no password, or the browser
+/// holds the cookie from entering it.
+pub fn link_unlocked(app: &Shared, token: &str, headers: &HeaderMap) -> bool {
+    let Ok(Some(hash)) = app.store.link_password_hash(token) else { return true };
+    let want = unlock_cookie_value(&hash, token);
+    let name = unlock_cookie_name(token);
+    headers
+        .get_all(header::COOKIE)
+        .iter()
+        .filter_map(|v| v.to_str().ok())
+        .flat_map(|v| v.split(';'))
+        .filter_map(|c| c.trim().split_once('='))
+        .any(|(k, v)| k == name && v == want)
+}
+
+static UNLOCK_FAILURES: std::sync::Mutex<Option<std::collections::HashMap<String, (u32, std::time::Instant)>>> = std::sync::Mutex::new(None);
+
+/// POST /cloud/shared/{token}/unlock { password } — open a password-protected
+/// share link; sets a cookie for it. Ten wrong passwords per link lock it for
+/// 15 minutes.
+pub fn unlock_link(app: &Shared, token: &str, body: &Bytes, secure: bool) -> Response {
+    #[derive(Deserialize)]
+    struct B {
+        password: String,
+    }
+    let err = |code: StatusCode, msg: &str| (code, axum::Json(json!({ "error": msg }))).into_response();
+    let Ok(b) = serde_json::from_slice::<B>(body) else { return err(StatusCode::BAD_REQUEST, "invalid request") };
+    let Ok(Some(hash)) = app.store.link_password_hash(token) else { return err(StatusCode::NOT_FOUND, "not found") };
+    {
+        let mut g = UNLOCK_FAILURES.lock().unwrap_or_else(|e| e.into_inner());
+        let m = g.get_or_insert_with(Default::default);
+        m.retain(|_, (_, t)| t.elapsed() < std::time::Duration::from_secs(900));
+        if m.get(token).is_some_and(|(n, _)| *n >= 10) {
+            return err(StatusCode::TOO_MANY_REQUESTS, "Too many wrong passwords. Try again later.");
+        }
+    }
+    if !crate::auth::verify_hash(&b.password, &hash) {
+        let mut g = UNLOCK_FAILURES.lock().unwrap_or_else(|e| e.into_inner());
+        g.get_or_insert_with(Default::default).entry(token.to_string()).or_insert((0, std::time::Instant::now())).0 += 1;
+        return err(StatusCode::FORBIDDEN, "The password is not correct.");
+    }
+    let mut r = axum::Json(json!({ "ok": true })).into_response();
+    let cookie = format!(
+        "{}={}; Path=/mail/api/cloud/shared/{token}; HttpOnly;{} SameSite=Strict; Max-Age=86400",
+        unlock_cookie_name(token),
+        unlock_cookie_value(&hash, token),
+        if secure { " Secure;" } else { "" }
+    );
+    if let Ok(v) = HeaderValue::from_str(&cookie) {
+        r.headers_mut().insert(header::SET_COOKIE, v);
+    }
+    r
+}
+
+// ------------------------------------------------------------------ favorites
+
+#[derive(Deserialize)]
+struct FavBody {
+    item: i64,
+    on: bool,
+}
+
+/// POST /cloud/favorite { item, on }
+pub fn set_favorite(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: FavBody = parse(body)?;
+    let it = app.store.drive_item(b.item).map_err(internal)?.ok_or_else(not_found)?;
+    if !visible(app, user, &it) {
+        return Err(not_found());
+    }
+    app.store.set_favorite(user.id, it.id, b.on).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// GET /cloud/favorites — the user's favorites they can still open, with
+/// the drive each lives in.
+pub fn favorites(app: &Shared, user: &User) -> ApiResult {
+    let drives = app.store.list_drives(user.id).map_err(internal)?;
+    let items = app.store.favorites(user.id).map_err(internal)?;
+    Ok(json!({
+        "items": items.iter().filter(|it| visible(app, user, it)).map(|it| {
+            let mut v = item_json(it);
+            v["favorite"] = json!(true);
+            v["driveId"] = json!(it.drive_id);
+            if let Some(d) = drives.iter().find(|d| d.id == it.drive_id) {
+                v["driveName"] = json!(d.name);
+                v["driveKind"] = json!(d.kind);
+            } else {
+                v["driveKind"] = json!("library");
+            }
+            v
+        }).collect::<Vec<_>>(),
+    }))
 }

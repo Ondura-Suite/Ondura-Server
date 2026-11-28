@@ -394,6 +394,60 @@ impl Store {
         Ok(self.approval_of(item.id)?.is_some_and(|a| a.status != "approved"))
     }
 
+    // ------------------------------------------------------- link passwords
+
+    /// Protect a share link (item or library) with a password, or remove it
+    /// with `None`. Stored as an Argon2 hash.
+    pub fn set_link_password(&self, token: &str, password: Option<&str>) -> Result<()> {
+        match password.filter(|p| !p.is_empty()) {
+            Some(p) => {
+                let hash = crate::auth::hash_password(p)?;
+                self.db().execute(
+                    "INSERT INTO link_passwords (token, hash) VALUES (?1, ?2) ON CONFLICT (token) DO UPDATE SET hash = excluded.hash",
+                    params![token, hash],
+                )?;
+            }
+            None => {
+                self.db().execute("DELETE FROM link_passwords WHERE token = ?1", [token])?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn link_password_hash(&self, token: &str) -> Result<Option<String>> {
+        self.db().query_row("SELECT hash FROM link_passwords WHERE token = ?1", [token], |r| r.get(0)).optional()
+    }
+
+    // ------------------------------------------------------------ favorites
+
+    pub fn set_favorite(&self, user_id: i64, item: i64, on: bool) -> Result<()> {
+        if on {
+            self.db().execute(
+                "INSERT INTO drive_favorites (user_id, item_id, created) VALUES (?1, ?2, ?3) ON CONFLICT (user_id, item_id) DO NOTHING",
+                params![user_id, item, now()],
+            )?;
+        } else {
+            self.db().execute("DELETE FROM drive_favorites WHERE user_id = ?1 AND item_id = ?2", params![user_id, item])?;
+        }
+        Ok(())
+    }
+
+    /// The user's favorite items (live ones), most recently added first.
+    pub fn favorites(&self, user_id: i64) -> Result<Vec<crate::cloud::Item>> {
+        let ids: Vec<i64> = {
+            let db = self.db();
+            let st = db.prepare("SELECT f.item_id FROM drive_favorites f JOIN drive_items i ON i.id = f.item_id WHERE f.user_id = ?1 AND i.trashed = 0 ORDER BY f.created DESC")?;
+            st.query_map([user_id], |r| r.get(0))?
+        };
+        Ok(ids.into_iter().filter_map(|id| self.drive_item(id).ok().flatten()).collect())
+    }
+
+    pub fn favorite_ids(&self, user_id: i64) -> Result<Vec<i64>> {
+        let db = self.db();
+        let st = db.prepare("SELECT item_id FROM drive_favorites WHERE user_id = ?1")?;
+        st.query_map([user_id], |r| r.get(0))
+    }
+
     // -------------------------------------------------------- library links
 
     /// A share link for a whole library: anyone with it can browse (and, for

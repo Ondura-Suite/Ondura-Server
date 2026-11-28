@@ -118,8 +118,21 @@ Sharing and browsing:
 | GET | `/mail/api/cloud/shared/{token}/download?item=` | Public: download a shared file (`item` names a file inside a shared folder). |
 | POST | `/mail/api/cloud/shared/{token}/upload?parent=&name=` | Public, edit links only: upload into a shared folder, or replace a shared file. |
 
-A share link is view or edit and may carry an expiry. It opens a guest view with
-no account: a single file shows an inline preview (images, PDFs, text) with a
+A share link is view or edit and may carry an expiry and a password. A guest
+opening a password-protected link enters the password first (ten wrong tries
+lock the link for 15 minutes); the browser then keeps it unlocked for a day,
+until the password is changed. Passwords are stored as hashes and set with
+`"password"` when creating a link or with `/cloud/link/update` (empty removes
+it); link lists report `hasPassword`. Unlocking is
+`POST /mail/api/cloud/shared/{token}/unlock` (`{ "password" }`).
+
+**Favorites**: any file or folder the user can open can be starred; Files lists
+them under **Favorites** (`POST /mail/api/cloud/favorite` with
+`{ "item", "on" }`, `GET /mail/api/cloud/favorites`; listings mark them with
+`favorite`).
+
+A link opens a guest view with no
+account: a single file shows an inline preview (images, PDFs, text) with a
 download button, and a folder can be browsed within its own subtree. An edit link
 lets the guest upload — into the shared folder (and its subfolders) or as a new
 version of the shared file; guest uploads are attributed to the account that

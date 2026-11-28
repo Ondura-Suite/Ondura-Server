@@ -13,6 +13,8 @@ pub enum Inline {
     Code(String),
     Link(Vec<Inline>, String),
     Break,
+    /// A task-list box at the start of a list item (`- [ ]` / `- [x]`).
+    Check(bool),
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -46,8 +48,8 @@ pub fn parse(text: &str) -> Vec<Block> {
         match open {
             Open::Para => out.push(Block::Para(inline(&lines.join("\n")))),
             Open::Quote => out.push(Block::Quote(inline(&lines.join("\n")))),
-            Open::Bullets => out.push(Block::Bullets(items.iter().map(|i| inline(i)).collect())),
-            Open::Numbers => out.push(Block::Numbers(items.iter().map(|i| inline(i)).collect())),
+            Open::Bullets => out.push(Block::Bullets(items.iter().map(|i| list_item(i)).collect())),
+            Open::Numbers => out.push(Block::Numbers(items.iter().map(|i| list_item(i)).collect())),
             Open::None => {}
         }
         *open = Open::None;
@@ -133,6 +135,18 @@ pub fn parse(text: &str) -> Vec<Block> {
     }
     flush(&mut open, &mut lines, &mut items, &mut out);
     out
+}
+
+/// A list item: inline formatting, after a task box if it starts with one.
+fn list_item(text: &str) -> Vec<Inline> {
+    for (prefix, done) in [("[ ] ", false), ("[x] ", true), ("[X] ", true)] {
+        if let Some(rest) = text.strip_prefix(prefix) {
+            let mut v = vec![Inline::Check(done)];
+            v.extend(inline(rest));
+            return v;
+        }
+    }
+    inline(text)
 }
 
 /// Parse inline formatting.
@@ -232,6 +246,7 @@ fn inline_html(v: &[Inline]) -> String {
             Inline::Code(t) => s.push_str(&format!("<code>{}</code>", esc(t))),
             Inline::Link(x, url) => s.push_str(&format!("<a href=\"{}\" rel=\"noopener noreferrer\" target=\"_blank\">{}</a>", esc(url), inline_html(x))),
             Inline::Break => s.push_str("<br>"),
+            Inline::Check(done) => s.push_str(if *done { "<input type=\"checkbox\" checked disabled> " } else { "<input type=\"checkbox\" disabled> " }),
         }
     }
     s
@@ -300,6 +315,7 @@ impl Doc {
                 Inline::Bold(x) => self.runs(x, Fmt { bold: true, ..f }, out),
                 Inline::Italic(x) => self.runs(x, Fmt { italic: true, ..f }, out),
                 Inline::Break => out.push_str("<w:r><w:br/></w:r>"),
+                Inline::Check(done) => out.push_str(&run(if *done { "\u{2612} " } else { "\u{2610} " }, f)),
                 Inline::Link(x, url) => {
                     self.links.push(url.clone());
                     let id = format!("rIdL{}", self.links.len());
@@ -492,6 +508,9 @@ mod tests {
         assert_eq!(b[0], Block::Heading(1, vec![Inline::Text("Plan".into())]));
         assert!(matches!(&b[1], Block::Para(v) if v.contains(&Inline::Break) && v.iter().any(|i| matches!(i, Inline::Link(_, u) if u == "https://x.org"))));
         assert!(matches!(&b[2], Block::Bullets(v) if v.len() == 2));
+        let tasks = parse("- [x] done\n- [ ] open\n- plain");
+        assert!(matches!(&tasks[0], Block::Bullets(v) if v[0][0] == Inline::Check(true) && v[1][0] == Inline::Check(false) && v[2][0] == Inline::Text("plain".into())));
+        assert!(to_html(&tasks).contains("<input type=\"checkbox\" checked disabled> done"));
         assert!(matches!(&b[3], Block::Numbers(v) if v.len() == 2));
         assert!(matches!(&b[4], Block::Quote(_)));
         assert_eq!(b[5], Block::Code("let x = 1;".into()));
