@@ -52,6 +52,7 @@ Everything runs as one program with one database: no separate mail transfer agen
 **Collaboration**
 
 - **Real-time collaborative documents**: several people signed in with their accounts edit the same text at once, with live presence, sharing per account (read-only or read-write), and conflict-free merging via Operational Transform
+- Markdown formatting with a live preview, comments anchored to text with replies and @mentions (mentioned people get an e-mail), and download as Markdown, text, HTML or Word (.docx)
 - Documents live inside the cloud storage next to ordinary files; a document REST API and a WebSocket let the Ondura clients integrate editing — see [Collaborative documents](docs/collab.md)
 
 **Modular**

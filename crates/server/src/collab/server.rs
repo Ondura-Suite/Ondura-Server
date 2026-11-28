@@ -64,6 +64,15 @@ impl Hub {
             .clone()
     }
 
+    /// Tell everyone in a document's room (if anyone is there) that something
+    /// besides the text changed, without creating a room for nobody.
+    fn notify(&self, doc_id: i64, kind: &str) {
+        let room = self.rooms.lock().expect("hub").get(&doc_id).cloned();
+        if let Some(room) = room {
+            let _ = room.tx.send(Frame { target: Target::All, text: Arc::from(json!({ "type": kind }).to_string().as_str()) });
+        }
+    }
+
     fn drop_if_empty(&self, doc_id: i64) {
         let mut rooms = self.rooms.lock().expect("hub");
         if let Some(room) = rooms.get(&doc_id)
@@ -293,9 +302,24 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
     if method != Method::GET && (headers.get("X-Ondura-Collab").is_none() || !crate::http::origin_ok(headers)) {
         return (StatusCode::FORBIDDEN, "missing request header").into_response();
     }
+    // Rendering the Markdown preview needs no stored data: signed-in users and
+    // holders of a valid share link may use it.
+    if method == Method::POST && api.trim_matches('/') == "render" {
+        let link_ok = query.split('&').filter_map(|p| p.split_once('=')).find(|(k, _)| *k == "link").is_some_and(|(_, t)| app.store.link(t).ok().flatten().is_some());
+        if !link_ok && collab_user(&app, headers).is_none() {
+            return (StatusCode::UNAUTHORIZED, axum::Json(json!({ "error": "Not signed in" }))).into_response();
+        }
+        return render(&body);
+    }
     let Some(user) = collab_user(&app, headers) else {
         return (StatusCode::UNAUTHORIZED, axum::Json(json!({ "error": "Not signed in" }))).into_response();
     };
+    if method == Method::GET {
+        let seg: Vec<&str> = api.trim_matches('/').split('/').filter(|s| !s.is_empty()).collect();
+        if let ["docs", id, "export"] = seg.as_slice() {
+            return export(&app, &user, id, query);
+        }
+    }
     let r = route(&app, &user, &method, api, query, &body);
     match r {
         Ok(v) => axum::Json(v).into_response(),
@@ -326,6 +350,10 @@ fn route(app: &Shared, user: &User, method: &Method, api: &str, _query: &str, bo
         (&Method::GET, ["docs", id, "ops"]) => ops_since(app, user, id, _query),
         (&Method::GET, ["docs", id, "history"]) => history(app, user, id),
         (&Method::GET, ["docs", id, "at", rev]) => content_at(app, user, id, rev),
+        (&Method::GET, ["docs", id, "comments"]) => list_comments(app, user, id),
+        (&Method::POST, ["docs", id, "comments"]) => add_comment(app, user, id, body),
+        (&Method::POST, ["docs", id, "comments", cid, "resolve"]) => resolve_comment(app, user, id, cid, body),
+        (&Method::DELETE, ["docs", id, "comments", cid]) => delete_comment(app, user, id, cid),
         _ => Err((StatusCode::NOT_FOUND, "Not found".into())),
     }
 }
@@ -348,6 +376,162 @@ fn require_owner(app: &Shared, user: &User, id: i64) -> Result<(), (StatusCode, 
 
 fn ise(e: anyhow::Error) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
+}
+
+// ------------------------------------------------------- preview and export
+
+/// POST /render { text } — the text rendered as HTML, for the preview.
+fn render(body: &Bytes) -> Response {
+    #[derive(Deserialize)]
+    struct Body {
+        text: String,
+    }
+    let Ok(b) = serde_json::from_slice::<Body>(body) else { return (StatusCode::BAD_REQUEST, "invalid request").into_response() };
+    if b.text.len() > 4 * 1024 * 1024 {
+        return (StatusCode::PAYLOAD_TOO_LARGE, "too large").into_response();
+    }
+    axum::Json(json!({ "html": super::markdown::to_html(&super::markdown::parse(&b.text)) })).into_response()
+}
+
+/// GET /docs/{id}/export?format=md|txt|html|docx — download the document.
+fn export(app: &Shared, user: &User, id: &str, query: &str) -> Response {
+    use axum::http::HeaderValue;
+    let Ok(id) = owned_or_shared(app, user, id) else { return StatusCode::NOT_FOUND.into_response() };
+    let Ok(Some(doc)) = app.store.doc(id) else { return StatusCode::NOT_FOUND.into_response() };
+    let format = query.split('&').filter_map(|p| p.split_once('=')).find(|(k, _)| *k == "format").map(|(_, v)| v).unwrap_or("md");
+    let blocks = || super::markdown::parse(&doc.content);
+    let (bytes, ctype, ext): (Vec<u8>, &str, &str) = match format {
+        "txt" => (doc.content.clone().into_bytes(), "text/plain; charset=utf-8", "txt"),
+        "html" => (super::markdown::to_html_page(&doc.name, &blocks()).into_bytes(), "text/html; charset=utf-8", "html"),
+        "docx" => (super::markdown::to_docx(&doc.name, &blocks()), "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "docx"),
+        _ => (doc.content.clone().into_bytes(), "text/markdown; charset=utf-8", "md"),
+    };
+    let stem: String = doc.name.chars().filter(|c| !c.is_control() && !"\\/:*?\"<>|".contains(*c)).collect::<String>().trim().to_string();
+    let stem = if stem.is_empty() { "document".to_string() } else { stem };
+    // ASCII fallback plus the UTF-8 name (RFC 6266).
+    let ascii: String = stem.chars().map(|c| if c.is_ascii() { c } else { '_' }).collect();
+    let utf8: String = format!("{stem}.{ext}").bytes().map(|b| if b.is_ascii_alphanumeric() || b".-_".contains(&b) { (b as char).to_string() } else { format!("%{b:02X}") }).collect();
+    let mut r = bytes.into_response();
+    let h = r.headers_mut();
+    h.insert(axum::http::header::CONTENT_TYPE, HeaderValue::from_static(ctype));
+    if let Ok(v) = HeaderValue::from_str(&format!("attachment; filename=\"{ascii}.{ext}\"; filename*=UTF-8''{utf8}")) {
+        h.insert(axum::http::header::CONTENT_DISPOSITION, v);
+    }
+    r
+}
+
+// ---------------------------------------------------------------- comments
+
+fn list_comments(app: &Shared, user: &User, id: &str) -> ApiResult {
+    let id = owned_or_shared(app, user, id)?;
+    let comments = app.store.doc_comments(id).map_err(ise)?;
+    Ok(json!({ "comments": comments }))
+}
+
+/// Anyone who can open a document can comment on it; @address mentions of
+/// accounts that can open it too send them an e-mail with a link.
+fn add_comment(app: &Shared, user: &User, id: &str, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct Body {
+        #[serde(default)]
+        start: u32,
+        #[serde(default)]
+        end: u32,
+        body: String,
+        #[serde(default)]
+        parent: Option<i64>,
+    }
+    let id = owned_or_shared(app, user, id)?;
+    let b: Body = parse(body)?;
+    let cid = app.store.add_comment(id, user.id, b.parent, b.start, b.end, &b.body).map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
+    HUB.notify(id, "comments");
+    let no_access = notify_mentions(app, user, id, &b.body);
+    Ok(json!({ "id": cid, "noAccess": no_access }))
+}
+
+/// Resolve or reopen a thread: its author, or anyone who may edit the document.
+fn resolve_comment(app: &Shared, user: &User, id: &str, cid: &str, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct Body {
+        resolved: bool,
+    }
+    let id = owned_or_shared(app, user, id)?;
+    let cid: i64 = cid.parse().map_err(|_| (StatusCode::NOT_FOUND, "Not found".to_string()))?;
+    let b: Body = parse(body)?;
+    let c = app.store.doc_comment(id, cid).map_err(ise)?.ok_or((StatusCode::NOT_FOUND, "Not found".into()))?;
+    let can_write = app.store.doc_access(user.id, id).map_err(ise)?.is_some_and(|a| a.write);
+    if c.user_id != user.id && !can_write {
+        return Err((StatusCode::FORBIDDEN, "You can't do that.".into()));
+    }
+    app.store.set_comment_resolved(cid, b.resolved).map_err(ise)?;
+    HUB.notify(id, "comments");
+    Ok(json!({ "ok": true }))
+}
+
+/// Delete a comment: its author, or the document's owner.
+fn delete_comment(app: &Shared, user: &User, id: &str, cid: &str) -> ApiResult {
+    let id = owned_or_shared(app, user, id)?;
+    let cid: i64 = cid.parse().map_err(|_| (StatusCode::NOT_FOUND, "Not found".to_string()))?;
+    let c = app.store.doc_comment(id, cid).map_err(ise)?.ok_or((StatusCode::NOT_FOUND, "Not found".into()))?;
+    let owner = app.store.doc(id).map_err(ise)?.is_some_and(|d| d.owner_id == user.id);
+    if c.user_id != user.id && !owner {
+        return Err((StatusCode::FORBIDDEN, "You can't do that.".into()));
+    }
+    app.store.delete_comment(cid).map_err(ise)?;
+    HUB.notify(id, "comments");
+    Ok(json!({ "ok": true }))
+}
+
+/// The accounts mentioned as `@address` in a comment (not the author): those
+/// who can open the document, and those who can't.
+fn mentioned(app: &Shared, author: &User, doc_id: i64, text: &str) -> (Vec<User>, Vec<User>) {
+    let (mut can, mut cannot): (Vec<User>, Vec<User>) = (Vec::new(), Vec::new());
+    for word in text.split_whitespace().filter_map(|w| w.strip_prefix('@')) {
+        let addr = word.trim_end_matches(|c: char| !c.is_alphanumeric());
+        if !addr.contains('@') {
+            continue;
+        }
+        let Some(u) = app.store.resolve_address(addr).ok().flatten().and_then(|(uid, _)| app.store.user(uid).ok().flatten()) else { continue };
+        if u.id == author.id || !u.enabled || can.iter().chain(cannot.iter()).any(|x| x.id == u.id) {
+            continue;
+        }
+        if app.store.doc_access(u.id, doc_id).ok().flatten().is_some() {
+            can.push(u);
+        } else {
+            cannot.push(u);
+        }
+    }
+    (can, cannot)
+}
+
+/// E-mail the mentioned accounts that can open the document; return the
+/// addresses of those who can't, so the author can share it with them.
+fn notify_mentions(app: &Shared, author: &User, doc_id: i64, text: &str) -> Vec<String> {
+    let (can, cannot) = mentioned(app, author, doc_id, text);
+    let missing = cannot.iter().map(|u| u.email.clone()).collect();
+    let people: Vec<User> = can.into_iter().filter(|u| u.mailbox).collect();
+    if people.is_empty() {
+        return missing;
+    }
+    let name = app.store.doc(doc_id).ok().flatten().map(|d| d.name).unwrap_or_default();
+    let link = format!("https://{}/files#doc={doc_id}", app.cfg.hostname);
+    let who = if author.name.is_empty() { author.email.clone() } else { author.name.clone() };
+    let text = format!("{who} mentioned you in a comment on \"{name}\":\n\n{}\n\nOpen the document: {link}\n", text.trim());
+    let out = crate::mime::Outgoing {
+        from: author.person(),
+        to: people.iter().map(|u| u.person()).collect(),
+        subject: format!("{who} mentioned you in \"{name}\""),
+        html: Some(crate::mime::text_to_html(&text)),
+        text,
+        ..Default::default()
+    };
+    let (app, author) = (app.clone(), author.clone());
+    tokio::spawn(async move {
+        if let Err(e) = crate::smtp::submit::send_generated(&app, &author, &out, false).await {
+            tracing::warn!("mention notification failed: {e:#}");
+        }
+    });
+    missing
 }
 
 fn get_doc(app: &Shared, user: &User, id: &str) -> ApiResult {
@@ -499,4 +683,24 @@ fn ops_since(app: &Shared, user: &User, id: &str, query: &str) -> ApiResult {
     let ops = app.store.ops_since(id, since).map_err(ise)?;
     let list: Vec<Value> = ops.into_iter().map(|(rev, op)| json!({ "rev": rev, "op": op })).collect();
     Ok(json!({ "ops": list }))
+}
+
+#[cfg(test)]
+mod mention_tests {
+    use super::mentioned;
+    use crate::app::App;
+
+    #[test]
+    fn mentions_only_people_who_can_open_the_document() {
+        let (app, user) = App::test();
+        let bob = app.store.create_user("bob@example.com", "Bob", "pw", "user").unwrap();
+        app.store.create_user("eve@example.com", "Eve", "pw", "user").unwrap();
+        let doc = app.store.create_doc(user.id, "Plan").unwrap();
+        app.store.share_doc(doc, bob.id, false).unwrap();
+        let text = "@bob@example.com, please look; @eve@example.com too. And @niklas@example.com.";
+        let (can, cannot) = mentioned(&app, &user, doc, text);
+        // Eve has no access, and the author is never notified.
+        assert_eq!(can.iter().map(|u| u.email.as_str()).collect::<Vec<_>>(), vec!["bob@example.com"]);
+        assert_eq!(cannot.iter().map(|u| u.email.as_str()).collect::<Vec<_>>(), vec!["eve@example.com"]);
+    }
 }

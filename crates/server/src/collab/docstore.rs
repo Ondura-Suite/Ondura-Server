@@ -54,6 +54,24 @@ pub struct Doc {
     pub revision: i64,
 }
 
+/// A comment on a document. A thread has an anchor (`start..end`, UTF-16
+/// offsets kept up to date as the text changes) and the text it quotes;
+/// replies point at their thread through `parent_id`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct Comment {
+    pub id: i64,
+    pub parent_id: Option<i64>,
+    pub user_id: i64,
+    pub author: String,
+    pub email: String,
+    pub start: i64,
+    pub end: i64,
+    pub quote: String,
+    pub body: String,
+    pub created: i64,
+    pub resolved: bool,
+}
+
 /// A user's access to a document.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Access {
@@ -208,6 +226,84 @@ impl Store {
             .query_map([doc_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get::<_, i64>(3)? != 0)))?
 ;
         Ok(rows)
+    }
+
+    // ---------------------------------------------------------------- comments
+
+    /// Add a comment to a document: a new thread anchored at `start..end` (UTF-16
+    /// offsets) with the text it was made on, or a reply to `parent`.
+    pub fn add_comment(&self, doc_id: i64, user_id: i64, parent: Option<i64>, start: u32, end: u32, body: &str) -> Result<i64> {
+        let body = body.trim();
+        if body.is_empty() {
+            bail!("empty comment");
+        }
+        if body.chars().count() > 10_000 {
+            bail!("comment too long");
+        }
+        let db = self.db();
+        if let Some(p) = parent {
+            let ok: Option<i64> = db.query_row("SELECT 1 FROM collab_comments WHERE id = ?1 AND doc_id = ?2 AND parent_id IS NULL", params![p, doc_id], |r| r.get(0)).optional()?;
+            if ok.is_none() {
+                bail!("no such comment");
+            }
+            return db.query_row(
+                "INSERT INTO collab_comments (doc_id, parent_id, user_id, body, created) VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id",
+                params![doc_id, p, user_id, body, now()],
+                |r| r.get(0),
+            );
+        }
+        let content: String = db.query_row("SELECT content FROM collab_docs WHERE id = ?1", [doc_id], |r| r.get(0))?;
+        let text = to_u16(&content);
+        let (start, end) = (start.min(text.len() as u32), end.min(text.len() as u32));
+        if end < start {
+            bail!("invalid range");
+        }
+        let quote: String = super::ot::from_u16(&text[start as usize..end as usize]).chars().take(500).collect();
+        db.query_row(
+            "INSERT INTO collab_comments (doc_id, user_id, start_pos, end_pos, quote, body, created) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) RETURNING id",
+            params![doc_id, user_id, start as i64, end as i64, quote, body, now()],
+            |r| r.get(0),
+        )
+    }
+
+    /// A document's comments, threads first and replies after, oldest first.
+    pub fn doc_comments(&self, doc_id: i64) -> Result<Vec<Comment>> {
+        let db = self.db();
+        let st = db.prepare(
+            "SELECT c.id, c.parent_id, c.user_id, COALESCE(NULLIF(u.name, ''), u.email), u.email, c.start_pos, c.end_pos, c.quote, c.body, c.created, c.resolved \
+             FROM collab_comments c JOIN users u ON u.id = c.user_id WHERE c.doc_id = ?1 ORDER BY c.created, c.id",
+        )?;
+        st.query_map([doc_id], |r| {
+            Ok(Comment {
+                id: r.get(0)?,
+                parent_id: r.get(1)?,
+                user_id: r.get(2)?,
+                author: r.get(3)?,
+                email: r.get(4)?,
+                start: r.get(5)?,
+                end: r.get(6)?,
+                quote: r.get(7)?,
+                body: r.get(8)?,
+                created: r.get(9)?,
+                resolved: r.get::<_, i64>(10)? != 0,
+            })
+        })
+    }
+
+    /// One comment, by id, within a document.
+    pub fn doc_comment(&self, doc_id: i64, id: i64) -> Result<Option<Comment>> {
+        Ok(self.doc_comments(doc_id)?.into_iter().find(|c| c.id == id))
+    }
+
+    pub fn set_comment_resolved(&self, id: i64, resolved: bool) -> Result<()> {
+        self.db().execute("UPDATE collab_comments SET resolved = ?1 WHERE id = ?2", params![resolved as i64, id])?;
+        Ok(())
+    }
+
+    /// Delete a comment; deleting a thread deletes its replies.
+    pub fn delete_comment(&self, id: i64) -> Result<()> {
+        self.db().execute("DELETE FROM collab_comments WHERE id = ?1 OR parent_id = ?1", [id])?;
+        Ok(())
     }
 
     // ------------------------------------------------------------ share links
@@ -389,6 +485,20 @@ impl Store {
             "INSERT INTO collab_ops (doc_id, revision, user_id, op, base_len, ts) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             params![doc_id, new_rev, user_id, transformed.to_string(), doc_u16.len() as u32, now()],
         )?;
+        // Comment anchors move with the text: text typed at the start of a
+        // commented range stays outside it, and so does text typed at its end.
+        let anchors: Vec<(i64, u32, u32)> = tx.query_all(
+            "SELECT id, start_pos, end_pos FROM collab_comments WHERE doc_id = ?1 AND parent_id IS NULL",
+            [doc_id],
+            |r| Ok((r.get(0)?, r.get::<_, i64>(1)? as u32, r.get::<_, i64>(2)? as u32)),
+        )?;
+        for (cid, start, end) in anchors {
+            let s2 = incoming.transform_index(start, true);
+            let e2 = incoming.transform_index(end, false).max(s2);
+            if (s2, e2) != (start, end) {
+                tx.execute("UPDATE collab_comments SET start_pos = ?1, end_pos = ?2 WHERE id = ?3", params![s2 as i64, e2 as i64, cid])?;
+            }
+        }
         tx.commit()?;
         Ok((new_rev, transformed))
     }

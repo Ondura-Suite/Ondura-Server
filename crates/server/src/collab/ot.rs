@@ -236,6 +236,38 @@ impl TextOp {
 
     /// Parse the compact wire format: a JSON array whose elements are a positive
     /// number (retain), a negative number (delete) or a string (insert).
+    /// Where position `idx` of the text before this operation ends up after it.
+    /// A position inside deleted text moves to where the deletion was. For an
+    /// insertion exactly at `idx`, `after` decides whether the position ends up
+    /// behind the inserted text (`true`) or in front of it (`false`).
+    pub fn transform_index(&self, idx: u32, after: bool) -> u32 {
+        let (mut base, mut target) = (0u32, 0u32);
+        for c in &self.comps {
+            match c {
+                Comp::Retain(n) => {
+                    if idx < base + n {
+                        return target + (idx - base);
+                    }
+                    base += n;
+                    target += n;
+                }
+                Comp::Insert(s) => {
+                    if idx == base && !after {
+                        return target;
+                    }
+                    target += s.len() as u32;
+                }
+                Comp::Delete(n) => {
+                    if idx < base + n {
+                        return target;
+                    }
+                    base += n;
+                }
+            }
+        }
+        (target + idx.saturating_sub(base)).min(self.target_len)
+    }
+
     pub fn from_json(v: &Value, base_len: u32) -> Result<TextOp, String> {
         let arr = v.as_array().ok_or("operation must be an array")?;
         let mut op = TextOp::new();

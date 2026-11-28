@@ -210,3 +210,19 @@ fn randomised_convergence() {
         assert_eq!(via_a, via_b, "diverged on doc '{doc}'");
     }
 }
+
+#[test]
+fn transform_index_follows_edits() {
+    // "hello world": delete the "o" at 4, insert "big " at 6.
+    let o = op("hello world", json!([4, -1, 1, "big ", 5]));
+    assert_eq!(apply("hello world", &o), "hell big world");
+    // Before the edits: unchanged.
+    assert_eq!(o.transform_index(2, true), 2);
+    // Inside the deletion: collapses to where it was.
+    assert_eq!(o.transform_index(4, true), 4);
+    // At the insertion point: behind or in front of the inserted text.
+    assert_eq!(o.transform_index(6, true), 9);
+    assert_eq!(o.transform_index(6, false), 5);
+    // The end of the text moves with everything before it.
+    assert_eq!(o.transform_index(11, false), 14);
+}

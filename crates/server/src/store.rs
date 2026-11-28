@@ -199,6 +199,19 @@ CREATE TABLE IF NOT EXISTS collab_shares (
     PRIMARY KEY (doc_id, user_id)
 );
 CREATE INDEX IF NOT EXISTS collab_shares_user ON collab_shares(user_id);
+CREATE TABLE IF NOT EXISTS collab_comments (
+    id INTEGER PRIMARY KEY,
+    doc_id INTEGER NOT NULL REFERENCES collab_docs(id) ON DELETE CASCADE,
+    parent_id INTEGER,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    start_pos INTEGER NOT NULL DEFAULT 0,
+    end_pos INTEGER NOT NULL DEFAULT 0,
+    quote TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL,
+    created INTEGER NOT NULL,
+    resolved INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS collab_comments_doc ON collab_comments(doc_id);
 CREATE TABLE IF NOT EXISTS collab_links (
     token TEXT PRIMARY KEY,
     doc_id INTEGER NOT NULL REFERENCES collab_docs(id) ON DELETE CASCADE,

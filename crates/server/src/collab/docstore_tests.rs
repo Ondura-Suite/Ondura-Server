@@ -126,3 +126,52 @@ fn share_links_grant_and_revoke() {
     assert_eq!(store.link(&token).unwrap(), None);
     assert!(store.doc_links(doc).unwrap().is_empty());
 }
+
+#[test]
+fn comment_anchors_follow_concurrent_edits() {
+    let (app, user) = App::test();
+    let store = &app.store;
+    let doc = store.create_doc(user.id, "Spec").unwrap();
+    store.apply_op(doc, user.id, 0, &json!(["The quick brown fox"])).unwrap();
+    // Comment on "quick" (4..9).
+    let c = store.add_comment(doc, user.id, None, 4, 9, "Too vague?").unwrap();
+    assert_eq!(store.doc_comment(doc, c).unwrap().unwrap().quote, "quick");
+
+    // Someone inserts "very " in front of it, based on the revision before.
+    store.apply_op(doc, user.id, 1, &json!([4, "very ", 15])).unwrap();
+    let a = store.doc_comment(doc, c).unwrap().unwrap();
+    assert_eq!((a.start, a.end), (9, 14));
+    let text = store.doc(doc).unwrap().unwrap().content;
+    assert_eq!(&text[a.start as usize..a.end as usize], "quick");
+
+    // Typing right at the end of the range does not extend it.
+    store.apply_op(doc, user.id, 2, &json!([14, "!", 10])).unwrap();
+    let a = store.doc_comment(doc, c).unwrap().unwrap();
+    assert_eq!((a.start, a.end), (9, 14));
+
+    // Deleting the quoted word collapses the anchor but keeps the thread.
+    store.apply_op(doc, user.id, 3, &json!([9, -5, 11])).unwrap();
+    let a = store.doc_comment(doc, c).unwrap().unwrap();
+    assert_eq!((a.start, a.end), (9, 9));
+    assert_eq!(a.quote, "quick");
+}
+
+#[test]
+fn comment_replies_resolve_and_delete() {
+    let (app, user) = App::test();
+    let store = &app.store;
+    let doc = store.create_doc(user.id, "Spec").unwrap();
+    store.apply_op(doc, user.id, 0, &json!(["abc"])).unwrap();
+    let thread = store.add_comment(doc, user.id, None, 0, 3, "Check this").unwrap();
+    let reply = store.add_comment(doc, user.id, Some(thread), 0, 0, "Done").unwrap();
+    // A reply to a reply is refused; so is an empty comment.
+    assert!(store.add_comment(doc, user.id, Some(reply), 0, 0, "x").is_err());
+    assert!(store.add_comment(doc, user.id, None, 0, 1, "   ").is_err());
+    assert_eq!(store.doc_comments(doc).unwrap().len(), 2);
+
+    store.set_comment_resolved(thread, true).unwrap();
+    assert!(store.doc_comment(doc, thread).unwrap().unwrap().resolved);
+    // Deleting the thread removes its replies too.
+    store.delete_comment(thread).unwrap();
+    assert!(store.doc_comments(doc).unwrap().is_empty());
+}

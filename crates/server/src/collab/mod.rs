@@ -4,6 +4,7 @@
 //! configuration, so Ondura can run as a mail-only server.
 
 pub mod docstore;
+pub mod markdown;
 pub mod ot;
 pub mod server;
 

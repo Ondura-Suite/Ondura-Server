@@ -83,6 +83,7 @@ svg { width: 18px; height: 18px; display: block; }
   background: var(--surface-solid); outline: none; border-bottom: 2px solid transparent; width: 100%;
 }
 .field input, .field select { height: 34px; }
+.field select { padding-top: 0; padding-bottom: 0; }
 .raillabel { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 4px 10px; }
 .calrow { cursor: default; }
 label.calrow { cursor: pointer; }
@@ -236,6 +237,26 @@ label.calrow { cursor: pointer; }
 .editor .status { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
 .editor .pres { display: flex; gap: -6px; align-items: center; }
 .editor .pres .av { width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 600; border: 2px solid var(--surface-solid); margin-left: -6px; }
+.docbody { flex: 1; min-height: 0; display: flex; }
+.docbody .editorwrap { flex: 1; }
+.doctb { padding: 4px 12px 6px; margin: 0; }
+.docprev { flex: 1; overflow-y: auto; padding: 22px 26px; border-left: 1px solid var(--border); background: var(--surface-solid); }
+.doccom { width: 300px; flex: none; overflow-y: auto; border-left: 1px solid var(--border); padding: 10px 12px; background: var(--surface-solid); font-size: 13px; }
+.btn.on { background: var(--tint-soft); color: var(--tint); border-color: var(--tint); }
+.md h1, .md h2, .md h3 { margin: 18px 0 8px; line-height: 1.25; } .md h1 { font-size: 24px; } .md h2 { font-size: 20px; } .md h3 { font-size: 17px; }
+.md p { margin: 0 0 10px; line-height: 1.6; } .md ul, .md ol { margin: 0 0 10px; padding-left: 24px; }
+.md blockquote { margin: 0 0 10px; padding-left: 12px; border-left: 3px solid var(--border); color: var(--muted); }
+.md pre { background: var(--surface-hover); padding: 10px 12px; border-radius: 8px; overflow: auto; } .md code { font-family: ui-monospace, Consolas, monospace; font-size: 13px; }
+.md hr { border: 0; border-top: 1px solid var(--border); margin: 14px 0; } .md a { color: var(--tint); }
+.cmtop { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; } .cmtop b { flex: 1; } .cmtop label { font-size: 11.5px; color: var(--muted); }
+.cmnew { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.cmnew textarea, .cmact input { width: 100%; box-sizing: border-box; border: 1px solid var(--border); border-radius: 8px; background: var(--surface); color: var(--text); padding: 6px 8px; font: inherit; }
+.cmthread { border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px; margin-bottom: 10px; cursor: pointer; }
+.cmthread.resolved { opacity: .6; }
+.cmq { font-size: 12px; color: var(--muted); border-left: 3px solid var(--tint); padding-left: 6px; margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cm { margin-bottom: 6px; } .cm.reply { margin-left: 12px; padding-left: 8px; border-left: 2px solid var(--border); }
+.cmh { display: flex; align-items: center; gap: 6px; font-size: 12px; } .cmh span { color: var(--muted); flex: 1; } .cmh .iconbtn { width: 22px; height: 22px; }
+.cmb { white-space: pre-wrap; word-break: break-word; } .cmact { display: flex; gap: 6px; margin-top: 6px; } .cmempty { color: var(--muted); font-size: 12.5px; }
 .editorwrap { position: relative; flex: 1; min-height: 0; overflow: hidden; }
 .editorwrap textarea, .mirror { position: absolute; inset: 0; width: 100%; height: 100%; box-sizing: border-box; border: 0; outline: none; resize: none; padding: 22px 26px; margin: 0; font: 15px/1.6 "Segoe UI", system-ui, sans-serif; white-space: pre-wrap; overflow-wrap: break-word; word-break: break-word; background: transparent; color: var(--text); }
 .editorwrap textarea { overflow-y: auto; }
@@ -322,7 +343,7 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 .cal { height: 100%; display: flex; flex-direction: column; }
 .cal .bar { display: flex; align-items: center; gap: 10px; padding: 12px 16px; }
 .cal .bar h2 { margin: 0; font-size: 18px; flex: 1; }
-.grid { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-auto-rows: 1fr; gap: 1px; background: var(--border); border-top: 1px solid var(--border); min-height: 0; }
+.grid { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); grid-template-rows: auto repeat(6, 1fr); gap: 1px; background: var(--border); border-top: 1px solid var(--border); min-height: 0; }
 .dow { background: var(--bg); text-align: center; padding: 6px 0; font-size: 12px; color: var(--muted); grid-row: 1; }
 .cell { background: var(--surface-solid); padding: 4px 6px; overflow: hidden; display: flex; flex-direction: column; gap: 3px; cursor: pointer; min-height: 0; }
 .cell:hover { background: var(--surface-hover); }
@@ -351,6 +372,7 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
   #body { grid-template-columns: 1fr; }
   #rail { display: none; }
   .mailgrid, .cgrid, .cal .grid { grid-template-columns: 1fr; }
+  .cal .grid { grid-template-rows: none; grid-auto-rows: auto; }
 }
 </style>
 </head>
@@ -415,7 +437,7 @@ const T = {
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
     tasks: "Tasks", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
-    history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add", files: "Files", myFiles: "My Files", libraries: "Libraries", newLibrary: "New library", libraryName: "Library name", upload: "Upload", uploading: "Uploading…", download: "Download", members: "Members", addMember: "Add member (e-mail)", roleViewer: "Viewer", roleEditor: "Editor", emptyFolder: "This folder is empty", deleteLibrary: "Delete library", confirmDeleteItem: "Move this item to the recycle bin?", confirmDeleteLibrary: "Delete this library and everything in it?", home: "Home", hub: "Your apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center", mobileApp: "Mobile app (Nextcloud)", ncEnable: "Allow the Nextcloud app to access my files", ncHint: "Off by default. When on, add this server in the Nextcloud app:", gMorning: "Good morning", gAfternoon: "Good afternoon", gEvening: "Good evening", recycleBin: "Recycle bin", restore: "Restore", restored: "Restored", back: "Back", binEmpty: "The recycle bin is empty", emptyBin: "Empty recycle bin", confirmEmptyBin: "Permanently delete everything in the recycle bin?", confirmPurge: "Permanently delete this item? This cannot be undone.", recent: "Recent", noRecent: "Nothing here yet", close: "Close", versionHistory: "Version history", currentVersion: "Current version", noVersions: "No earlier versions", expiryNever: "No expiry", expiry7: "Expires in 7 days", expiry30: "Expires in 30 days", expiry90: "Expires in 90 days", expiresOn: "expires", replaceFile: "Replace file", sharedWithMe: "Shared with me", sharedBy: "Shared by", noShared: "Nothing shared with you yet", searchFiles: "Search files", noResults: "No matches", occurrenceOrSeries: "This is a recurring event. Open only this occurrence or the whole series?", openSeries: "Whole series", openOccurrence: "This occurrence", editOccurrence: "Edit occurrence", editSeries: "Edit series", reminderNone: "No reminder", reminderAtStart: "At start", oneDay: "1 day", accepted: "Accepted", declined: "Declined", noResponse: "No response", repeat: "Repeat", repeatNone: "Does not repeat", repeatDaily: "Every day", repeatWeekdays: "Every weekday (Mon–Fri)", repeatWeekly: "Every week", repeatMonthly: "Every month", repeatYearly: "Every year", repeatCustom: "Custom (unchanged)", until: "Until", seriesResetHint: "Changing the time or the repeat pattern of a series resets occurrences that were changed individually.", showAs: "Show as", busyBusy: "Busy", busyFree: "Free", busyOof: "Away", reminder: "Reminder", private: "Private", attendees: "Attendees", attendeesHint: "E-mail addresses, separated by commas", organizer: "Organizer", responses: "Responses", description: "Description", endBeforeStart: "The end is before the start.", confirmDeleteOccurrence: "Delete this occurrence?", enableReminders: "Turn on reminders", exportIcs: "Export (.ics)", importIcs: "Import .ics file", imported: "{n} added, {m} updated", calendars: "Calendars", myCalendar: "My calendar", shareCalendar: "Share calendar", shareCalendarHint: "Everyone on this server can see when you are busy. Share your calendar to let people see the details or edit it.", shareFreeBusy: "Can see when I'm busy", shareRead: "Can see all details", shareWrite: "Can edit", notShared: "Not shared with anyone yet", event: "Event", me: "Me", scheduling: "Availability", nextFree: "Next free time", noFreeBusy: "No availability information", noFreeSlot: "No free time found in the next two weeks",
+    history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add", files: "Files", myFiles: "My Files", libraries: "Libraries", newLibrary: "New library", libraryName: "Library name", upload: "Upload", uploading: "Uploading…", download: "Download", members: "Members", addMember: "Add member (e-mail)", roleViewer: "Viewer", roleEditor: "Editor", emptyFolder: "This folder is empty", deleteLibrary: "Delete library", confirmDeleteItem: "Move this item to the recycle bin?", confirmDeleteLibrary: "Delete this library and everything in it?", home: "Home", hub: "Your apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center", mobileApp: "Mobile app (Nextcloud)", ncEnable: "Allow the Nextcloud app to access my files", ncHint: "Off by default. When on, add this server in the Nextcloud app:", gMorning: "Good morning", gAfternoon: "Good afternoon", gEvening: "Good evening", recycleBin: "Recycle bin", restore: "Restore", restored: "Restored", back: "Back", binEmpty: "The recycle bin is empty", emptyBin: "Empty recycle bin", confirmEmptyBin: "Permanently delete everything in the recycle bin?", confirmPurge: "Permanently delete this item? This cannot be undone.", recent: "Recent", noRecent: "Nothing here yet", close: "Close", versionHistory: "Version history", currentVersion: "Current version", noVersions: "No earlier versions", expiryNever: "No expiry", expiry7: "Expires in 7 days", expiry30: "Expires in 30 days", expiry90: "Expires in 90 days", expiresOn: "expires", replaceFile: "Replace file", sharedWithMe: "Shared with me", sharedBy: "Shared by", noShared: "Nothing shared with you yet", searchFiles: "Search files", noResults: "No matches", occurrenceOrSeries: "This is a recurring event. Open only this occurrence or the whole series?", openSeries: "Whole series", openOccurrence: "This occurrence", editOccurrence: "Edit occurrence", editSeries: "Edit series", reminderNone: "No reminder", reminderAtStart: "At start", oneDay: "1 day", accepted: "Accepted", declined: "Declined", noResponse: "No response", repeat: "Repeat", repeatNone: "Does not repeat", repeatDaily: "Every day", repeatWeekdays: "Every weekday (Mon–Fri)", repeatWeekly: "Every week", repeatMonthly: "Every month", repeatYearly: "Every year", repeatCustom: "Custom (unchanged)", until: "Until", seriesResetHint: "Changing the time or the repeat pattern of a series resets occurrences that were changed individually.", showAs: "Show as", busyBusy: "Busy", busyFree: "Free", busyOof: "Away", reminder: "Reminder", private: "Private", attendees: "Attendees", attendeesHint: "E-mail addresses, separated by commas", organizer: "Organizer", responses: "Responses", description: "Description", endBeforeStart: "The end is before the start.", confirmDeleteOccurrence: "Delete this occurrence?", enableReminders: "Turn on reminders", mentionNoAccess: "{who} can't open this document and was not notified. Share it first.", comments: "Comments", addComment: "Comment", commentHint: "Select text, then write a comment. Mention people with @address.", replyHint: "Reply…", resolve: "Resolve", reopen: "Reopen", showResolved: "Show resolved", noComments: "No comments yet", export: "Download", exportWord: "Word document (.docx)", exportMd: "Markdown (.md)", exportHtml: "Web page (.html)", exportTxt: "Plain text (.txt)", emptyDoc: "Nothing to show yet", fmt_bold: "Bold", fmt_italic: "Italic", fmt_code: "Code", fmt_h: "Heading", fmt_ul: "Bulleted list", fmt_ol: "Numbered list", fmt_quote: "Quote", fmt_link: "Link", exportIcs: "Export (.ics)", importIcs: "Import .ics file", imported: "{n} added, {m} updated", calendars: "Calendars", myCalendar: "My calendar", shareCalendar: "Share calendar", shareCalendarHint: "Everyone on this server can see when you are busy. Share your calendar to let people see the details or edit it.", shareFreeBusy: "Can see when I'm busy", shareRead: "Can see all details", shareWrite: "Can edit", notShared: "Not shared with anyone yet", event: "Event", me: "Me", scheduling: "Availability", nextFree: "Next free time", noFreeBusy: "No availability information", noFreeSlot: "No free time found in the next two weeks",
     shareLink: "Share link", createLink: "Create link", copyLink: "Copy link", copied: "Link copied", linkView: "View only", linkEdit: "Can edit", anyoneCanView: "Anyone with the link can view", anyoneCanEdit: "Anyone with the link can edit", revoke: "Revoke", noLinks: "No links yet", linkInvalid: "This link is invalid or has been revoked.", guestBadge: "Guest",
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
@@ -440,7 +462,7 @@ const T = {
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
     tasks: "Aufgaben", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
-    history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen", files: "Dateien", myFiles: "Meine Dateien", libraries: "Bibliotheken", newLibrary: "Neue Bibliothek", libraryName: "Name der Bibliothek", upload: "Hochladen", uploading: "Lädt hoch…", download: "Herunterladen", members: "Mitglieder", addMember: "Mitglied hinzufügen (E-Mail)", roleViewer: "Leser", roleEditor: "Bearbeiter", emptyFolder: "Dieser Ordner ist leer", deleteLibrary: "Bibliothek löschen", confirmDeleteItem: "Dieses Element in den Papierkorb verschieben?", confirmDeleteLibrary: "Diese Bibliothek samt Inhalt löschen?", home: "Start", hub: "Deine Apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center", mobileApp: "Mobile App (Nextcloud)", ncEnable: "Nextcloud-App Zugriff auf meine Dateien erlauben", ncHint: "Standardmäßig aus. Wenn aktiv, diesen Server in der Nextcloud-App hinzufügen:", gMorning: "Guten Morgen", gAfternoon: "Guten Tag", gEvening: "Guten Abend", recycleBin: "Papierkorb", restore: "Wiederherstellen", restored: "Wiederhergestellt", back: "Zurück", binEmpty: "Der Papierkorb ist leer", emptyBin: "Papierkorb leeren", confirmEmptyBin: "Alles im Papierkorb endgültig löschen?", confirmPurge: "Dieses Element endgültig löschen? Das kann nicht rückgängig gemacht werden.", recent: "Zuletzt", noRecent: "Noch nichts hier", close: "Schließen", versionHistory: "Versionsverlauf", currentVersion: "Aktuelle Version", noVersions: "Keine früheren Versionen", expiryNever: "Kein Ablauf", expiry7: "Läuft in 7 Tagen ab", expiry30: "Läuft in 30 Tagen ab", expiry90: "Läuft in 90 Tagen ab", expiresOn: "läuft ab am", replaceFile: "Datei ersetzen", sharedWithMe: "Für mich freigegeben", sharedBy: "Geteilt von", noShared: "Noch nichts für dich freigegeben", searchFiles: "Dateien suchen", noResults: "Keine Treffer", occurrenceOrSeries: "Das ist ein Serientermin. Nur dieses Vorkommen oder die ganze Serie öffnen?", openSeries: "Ganze Serie", openOccurrence: "Dieses Vorkommen", editOccurrence: "Vorkommen bearbeiten", editSeries: "Serie bearbeiten", reminderNone: "Keine Erinnerung", reminderAtStart: "Zum Beginn", oneDay: "1 Tag", accepted: "Zugesagt", declined: "Abgesagt", noResponse: "Keine Antwort", repeat: "Wiederholen", repeatNone: "Keine Wiederholung", repeatDaily: "Täglich", repeatWeekdays: "An Werktagen (Mo–Fr)", repeatWeekly: "Wöchentlich", repeatMonthly: "Monatlich", repeatYearly: "Jährlich", repeatCustom: "Benutzerdefiniert (unverändert)", until: "Bis", seriesResetHint: "Wenn Uhrzeit oder Muster einer Serie geändert werden, gehen einzeln geänderte Vorkommen verloren.", showAs: "Anzeigen als", busyBusy: "Gebucht", busyFree: "Frei", busyOof: "Abwesend", reminder: "Erinnerung", private: "Privat", attendees: "Teilnehmer", attendeesHint: "E-Mail-Adressen, durch Kommas getrennt", organizer: "Organisator", responses: "Antworten", description: "Beschreibung", endBeforeStart: "Das Ende liegt vor dem Beginn.", confirmDeleteOccurrence: "Dieses Vorkommen löschen?", enableReminders: "Erinnerungen einschalten", exportIcs: "Exportieren (.ics)", importIcs: ".ics-Datei importieren", imported: "{n} hinzugefügt, {m} aktualisiert", calendars: "Kalender", myCalendar: "Mein Kalender", shareCalendar: "Kalender freigeben", shareCalendarHint: "Alle auf diesem Server sehen, wann du gebucht bist. Gib deinen Kalender frei, damit andere die Details sehen oder ihn bearbeiten können.", shareFreeBusy: "Sieht, wann ich gebucht bin", shareRead: "Sieht alle Details", shareWrite: "Darf bearbeiten", notShared: "Noch mit niemandem geteilt", event: "Termin", me: "Ich", scheduling: "Verfügbarkeit", nextFree: "Nächste freie Zeit", noFreeBusy: "Keine Verfügbarkeitsinformationen", noFreeSlot: "In den nächsten zwei Wochen keine freie Zeit gefunden",
+    history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen", files: "Dateien", myFiles: "Meine Dateien", libraries: "Bibliotheken", newLibrary: "Neue Bibliothek", libraryName: "Name der Bibliothek", upload: "Hochladen", uploading: "Lädt hoch…", download: "Herunterladen", members: "Mitglieder", addMember: "Mitglied hinzufügen (E-Mail)", roleViewer: "Leser", roleEditor: "Bearbeiter", emptyFolder: "Dieser Ordner ist leer", deleteLibrary: "Bibliothek löschen", confirmDeleteItem: "Dieses Element in den Papierkorb verschieben?", confirmDeleteLibrary: "Diese Bibliothek samt Inhalt löschen?", home: "Start", hub: "Deine Apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center", mobileApp: "Mobile App (Nextcloud)", ncEnable: "Nextcloud-App Zugriff auf meine Dateien erlauben", ncHint: "Standardmäßig aus. Wenn aktiv, diesen Server in der Nextcloud-App hinzufügen:", gMorning: "Guten Morgen", gAfternoon: "Guten Tag", gEvening: "Guten Abend", recycleBin: "Papierkorb", restore: "Wiederherstellen", restored: "Wiederhergestellt", back: "Zurück", binEmpty: "Der Papierkorb ist leer", emptyBin: "Papierkorb leeren", confirmEmptyBin: "Alles im Papierkorb endgültig löschen?", confirmPurge: "Dieses Element endgültig löschen? Das kann nicht rückgängig gemacht werden.", recent: "Zuletzt", noRecent: "Noch nichts hier", close: "Schließen", versionHistory: "Versionsverlauf", currentVersion: "Aktuelle Version", noVersions: "Keine früheren Versionen", expiryNever: "Kein Ablauf", expiry7: "Läuft in 7 Tagen ab", expiry30: "Läuft in 30 Tagen ab", expiry90: "Läuft in 90 Tagen ab", expiresOn: "läuft ab am", replaceFile: "Datei ersetzen", sharedWithMe: "Für mich freigegeben", sharedBy: "Geteilt von", noShared: "Noch nichts für dich freigegeben", searchFiles: "Dateien suchen", noResults: "Keine Treffer", occurrenceOrSeries: "Das ist ein Serientermin. Nur dieses Vorkommen oder die ganze Serie öffnen?", openSeries: "Ganze Serie", openOccurrence: "Dieses Vorkommen", editOccurrence: "Vorkommen bearbeiten", editSeries: "Serie bearbeiten", reminderNone: "Keine Erinnerung", reminderAtStart: "Zum Beginn", oneDay: "1 Tag", accepted: "Zugesagt", declined: "Abgesagt", noResponse: "Keine Antwort", repeat: "Wiederholen", repeatNone: "Keine Wiederholung", repeatDaily: "Täglich", repeatWeekdays: "An Werktagen (Mo–Fr)", repeatWeekly: "Wöchentlich", repeatMonthly: "Monatlich", repeatYearly: "Jährlich", repeatCustom: "Benutzerdefiniert (unverändert)", until: "Bis", seriesResetHint: "Wenn Uhrzeit oder Muster einer Serie geändert werden, gehen einzeln geänderte Vorkommen verloren.", showAs: "Anzeigen als", busyBusy: "Gebucht", busyFree: "Frei", busyOof: "Abwesend", reminder: "Erinnerung", private: "Privat", attendees: "Teilnehmer", attendeesHint: "E-Mail-Adressen, durch Kommas getrennt", organizer: "Organisator", responses: "Antworten", description: "Beschreibung", endBeforeStart: "Das Ende liegt vor dem Beginn.", confirmDeleteOccurrence: "Dieses Vorkommen löschen?", enableReminders: "Erinnerungen einschalten", mentionNoAccess: "{who} kann dieses Dokument nicht öffnen und wurde nicht benachrichtigt. Teile es zuerst.", comments: "Kommentare", addComment: "Kommentieren", commentHint: "Text markieren, dann kommentieren. Mit @Adresse erwähnst du jemanden.", replyHint: "Antworten…", resolve: "Erledigt", reopen: "Wieder öffnen", showResolved: "Erledigte zeigen", noComments: "Noch keine Kommentare", export: "Herunterladen", exportWord: "Word-Dokument (.docx)", exportMd: "Markdown (.md)", exportHtml: "Webseite (.html)", exportTxt: "Nur Text (.txt)", emptyDoc: "Noch nichts zu zeigen", fmt_bold: "Fett", fmt_italic: "Kursiv", fmt_code: "Code", fmt_h: "Überschrift", fmt_ul: "Aufzählung", fmt_ol: "Nummerierung", fmt_quote: "Zitat", fmt_link: "Link", exportIcs: "Exportieren (.ics)", importIcs: ".ics-Datei importieren", imported: "{n} hinzugefügt, {m} aktualisiert", calendars: "Kalender", myCalendar: "Mein Kalender", shareCalendar: "Kalender freigeben", shareCalendarHint: "Alle auf diesem Server sehen, wann du gebucht bist. Gib deinen Kalender frei, damit andere die Details sehen oder ihn bearbeiten können.", shareFreeBusy: "Sieht, wann ich gebucht bin", shareRead: "Sieht alle Details", shareWrite: "Darf bearbeiten", notShared: "Noch mit niemandem geteilt", event: "Termin", me: "Ich", scheduling: "Verfügbarkeit", nextFree: "Nächste freie Zeit", noFreeBusy: "Keine Verfügbarkeitsinformationen", noFreeSlot: "In den nächsten zwei Wochen keine freie Zeit gefunden",
     shareLink: "Freigabelink", createLink: "Link erstellen", copyLink: "Link kopieren", copied: "Link kopiert", linkView: "Nur ansehen", linkEdit: "Darf bearbeiten", anyoneCanView: "Jeder mit dem Link kann ansehen", anyoneCanEdit: "Jeder mit dem Link kann bearbeiten", revoke: "Entziehen", noLinks: "Noch keine Links", linkInvalid: "Dieser Link ist ungültig oder wurde entzogen.", guestBadge: "Gast",
     remoteBlocked: "Externe Inhalte (z. B. Bilder) wurden zum Schutz deiner Privatsphäre blockiert.", loadRemote: "Inhalte laden",
   },
@@ -689,6 +711,9 @@ async function start() {
     let info = null; try { info = await capi("GET", "/link/" + linkTok); } catch (e) {}
     if (info && info.docId) { view = "files"; openCloudDoc(info.docId); startReminders(); return; }
   }
+  // A link to a document by id (as sent in comment mentions).
+  const docId = (location.hash.match(/[#&]doc=(\d+)/) || [])[1];
+  if (docId) { history.replaceState({}, "", location.pathname); view = "files"; openCloudDoc(+docId); startReminders(); return; }
   startReminders();
   routeAndRender();
 }
@@ -1912,7 +1937,7 @@ function scheduleAssist(times, selfId) {
     try { data = await fetchFb(list, from, from + 86400); } catch (err) {}
     const ws = from + H0 * 3600, span = (H1 - H0) * 3600;
     const pct = (x) => Math.max(0, Math.min(100, (x - ws) / span * 100));
-    const marks = []; for (let h = H0; h <= H1; h += 2) marks.push(`<span style="position:absolute;left:${pct(from + h * 3600)}%;transform:translateX(-50%);font-size:10px;color:var(--muted)">${h}</span>`);
+    const marks = []; for (let h = H0 + 1; h < H1; h += 2) marks.push(`<span style="position:absolute;left:${pct(from + h * 3600)}%;transform:translateX(-50%);font-size:10px;color:var(--muted)">${h}</span>`);
     const slot = ad ? "" : `<div style="position:absolute;top:0;bottom:0;left:${pct(s)}%;width:${Math.max(0.5, pct(e) - pct(s))}%;border:2px solid var(--tint);border-radius:4px;pointer-events:none"></div>`;
     const rows = data.people.map((p, i) => {
       const label = i === 0 ? t("me") : (p.name || p.email);
@@ -2150,6 +2175,8 @@ function transformCursor(pos, op) {
 
 // ------------------------------------------------------------ DOCUMENTS
 let curDoc = null, docWs = null;
+// Things the open editor wants to hear about: the text changed, the comments changed.
+const docHooks = { onText: null, onComments: null };
 function connectDoc(id, canWrite, linkToken) {
   if (docWs) { try { docWs.close(); } catch (e) {} }
   const proto = location.protocol === "https:" ? "wss" : "ws";
@@ -2186,6 +2213,7 @@ function connectDoc(id, canWrite, linkToken) {
     const m = JSON.parse(ev.data);
     if (m.type === "init") {
       E.rev = m.rev; E.docText = m.content; if (ta) { E.applying = true; ta.value = m.content; E.applying = false; } setStatus(true);
+      if (docHooks.onText) docHooks.onText();
     } else if (m.type === "ack") {
       E.rev = m.rev;
       if (E.state === "await") { E.pending = null; E.state = "sync"; }
@@ -2204,8 +2232,11 @@ function connectDoc(id, canWrite, linkToken) {
         ta.selectionStart = transformCursor(a, toApply); ta.selectionEnd = transformCursor(b, toApply); E.applying = false;
       } else { E.docText = applyOp(E.docText, toApply); }
       renderCursors();
+      if (docHooks.onText) docHooks.onText(true);
     } else if (m.type === "presence") {
       const box = $("#docPres"); if (box) box.innerHTML = (m.users || []).slice(0, 6).map((u) => `<span class="av" title="${esc(u.name)}" style="background:${esc(u.color)}">${esc((u.name || "?").trim()[0] || "?").toUpperCase()}</span>`).join("");
+    } else if (m.type === "comments") {
+      if (docHooks.onComments) docHooks.onComments();
     } else if (m.type === "cursor") {
       remote[m.by] = { pos: m.pos || 0, name: m.name || "", color: m.color || "#888", ts: Date.now() };
       renderCursors();
@@ -2226,6 +2257,7 @@ function connectDoc(id, canWrite, linkToken) {
     ta.oninput = () => {
       if (E.applying) return;
       const op = diffOp(E.docText, ta.value); E.docText = ta.value;
+      if (docHooks.onText) docHooks.onText();
       if (!op) return;
       for (const c of Object.values(remote)) c.pos = transformCursor(c.pos, op);
       if (E.state === "sync") { E.pending = op; E.state = "await"; ws.send(JSON.stringify({ type: "op", rev: E.rev, op })); }
@@ -2523,15 +2555,117 @@ async function openCloudDoc(id) {
   let meta;
   try { meta = await capi("GET", "/docs/" + id); } catch (e) { toast(e.message, true); return; }
   view = "docview"; document.getElementById("app").classList.add("norail"); $("#rail").innerHTML = "";
+  // Compose and mail search belong to the Mail app.
+  $("#composeBtn").style.display = "none";
+  const sb = document.querySelector(".search"); if (sb) sb.style.display = "none";
   const shareBtn = meta.owned ? `<button class="btn" id="docShare">${icon("share")}<span>${esc(t("share"))}</span></button>` : "";
+  const fmt = [["bold", "B", "**"], ["italic", "I", "*"], ["code", "</>", "`"], ["h", "H", ""], ["ul", "•", ""], ["ol", "1.", ""], ["quote", "❝", ""], ["link", "🔗", ""]];
+  const toolbar = meta.canWrite ? `<div class="rte-toolbar doctb">${fmt.map(([k, l]) => `<button type="button" data-fmt="${k}" title="${esc(t("fmt_" + k))}">${esc(l)}</button>`).join("")}</div>` : "";
   $("#view").innerHTML = `<div class="editor" id="docEditor" style="height:100%">
-    <div class="eh"><button class="iconbtn" id="docBack" title="${esc(t("files"))}">${icon("folder")}</button><h2 id="docTitle" style="flex:1">${esc(meta.name)}</h2><div class="pres" id="docPres"></div><span class="status" id="docStatus"><span class="dot-off"></span>${esc(t("connecting"))}</span><button class="iconbtn" id="docHist" title="${esc(t("history"))}">${icon("clock")}</button>${shareBtn}</div>
-    <div class="editorwrap"><div class="mirror" id="docMirror" aria-hidden="true"></div><textarea id="docArea" ${meta.canWrite ? "" : "readonly"} spellcheck="false"></textarea><div class="cursors" id="docCursors"></div></div>
+    <div class="eh"><button class="iconbtn" id="docBack" title="${esc(t("files"))}">${icon("folder")}</button><h2 id="docTitle" style="flex:1">${esc(meta.name)}</h2><div class="pres" id="docPres"></div><span class="status" id="docStatus"><span class="dot-off"></span>${esc(t("connecting"))}</span>
+      <button class="btn" id="docPrevBtn">${esc(t("preview"))}</button><button class="btn" id="docComBtn">${icon("note")}<span>${esc(t("comments"))}</span><span id="docComCt" class="ct"></span></button>
+      <button class="iconbtn" id="docExport" title="${esc(t("export"))}">${icon("inbox")}</button><button class="iconbtn" id="docHist" title="${esc(t("history"))}">${icon("clock")}</button>${shareBtn}</div>
+    ${toolbar}
+    <div class="docbody"><div class="editorwrap"><div class="mirror" id="docMirror" aria-hidden="true"></div><textarea id="docArea" ${meta.canWrite ? "" : "readonly"} spellcheck="false"></textarea><div class="cursors" id="docCursors"></div></div>
+      <div class="docprev md hidden" id="docPrev"></div>
+      <aside class="doccom hidden" id="docCom"></aside></div>
     ${meta.canWrite ? "" : `<div style="padding:6px 16px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--border)">${esc(t("readOnlyDoc"))}</div>`}`;
-  $("#docBack").onclick = () => { if (docWs) { try { docWs.close(); } catch (e) {} } curDoc = null; view = back; history.pushState({}, "", appPath(back, { drive: fs.driveId, parent: fs.parent })); render(); };
+  $("#docBack").onclick = () => { if (docWs) { try { docWs.close(); } catch (e) {} } docHooks.onText = docHooks.onComments = null; curDoc = null; view = back; history.pushState({}, "", appPath(back, { drive: fs.driveId, parent: fs.parent })); render(); };
   if ($("#docShare")) $("#docShare").onclick = () => openShare(id, meta);
   $("#docHist").onclick = () => openHistory(id);
+  $("#docExport").onclick = (ev) => { ev.stopPropagation(); const go = (f) => () => { location.href = `/collab/api/docs/${id}/export?format=${f}`; };
+    openMenu(ev, [{ ic: "doc", label: t("exportWord"), fn: go("docx") }, { ic: "doc", label: t("exportMd"), fn: go("md") }, { ic: "doc", label: t("exportHtml"), fn: go("html") }, { ic: "doc", label: t("exportTxt"), fn: go("txt") }]); };
+  wireDocExtras(id, meta);
   connectDoc(id, meta.canWrite);
+}
+
+// Formatting, preview and comments around the collaborative editor.
+function wireDocExtras(id, meta) {
+  const ta = $("#docArea");
+  // Formatting buttons rewrite the selection in Markdown and let the normal
+  // input handling turn the change into an edit for everyone.
+  const edit = (from, to, text, selFrom, selTo) => {
+    ta.focus(); ta.setRangeText(text, from, to, "end");
+    if (selFrom != null) ta.setSelectionRange(selFrom, selTo);
+    ta.dispatchEvent(new Event("input"));
+  };
+  const lineStart = (pos) => ta.value.lastIndexOf("\n", pos - 1) + 1;
+  const prefixLines = (fn) => {
+    const a = lineStart(ta.selectionStart), b = ta.selectionEnd;
+    const lines = ta.value.slice(a, b).split("\n");
+    const out = lines.map(fn).join("\n");
+    edit(a, b, out, a, a + out.length);
+  };
+  document.querySelectorAll("[data-fmt]").forEach((btn) => btn.onmousedown = (e) => {
+    e.preventDefault();
+    const k = btn.dataset.fmt, a = ta.selectionStart, b = ta.selectionEnd, sel = ta.value.slice(a, b);
+    const wrap = (m) => { const inner = sel || t("fmt_" + k); edit(a, b, m + inner + m, a + m.length, a + m.length + inner.length); };
+    if (k === "bold") wrap("**"); else if (k === "italic") wrap("*"); else if (k === "code") wrap("`");
+    else if (k === "h") prefixLines((l) => { const m = l.match(/^(#{1,5}) /); return m ? "#" + l : l.startsWith("###### ") ? l.slice(7) : "## " + l; });
+    else if (k === "ul") prefixLines((l) => l.startsWith("- ") ? l.slice(2) : "- " + l);
+    else if (k === "ol") { let n = 0; prefixLines((l) => /^\d+\. /.test(l) ? l.replace(/^\d+\. /, "") : `${++n}. ${l}`); }
+    else if (k === "quote") prefixLines((l) => l.startsWith("> ") ? l.slice(2) : "> " + l);
+    else if (k === "link") { const url = prompt(t("linkUrl") || "URL", "https://"); if (!url) return; const text = sel || url; edit(a, b, `[${text}](${url})`, a + 1, a + 1 + text.length); }
+  });
+
+  // Preview: rendered by the server (the same renderer as the export).
+  const prev = $("#docPrev");
+  let prevTimer;
+  const renderPreview = async () => {
+    if (prev.classList.contains("hidden")) return;
+    try { const r = await capi("POST", "/render", { text: ta.value }); prev.innerHTML = r.html || `<p style="color:var(--muted)">${esc(t("emptyDoc"))}</p>`; } catch (e) {}
+  };
+  $("#docPrevBtn").onclick = () => { prev.classList.toggle("hidden"); $("#docPrevBtn").classList.toggle("on", !prev.classList.contains("hidden")); renderPreview(); };
+
+  // Comments: threads anchored to text, with replies; click one to select it.
+  const box = $("#docCom");
+  let comments = [], showResolved = false, comTimer;
+  const loadComments = async () => {
+    try { comments = (await capi("GET", `/docs/${id}/comments`)).comments || []; } catch (e) { return; }
+    const open = comments.filter((c) => !c.parent_id && !c.resolved).length;
+    $("#docComCt").textContent = open ? String(open) : "";
+    drawComments();
+  };
+  const drawComments = () => {
+    if (box.classList.contains("hidden")) return;
+    const threads = comments.filter((c) => !c.parent_id && (showResolved || !c.resolved));
+    const replies = (tid) => comments.filter((c) => c.parent_id === tid);
+    const one = (c, reply) => `<div class="cm${reply ? " reply" : ""}"><div class="cmh"><b>${esc(c.author)}</b><span>${esc(fmtShort(c.created))}</span>${c.email === me.email || meta.owned ? `<button class="iconbtn" data-cdel="${c.id}" title="${esc(t("delete"))}">${icon("trash")}</button>` : ""}</div><div class="cmb">${esc(c.body)}</div></div>`;
+    box.innerHTML = `<div class="cmtop"><b>${esc(t("comments"))}</b><label><input type="checkbox" id="cmShowRes" ${showResolved ? "checked" : ""}> ${esc(t("showResolved"))}</label></div>
+      <div class="cmnew"><textarea id="cmText" rows="2" placeholder="${esc(t("commentHint"))}"></textarea><button class="btn primary" id="cmAdd">${esc(t("addComment"))}</button></div>
+      ${threads.length ? threads.map((c) => `<div class="cmthread${c.resolved ? " resolved" : ""}" data-cjump="${c.id}">
+        ${c.quote ? `<div class="cmq">${esc(c.quote)}</div>` : ""}${one(c, false)}${replies(c.id).map((r) => one(r, true)).join("")}
+        <div class="cmact"><input data-creply="${c.id}" placeholder="${esc(t("replyHint"))}"><button class="btn" data-cres="${c.id}" data-val="${c.resolved ? 0 : 1}">${esc(c.resolved ? t("reopen") : t("resolve"))}</button></div></div>`).join("")
+        : `<p class="cmempty">${esc(t("noComments"))}</p>`}`;
+    $("#cmShowRes").onchange = (e) => { showResolved = e.target.checked; drawComments(); };
+    $("#cmAdd").onclick = guard(async () => {
+      const text = $("#cmText").value.trim(); if (!text) return;
+      const r = await capi("POST", `/docs/${id}/comments`, { start: ta.selectionStart, end: ta.selectionEnd, body: text });
+      if (r.noAccess && r.noAccess.length) toast(t("mentionNoAccess").replace("{who}", r.noAccess.join(", ")), true);
+      await loadComments();
+    });
+    box.querySelectorAll("[data-creply]").forEach((inp) => inp.onkeydown = guard(async (e) => {
+      if (e.key !== "Enter" || !inp.value.trim()) return;
+      const r = await capi("POST", `/docs/${id}/comments`, { parent: +inp.dataset.creply, body: inp.value.trim() });
+      if (r.noAccess && r.noAccess.length) toast(t("mentionNoAccess").replace("{who}", r.noAccess.join(", ")), true);
+      await loadComments();
+    }));
+    box.querySelectorAll("[data-cres]").forEach((b) => b.onclick = guard(async (e) => { e.stopPropagation(); await capi("POST", `/docs/${id}/comments/${b.dataset.cres}/resolve`, { resolved: b.dataset.val === "1" }); await loadComments(); }));
+    box.querySelectorAll("[data-cdel]").forEach((b) => b.onclick = guard(async (e) => { e.stopPropagation(); if (!confirm(t("confirmDelete"))) return; await capi("DELETE", `/docs/${id}/comments/${b.dataset.cdel}`); await loadComments(); }));
+    box.querySelectorAll("[data-cjump]").forEach((el) => el.onclick = (e) => {
+      if (e.target.closest("input,button")) return;
+      const c = comments.find((x) => x.id === +el.dataset.cjump); if (!c) return;
+      ta.focus(); ta.setSelectionRange(c.start, c.end);
+    });
+  };
+  $("#docComBtn").onclick = () => { box.classList.toggle("hidden"); $("#docComBtn").classList.toggle("on", !box.classList.contains("hidden")); drawComments(); };
+  docHooks.onText = (remote) => {
+    clearTimeout(prevTimer); prevTimer = setTimeout(renderPreview, 400);
+    // Anchors move on the server as text changes; refresh them now and then.
+    if (remote && comments.length) { clearTimeout(comTimer); comTimer = setTimeout(loadComments, 1500); }
+  };
+  docHooks.onComments = loadComments;
+  loadComments();
 }
 
 function downloadItem(it) { const a = document.createElement("a"); a.href = "/mail/api/cloud/download/" + it.id; a.download = it.name; document.body.appendChild(a); a.click(); a.remove(); }

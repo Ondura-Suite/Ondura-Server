@@ -8,7 +8,10 @@ a mail-only server, in which case every endpoint below returns `404`.
 Documents live inside the cloud storage (see `cloud.md`): each is an item in a
 drive, created and opened from the **Files** area, not a separate list.
 
-A document is plain text. Each belongs to one owner and can be shared two ways —
+A document is text written in a small Markdown dialect (headings, bold, italic,
+strikethrough, inline code, links, bullet and numbered lists, task lists, quotes,
+code blocks and horizontal rules). The server stores the text as typed; the
+formatting is applied when the document is previewed or exported. Each belongs to one owner and can be shared two ways —
 with other Ondura accounts (read-only or read-write), or by a share link that
 anyone can open, signed in or as a guest, with the view or edit permission the
 link carries. Editing is real-time over a WebSocket; the server reconciles
@@ -54,6 +57,29 @@ its drive. The endpoints here operate on an existing document by id.
 | `GET /docs/{id}/ops?since=R` | Operations committed after revision `R` (for reconnect/catch-up). |
 | `GET /docs/{id}/history` | Revision log: each entry has `rev`, editor `email`/`name`, `ts`, and `added`/`removed` unit counts. |
 | `GET /docs/{id}/at/{rev}` | The document content as it stood at revision `rev` (replayed from the log). |
+| `GET /docs/{id}/comments` | All comments, oldest first: `id`, `parentId` (replies), `author`, `email`, `start`/`end` (anchored range), `quote`, `body`, `created`, `resolved`. |
+| `POST /docs/{id}/comments` | Add a comment or reply. Body `{ "body": "…", "start": N, "end": M, "parent": null }`. Returns `{ "id": N, "noAccess": ["…"] }`. Needs read access. |
+| `POST /docs/{id}/comments/{cid}/resolve` | Body `{ "resolved": true }`. The comment's author or anyone who can edit. |
+| `DELETE /docs/{id}/comments/{cid}` | The comment's author or anyone who can edit; replies go with it. |
+| `GET /docs/{id}/export?format=md\|txt\|html\|docx` | Download the document. `html` is a standalone page, `docx` a Word document; both carry the formatting. |
+| `POST /render` | Body `{ "text": "…" }`. Returns `{ "html": "…" }`, the preview rendering. Signed-in users, or a guest passing `?link={token}` with a valid share link. |
+
+### Comments
+
+A comment is anchored to a range of the text (`start`/`end`, UTF-16 offsets,
+like operations). As the document is edited, the server moves every anchor
+along with the text it was attached to, so a comment stays on its passage; if
+the passage is deleted entirely, the anchor collapses to where it stood.
+Replies reference their parent with `parent` and are not anchored themselves.
+
+A comment body may mention accounts as `@user@example.com`. Each mentioned
+account that can open the document gets an e-mail with the comment and a link
+to the document. Mentioned accounts without access are not notified; their
+addresses come back in `noAccess`, so the client can offer to share the
+document with them.
+
+The preview HTML escapes all text and only produces links with `http`, `https`
+or `mailto` targets.
 
 ## Real-time editing (WebSocket)
 
@@ -80,6 +106,8 @@ deletes 3. Positions are UTF-16 code units, matching JavaScript string offsets.
 - `{"type":"presence","users":[{"name","color"}]}` — who is in the document.
 - `{"type":"cursor","by":id,"name","color","pos","anchor"}` — another
   participant's caret (optional to display).
+- `{"type":"comments"}` — the comments changed (added, resolved or deleted);
+  fetch them again.
 - `{"type":"error","message":"…","rev":R}` — a rejected operation; `rev` is the
   current server revision so the client can resynchronise.
 

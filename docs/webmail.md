@@ -121,6 +121,14 @@ unless you may edit it.
 
 **Contacts** — list, create, edit and delete contacts with the common fields.
 
+**Documents** — collaborative documents are created and opened from Files (see
+`collab.md`). The editor has a formatting toolbar (headings, bold, italic,
+strikethrough, code, link, lists, task lists, quote), a **Preview** that shows
+the formatted document, a **Comments** pane for comments on selected text with
+replies, resolve and `@user@example.com` mentions, a revision history, and a
+download menu for Markdown, plain text, HTML and Word (.docx). A document has
+its own address (`/files#doc=<id>`), which mention e-mails link to.
+
 **Tasks and notes** — keep a task list (with due dates and completion) and
 simple notes.
 
