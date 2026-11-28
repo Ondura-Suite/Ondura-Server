@@ -22,6 +22,7 @@ use crate::store::User;
 
 mod calendar_api;
 mod contacts_api;
+mod drive_api;
 mod mail_api;
 mod pim_api;
 mod settings_api;
@@ -153,6 +154,15 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
             _ => {}
         }
     }
+    // Cloud file upload / download (binary), when the module is enabled.
+    if app.cfg.cloud.enabled {
+        if method == Method::POST && api == "/cloud/upload" {
+            return security_headers(drive_api::upload(&app, &user, query, headers, &body));
+        }
+        if method == Method::GET && let Some(id) = api.strip_prefix("/cloud/download/") {
+            return security_headers(drive_api::download(&app, &user, id));
+        }
+    }
     let result = route(&app, &user, &method, api, query, &body).await;
     security_headers(json_response(result))
 }
@@ -165,7 +175,24 @@ pub(crate) async fn dispatch(app: &Shared, user: &User, method: &Method, api: &s
 }
 
 async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &str, body: &Bytes) -> ApiResult {
+    // The cloud module can be turned off independently of mail and collab.
+    if api.starts_with("/cloud") && !app.cfg.cloud.enabled {
+        return Err(not_found());
+    }
     match (method, api) {
+        (&Method::GET, "/cloud/drives") => drive_api::drives(app, user),
+        (&Method::POST, "/cloud/library") => drive_api::create_library(app, user, body),
+        (&Method::POST, "/cloud/library/rename") => drive_api::rename_drive(app, user, body),
+        (&Method::POST, "/cloud/library/delete") => drive_api::delete_library(app, user, body),
+        (&Method::GET, "/cloud/items") => drive_api::items(app, user, query),
+        (&Method::POST, "/cloud/folder") => drive_api::create_folder(app, user, body),
+        (&Method::POST, "/cloud/doc") => drive_api::create_doc(app, user, body),
+        (&Method::POST, "/cloud/rename") => drive_api::rename_item(app, user, body),
+        (&Method::POST, "/cloud/move") => drive_api::move_item(app, user, body),
+        (&Method::POST, "/cloud/delete") => drive_api::delete_item(app, user, body),
+        (&Method::GET, "/cloud/members") => drive_api::members(app, user, query),
+        (&Method::POST, "/cloud/member") => drive_api::set_member(app, user, body),
+        (&Method::POST, "/cloud/member/delete") => drive_api::remove_member(app, user, body),
         (&Method::GET, "/me") => me(app, user),
         (&Method::GET, "/messages") => mail_api::messages(app, user, query),
         (&Method::GET, "/calendar") => calendar_api::list(app, user, query),
@@ -270,6 +297,7 @@ fn me(app: &Shared, user: &User) -> ApiResult {
         "signature": signature,
         "addresses": addresses,
         "collab": app.collab_enabled(),
+        "cloud": app.cfg.cloud.enabled,
         "avatar": app.store.avatar_updated(user.id).ok().flatten(),
         "id": user.id,
         "folders": list,

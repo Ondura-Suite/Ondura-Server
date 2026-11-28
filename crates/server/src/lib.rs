@@ -8,6 +8,7 @@ pub mod collab;
 pub mod auth;
 pub mod autodiscover;
 pub mod calendar;
+pub mod cloud;
 pub mod config;
 pub mod db;
 pub mod directory;

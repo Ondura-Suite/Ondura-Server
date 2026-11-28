@@ -142,7 +142,17 @@ provisioning = true          # devices must accept the security policy
 require_password = false     # require a device PIN or password
 min_password_length = 4
 max_heartbeat = 1680         # seconds a device may wait for push
+
+[collab]
+enabled = true               # real-time collaborative documents (see docs/collab.md)
+
+[cloud]
+enabled = true               # personal drives + shared libraries (see docs/cloud.md)
+# files_dir = "/var/lib/ondura/cloud"   # defaults to <data_dir>/cloud
 ```
+
+Mail, collaboration (`[collab]`) and cloud storage (`[cloud]`) are independent
+modules; set `enabled = false` on either to run without it.
 
 `[::]` listens on IPv6 and, on Linux, also on IPv4. Restart the service after changes: `systemctl restart ondura-server`.
 

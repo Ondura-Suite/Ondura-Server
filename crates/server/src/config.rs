@@ -31,6 +31,8 @@ pub struct Config {
     #[serde(default)]
     pub collab: Collab,
     #[serde(default)]
+    pub cloud: Cloud,
+    #[serde(default)]
     pub database: Database,
 }
 
@@ -97,6 +99,31 @@ pub struct Collab {
 impl Default for Collab {
     fn default() -> Self {
         Collab { enabled: true }
+    }
+}
+
+/// Cloud storage: personal drives and shared libraries (Office-365/SharePoint
+/// style), on which the collaborative documents live. An optional module that
+/// can be turned off independently of mail and collab.
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(default, deny_unknown_fields)]
+pub struct Cloud {
+    pub enabled: bool,
+    /// Where uploaded files are stored on disk. Defaults to `<data_dir>/cloud`.
+    pub files_dir: Option<PathBuf>,
+}
+
+impl Default for Cloud {
+    fn default() -> Self {
+        Cloud { enabled: true, files_dir: None }
+    }
+}
+
+impl Cloud {
+    /// The directory that holds uploaded file contents, resolved against the
+    /// server's data directory when not set explicitly.
+    pub fn files_dir(&self, data_dir: &std::path::Path) -> PathBuf {
+        self.files_dir.clone().unwrap_or_else(|| data_dir.join("cloud"))
     }
 }
 

@@ -133,7 +133,26 @@ impl Store {
         let share: Option<i64> = db
             .query_row("SELECT can_write FROM collab_shares WHERE doc_id = ?1 AND user_id = ?2", params![doc_id, user_id], |r| r.get(0))
             .optional()?;
-        Ok(share.map(|w| Access { read: true, write: w != 0 }))
+        if let Some(w) = share {
+            return Ok(Some(Access { read: true, write: w != 0 }));
+        }
+        // A document stored in a drive is accessible to that drive's members:
+        // a viewer may read, an editor or owner may write. Evaluated inline so
+        // the storage lock held above is not taken a second time.
+        let level: Option<i64> = db
+            .query_row(
+                "SELECT CASE \
+                        WHEN d.kind = 'personal' AND d.owner_id = ?2 THEN 2 \
+                        WHEN m.role IN ('owner', 'editor') THEN 2 \
+                        WHEN m.role = 'viewer' THEN 1 ELSE 0 END \
+                 FROM drive_items it JOIN drives d ON d.id = it.drive_id \
+                 LEFT JOIN drive_members m ON m.drive_id = d.id AND m.user_id = ?2 \
+                 WHERE it.doc_id = ?1 AND ((d.kind = 'personal' AND d.owner_id = ?2) OR m.user_id = ?2)",
+                params![doc_id, user_id],
+                |r| r.get(0),
+            )
+            .optional()?;
+        Ok(level.map(|l| Access { read: true, write: l >= 2 }))
     }
 
     pub fn rename_doc(&self, doc_id: i64, name: &str) -> Result<()> {

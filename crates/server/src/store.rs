@@ -199,6 +199,38 @@ CREATE TABLE IF NOT EXISTS collab_links (
     created INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS collab_links_doc ON collab_links(doc_id);
+CREATE TABLE IF NOT EXISTS drives (
+    id INTEGER PRIMARY KEY,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    created INTEGER NOT NULL,
+    updated INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS drives_owner ON drives(owner_id);
+CREATE TABLE IF NOT EXISTS drive_members (
+    drive_id INTEGER NOT NULL REFERENCES drives(id) ON DELETE CASCADE,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    role TEXT NOT NULL DEFAULT 'editor',
+    PRIMARY KEY (drive_id, user_id)
+);
+CREATE INDEX IF NOT EXISTS drive_members_user ON drive_members(user_id);
+CREATE TABLE IF NOT EXISTS drive_items (
+    id INTEGER PRIMARY KEY,
+    drive_id INTEGER NOT NULL REFERENCES drives(id) ON DELETE CASCADE,
+    parent_id INTEGER,
+    kind TEXT NOT NULL,
+    name TEXT NOT NULL,
+    size INTEGER NOT NULL DEFAULT 0,
+    content_type TEXT NOT NULL DEFAULT '',
+    doc_id INTEGER REFERENCES collab_docs(id) ON DELETE CASCADE,
+    created INTEGER NOT NULL,
+    created_by INTEGER NOT NULL,
+    updated INTEGER NOT NULL,
+    updated_by INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS drive_items_loc ON drive_items(drive_id, parent_id);
+CREATE INDEX IF NOT EXISTS drive_items_doc ON drive_items(doc_id);
 CREATE TABLE IF NOT EXISTS mail_categories (
     id INTEGER PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

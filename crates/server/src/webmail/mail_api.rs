@@ -14,11 +14,11 @@ use crate::mime::{self, File, Outgoing};
 use crate::model::{flags, Person};
 use crate::store::{NewMail, User};
 
-fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
+pub(super) fn query_param<'a>(query: &'a str, key: &str) -> Option<&'a str> {
     query.split('&').filter_map(|p| p.split_once('=')).find(|(k, _)| *k == key).map(|(_, v)| v)
 }
 
-fn decode(s: &str) -> String {
+pub(super) fn decode(s: &str) -> String {
     // Minimal percent-decoding for query values.
     let bytes = s.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
