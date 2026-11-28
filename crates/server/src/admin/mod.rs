@@ -120,7 +120,7 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
             Err(e) => json_response(Err(e)),
         };
     }
-    let result = route(&app, &admin, &method, api, &body, headers).await;
+    let result = route(&app, &admin, &method, api, query, &body, headers).await;
     security_headers(json_response(result))
 }
 
@@ -135,11 +135,18 @@ struct LoginBody {
 async fn login(app: &Shared, body: &Bytes, ip: IpAddr, headers: &HeaderMap) -> Response {
     let Ok(req) = serde_json::from_slice::<LoginBody>(body) else { return json_response(Err(bad("invalid request"))) };
     let store = app.store.clone();
+    let email = req.email.clone();
     let res = tokio::task::spawn_blocking(move || auth::login(&store, &req.email, &req.password, Some(ip))).await;
     let user = match res {
         Ok(Ok(u)) => u,
-        Ok(Err(LoginError::Locked)) => return json_response(Err((StatusCode::TOO_MANY_REQUESTS, "Too many failed sign-ins. Try again later.".into()))),
-        _ => return json_response(Err((StatusCode::UNAUTHORIZED, "The e-mail address or password is incorrect.".into()))),
+        Ok(Err(LoginError::Locked)) => {
+            crate::audit::failed_sign_in(app, &email, "admin", ip, true);
+            return json_response(Err((StatusCode::TOO_MANY_REQUESTS, "Too many failed sign-ins. Try again later.".into())));
+        }
+        _ => {
+            crate::audit::failed_sign_in(app, &email, "admin", ip, false);
+            return json_response(Err((StatusCode::UNAUTHORIZED, "The e-mail address or password is incorrect.".into())));
+        }
     };
     if !user.is_admin {
         return json_response(Err((StatusCode::FORBIDDEN, "This account has no administrator rights.".into())));
@@ -251,7 +258,7 @@ struct DeviceBody {
     device_id: String,
 }
 
-async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &Bytes, headers: &HeaderMap) -> ApiResult {
+async fn route(app: &Shared, admin: &User, method: &Method, api: &str, query: &str, body: &Bytes, headers: &HeaderMap) -> ApiResult {
     let store = &app.store;
     let parts: Vec<&str> = api.trim_matches('/').split('/').filter(|p| !p.is_empty()).collect();
     let audit = |action: &str, detail: &str| store.audit(&admin.email, action, detail);
@@ -581,19 +588,33 @@ async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &By
                 activesync_provisioning: Option<bool>,
                 activesync_require_password: Option<bool>,
                 collab_enabled: Option<bool>,
+                audit_retention_days: Option<u32>,
             }
             let p: Patch = parse(body)?;
+            if p.audit_retention_days.is_some_and(|d| d > 3650) {
+                return Err(bad("Keep audit entries for at most 3650 days."));
+            }
             let patch = crate::app::SettingsOverrides {
                 activesync_provisioning: p.activesync_provisioning,
                 activesync_require_password: p.activesync_require_password,
                 collab_enabled: p.collab_enabled,
+                audit_retention_days: p.audit_retention_days,
             };
+            audit("settings.change", &String::from_utf8_lossy(body));
             app.update_settings(&patch).map_err(internal)?;
             Ok(app.settings_json())
         }
         ("GET", ["audit"]) => {
-            let list: Vec<Value> = store.audit_log(300).map_err(internal)?.into_iter().map(|(t, a, act, d)| json!({ "time": t, "actor": a, "action": act, "detail": d })).collect();
-            Ok(json!(list))
+            let f = crate::audit::Filter::from_query(query);
+            let list = store.audit_search(&f).map_err(internal)?;
+            Ok(json!({ "entries": list, "actions": store.audit_actions().map_err(internal)? }))
+        }
+        ("GET", ["audit", "export.csv"]) => {
+            let mut f = crate::audit::Filter::from_query(query);
+            f.limit = 50_000;
+            let list = store.audit_search(&f).map_err(internal)?;
+            audit("audit.export", &list.len().to_string());
+            Ok(json!({ "csv": crate::audit::to_csv(&list) }))
         }
         _ => Err(not_found()),
     }

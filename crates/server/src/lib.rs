@@ -6,6 +6,7 @@ pub mod admin;
 pub mod api;
 pub mod app;
 pub mod collab;
+pub mod audit;
 pub mod auth;
 pub mod autodiscover;
 pub mod calendar;
@@ -646,6 +647,7 @@ async fn serve(cfg: Config) -> Result<()> {
         loop {
             tick.tick().await;
             webmail::calendar_api::refresh_subscriptions(&feeds).await;
+            let _ = feeds.store.purge_audit(feeds.audit_retention_days());
         }
     });
     let later = app.clone();

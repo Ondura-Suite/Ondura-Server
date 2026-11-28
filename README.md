@@ -25,7 +25,7 @@ Everything runs as one program with one database: no separate mail transfer agen
 - Sending with automatic DKIM signatures, a delivery queue with retries and clear non-delivery reports
 - SPF, DKIM and DMARC checks on incoming mail; optional spam filtering with rspamd
 - Automatic replies (out of office) with separate texts for colleagues and external senders
-- Forwarding, shared mailboxes with full access and send-as rights
+- Forwarding, shared mailboxes with full access and send-as rights, opened side by side with your own in the web app
 
 **Calendar, contacts, tasks**
 
@@ -73,7 +73,7 @@ Everything runs as one program with one database: no separate mail transfer agen
 
 **Administration**
 
-- **Admin Center** in the browser: mailboxes, aliases, permissions, domains with the DNS records to enter, DKIM keys, the delivery queue, mobile devices and an audit log – in German and English, light and dark
+- **Admin Center** in the browser: mailboxes, aliases, permissions, domains with the DNS records to enter, DKIM keys, the delivery queue, mobile devices and a searchable audit log (sign-ins and failed sign-ins, admin changes, sharing, work in other mailboxes; CSV export, retention) – in German and English, light and dark
 - Command line for scripts and quick changes
 - TLS certificates (e.g. Let's Encrypt) are picked up automatically after renewal
 

@@ -390,6 +390,7 @@ pub fn share(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     };
     let before = app.store.calendar_share_level(user.id, grantee.id).map_err(internal)?;
     app.store.set_calendar_share(user.id, grantee.id, level).map_err(internal)?;
+    app.store.audit(&user.email, "share.calendar", &format!("{} {}", grantee.email, level.unwrap_or("none")));
     if let Some(l) = level
         && before.as_deref() != Some(l)
     {

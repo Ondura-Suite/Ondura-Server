@@ -283,6 +283,17 @@ code, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospac
 // ------------------------------------------------------------ texts
 const T = {
   de: {
+    allActions: "Alle Aktionen",
+    auditSearch: "Benutzer oder Details",
+    last24h: "Letzte 24 Stunden",
+    last7d: "Letzte 7 Tage",
+    last30d: "Letzte 30 Tage",
+    last365d: "Letztes Jahr",
+    allTime: "Gesamter Zeitraum",
+    exportCsv: "CSV exportieren",
+    loadMore: "Weitere laden",
+    optRetention: "Aufbewahrung (Tage)",
+    optRetentionHint: "Ältere Einträge werden automatisch gelöscht. 0 = unbegrenzt aufbewahren.",
     filesUsed: "Dateien: {n}",
     profileTab: "Profil",
     mailUsed: "E-Mail",
@@ -330,13 +341,24 @@ const T = {
     subject: "Betreff", attempts: "Versuche", nextAttempt: "Nächster Versuch", lastError: "Letzter Fehler", retry: "Erneut versuchen", devicesLead: "Smartphones und Tablets, die per Exchange ActiveSync synchronisieren.",
     user: "Benutzer", device: "Gerät", lastSync: "Letzte Synchronisierung", wipe: "Remote löschen", block: "Sperren", unblock: "Entsperren", remove: "Entfernen",
     confirmWipe: "Das Gerät wird bei der nächsten Verbindung auf Werkseinstellungen zurückgesetzt. Fortfahren?", wipePending: "Löschung ausstehend", wiped: "Gelöscht", blocked: "Gesperrt",
-    auditLead: "Änderungen im Admin Center und Anmeldungen.", time: "Zeit", actor: "Benutzer", action: "Aktion", details: "Details", copied: "Kopiert",
+    auditLead: "Änderungen im Admin Center, An- und Fehlanmeldungen, Freigaben und Arbeit in fremden Postfächern.", time: "Zeit", actor: "Benutzer", action: "Aktion", details: "Details", copied: "Kopiert",
     copy: "Kopieren", mailboxCreated: "Postfach erstellt", refresh: "Aktualisieren", kind: "Art", hostHint: "Hinweis zum Server", outOfOffice: "Abwesenheit",
     oofOn: "Automatische Antworten aktiv", oofOff: "Keine automatischen Antworten", timeZone: "Zeitzone (leer = Server-Standard)", unlimited: "unbegrenzt",
     days: "T", hours: "Std", minutes: "Min", folderCount: "Ordner", noForward: "Leer lassen, um nicht weiterzuleiten.", setupTitle: "Clients einrichten",
     setupText: "Ondura Mail, Outlook für iOS und Android, die Mail-Apps von iOS und Android sowie EWS-Clients finden den Server über Autodiscover. Es reicht die E-Mail-Adresse und das Kennwort.",
   },
   en: {
+    allActions: "All actions",
+    auditSearch: "User or details",
+    last24h: "Last 24 hours",
+    last7d: "Last 7 days",
+    last30d: "Last 30 days",
+    last365d: "Last year",
+    allTime: "All time",
+    exportCsv: "Export CSV",
+    loadMore: "Load more",
+    optRetention: "Retention (days)",
+    optRetentionHint: "Older entries are deleted automatically. 0 keeps them forever.",
     filesUsed: "Files: {n}",
     profileTab: "Profile",
     mailUsed: "Mail",
@@ -384,7 +406,7 @@ const T = {
     subject: "Subject", attempts: "Attempts", nextAttempt: "Next attempt", lastError: "Last error", retry: "Retry now", devicesLead: "Phones and tablets that sync with Exchange ActiveSync.",
     user: "User", device: "Device", lastSync: "Last sync", wipe: "Remote wipe", block: "Block", unblock: "Unblock", remove: "Remove",
     confirmWipe: "The device will be reset to factory settings the next time it connects. Continue?", wipePending: "Wipe pending", wiped: "Wiped", blocked: "Blocked",
-    auditLead: "Changes made in the Admin Center and sign-ins.", time: "Time", actor: "User", action: "Action", details: "Details", copied: "Copied",
+    auditLead: "Admin Center changes, sign-ins and failed sign-ins, sharing, and work in other people\u2019s mailboxes.", time: "Time", actor: "User", action: "Action", details: "Details", copied: "Copied",
     copy: "Copy", mailboxCreated: "Mailbox created", refresh: "Refresh", kind: "Kind", hostHint: "Server note", outOfOffice: "Automatic replies",
     oofOn: "Automatic replies are on", oofOff: "No automatic replies", timeZone: "Time zone (empty = server default)", unlimited: "unlimited",
     days: "d", hours: "h", minutes: "min", folderCount: "Folders", noForward: "Leave empty to stop forwarding.", setupTitle: "Setting up clients",
@@ -418,6 +440,7 @@ const ICON = {
   plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
   copy: '<rect x="8" y="8" width="12" height="12" rx="2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M16 8V5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h3" fill="none" stroke="currentColor" stroke-width="1.8"/>',
   close: '<path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  download: '<path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
   gear: '<circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 3v2.5M12 18.5V21M4.2 7.5l2.2 1.3M17.6 15.2l2.2 1.3M19.8 7.5l-2.2 1.3M6.4 15.2l-2.2 1.3" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
 };
@@ -829,6 +852,10 @@ async function pageSettings() {
     '<div class="glass card"><h2>' + esc(t("secCollab")) + '</h2>' +
       opt("setCollab", e.collabEnabled, t("optCollab"), t("optCollabHint")) +
     '</div>' +
+    '<div class="glass card"><h2>' + esc(t("audit")) + '</h2>' +
+      '<div class="optrow"><div class="meta"><b>' + esc(t("optRetention")) + '</b><p class="hint">' + esc(t("optRetentionHint")) + '</p></div>' +
+      '<div class="field" style="margin:0;width:120px"><input id="setRetention" type="number" min="0" max="3650" value="' + esc(e.auditRetentionDays) + '"></div></div>' +
+    '</div>' +
     '<div class="glass card"><h2>' + esc(t("secInfra")) + '</h2><p class="hint" style="margin-bottom:10px">' + esc(t("infraHint")) + '</p>' +
       '<table class="kv">' +
         kv(t("infHostname"), r.hostname) +
@@ -846,15 +873,59 @@ async function pageSettings() {
   $("#setProvisioning").onchange = guard(async () => save({ activesyncProvisioning: $("#setProvisioning").checked }));
   $("#setRequirePw").onchange = guard(async () => save({ activesyncRequirePassword: $("#setRequirePw").checked }));
   $("#setCollab").onchange = guard(async () => save({ collabEnabled: $("#setCollab").checked }));
+  $("#setRetention").onchange = guard(async () => save({ auditRetentionDays: Math.max(0, Math.round(+$("#setRetention").value || 0)) }));
 }
 
 // ------------------------------------------------------------ audit
+// Who did what: filter by words, action and period; page back; export CSV.
+const auditState = { q: "", action: "", days: "30" };
 async function pageAudit() {
-  const list = await api("GET", "/audit");
+  const qs = (extra) => {
+    const p = new URLSearchParams();
+    if (auditState.q) p.set("q", auditState.q);
+    if (auditState.action) p.set("action", auditState.action);
+    if (auditState.days) p.set("from", String(Math.floor(Date.now() / 1000) - (+auditState.days) * 86400));
+    Object.entries(extra || {}).forEach(([k, v]) => p.set(k, v));
+    return p.toString();
+  };
+  const first = await api("GET", "/audit?" + qs());
+  const groups = [...new Set(first.actions.map((a) => a.split(".")[0]))];
+  const opts = ['<option value="">' + esc(t("allActions")) + "</option>"]
+    .concat(groups.map((g) => '<option value="' + esc(g) + '">' + esc(g) + ".*</option>"))
+    .concat(first.actions.map((a) => '<option value="' + esc(a) + '">' + esc(a) + "</option>"));
   main().innerHTML = heading(t("audit"), t("auditLead")) +
-    '<div class="glass tablecard"><table class="list"><thead><tr><th>' + esc(t("time")) + "</th><th>" + esc(t("actor")) + "</th><th>" + esc(t("action")) + '</th><th class="hide-sm">' + esc(t("details")) + "</th></tr></thead><tbody>" +
-    (list.length ? list.map((a) => "<tr><td>" + esc(fmtTime(a.time)) + "</td><td>" + esc(a.actor) + '</td><td><span class="badge">' + esc(a.action) + '</span></td><td class="hide-sm muted">' + esc(a.detail) + "</td></tr>").join("") :
-      '<tr><td colspan="4" class="empty">' + esc(t("none")) + "</td></tr>") + "</tbody></table></div>";
+    '<div class="toolbar"><div class="search">' + icon("search") + '<input id="auQ" placeholder="' + esc(t("auditSearch")) + '" value="' + esc(auditState.q) + '"></div>' +
+    '<div class="field" style="margin:0"><select id="auAction">' + opts.join("") + "</select></div>" +
+    '<div class="field" style="margin:0"><select id="auDays">' + [["1", "last24h"], ["7", "last7d"], ["30", "last30d"], ["365", "last365d"], ["", "allTime"]].map(([v, k]) => '<option value="' + v + '"' + (v === auditState.days ? " selected" : "") + ">" + esc(t(k)) + "</option>").join("") + "</select></div>" +
+    '<span style="flex:1"></span><button class="btn ghost" id="auCsv">' + icon("download") + esc(t("exportCsv")) + "</button></div>" +
+    '<div class="glass tablecard"><table class="list"><thead><tr><th>' + esc(t("time")) + "</th><th>" + esc(t("actor")) + "</th><th>" + esc(t("action")) + '</th><th class="hide-sm">' + esc(t("details")) + '</th></tr></thead><tbody id="auRows"></tbody></table></div>' +
+    '<div class="toolbar" style="justify-content:center;margin-top:12px"><button class="btn ghost hidden" id="auMore">' + esc(t("loadMore")) + "</button></div>";
+  $("#auAction").value = auditState.action;
+  const badge = (a) => '<span class="badge' + (/^login\.(failed|locked)/.test(a) ? " bad" : /^share\./.test(a) ? " tint" : "") + '">' + esc(a) + "</span>";
+  const row = (a) => "<tr><td>" + esc(fmtTime(a.time)) + "</td><td>" + esc(a.actor) + "</td><td>" + badge(a.action) + '</td><td class="hide-sm muted">' + esc(a.detail) + "</td></tr>";
+  let last = null;
+  const show = (list, append) => {
+    const body = $("#auRows");
+    if (!append) body.innerHTML = "";
+    if (!append && !list.length) body.innerHTML = '<tr><td colspan="4" class="empty">' + esc(t("none")) + "</td></tr>";
+    body.insertAdjacentHTML("beforeend", list.map(row).join(""));
+    last = list.length ? list[list.length - 1].id : last;
+    $("#auMore").classList.toggle("hidden", list.length < 200);
+  };
+  show(first.entries, false);
+  let timer = null;
+  const reload = guard(async () => { const r = await api("GET", "/audit?" + qs()); show(r.entries, false); });
+  $("#auQ").oninput = (e) => { auditState.q = e.target.value.trim(); clearTimeout(timer); timer = setTimeout(reload, 300); };
+  $("#auAction").onchange = (e) => { auditState.action = e.target.value; reload(); };
+  $("#auDays").onchange = (e) => { auditState.days = e.target.value; reload(); };
+  $("#auMore").onclick = guard(async () => { const r = await api("GET", "/audit?" + qs({ before: last })); show(r.entries, true); });
+  $("#auCsv").onclick = guard(async () => {
+    const r = await api("GET", "/audit/export.csv?" + qs());
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(new Blob(["\ufeff" + r.csv], { type: "text/csv;charset=utf-8" }));
+    a.download = "audit-" + new Date().toISOString().slice(0, 10) + ".csv";
+    document.body.appendChild(a); a.click(); a.remove();
+  });
 }
 
 applyTexts();

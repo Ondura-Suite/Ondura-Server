@@ -274,7 +274,7 @@ There are three kinds of mailbox:
 
 Further addresses go to the same mailbox as **aliases**; `@example.com` as alias catches every address of the domain that does not exist. Plus addressing (`name+anything@example.com`) always works. One address is the **primary** address — the default sender address and the one shown as the mailbox name. In the mailbox's *E-mail addresses* tab, the ★ next to an alias makes it the primary address; the former primary becomes an alias, so mail to it still arrives and the user can still sign in with either address.
 
-**Permissions**: *full access* lets a user open a shared or another person's mailbox (Ondura Mail and other EWS clients open it by its address). *Send as* lets them send with that address.
+**Permissions**: *full access* lets a user open a shared or another person's mailbox (Ondura Mail and other EWS clients open it by its address; the web app lists it under *Mailboxes* in the mail folder list). *Send as* lets them send with that address. With full access but no send-as, the web app opens the mailbox for reading and organising and says that sending from it needs send-as.
 
 **Quota**: optional per mailbox in the Admin Center; 0 means unlimited. It
 applies to the mail items and to the personal drive (Files) separately. The
@@ -347,9 +347,24 @@ Avatars are PNG, JPEG, WebP or GIF up to 1 MB and are shown by Ondura clients.
 - overview of storage, devices, the queue and the connection details for clients,
 - mailbox details with folders and sizes, forwarding, automatic replies status and devices,
 - device actions (block, remote wipe),
-- an audit log of all changes.
+- an audit log (see below).
 
 Sessions last eight hours. Sign-ins are rate limited per user name and address. To turn the Admin Center off, set `admin_center = false`.
+
+### Audit log
+
+The *Audit log* page records who did what and when:
+
+| Actions | What |
+| --- | --- |
+| `admin.login`, `webmail.login` | Sign-ins to the Admin Center and the web app (with the address they came from). |
+| `login.failed`, `login.locked` | Wrong passwords and sign-ins refused because of too many failures (the typed address, which app, and the address they came from). |
+| `mailbox.*`, `alias.*`, `domain.*`, `permission.*`, `device.*`, `settings.change`, … | Changes made in the Admin Center. |
+| `2fa.*`, `app-password.*` | Two-step sign-in turned on or off, app passwords created. |
+| `share.*` | Share links created and revoked, library members, folder permissions, calendars and documents shared. |
+| `delegate.send`, `delegate.delete`, `delegate.move`, `delegate.empty`, `delegate.sweep` | Sending, deleting and moving in a mailbox opened with full access, recorded under the person who did it, with the mailbox in the details. |
+
+The page filters by words in the user or details, by action (a group such as `share.*` or one action) and by period, loads older entries page by page, and exports the current filter as CSV. Entries are kept for the number of days set under *Settings → Audit log* (365 by default, `0` keeps them forever); older ones are removed every few minutes. Endpoints: `GET /admin/api/audit?q=&action=&from=&to=&before=&limit=` and `GET /admin/api/audit/export.csv` with the same filter.
 
 ## Command line
 

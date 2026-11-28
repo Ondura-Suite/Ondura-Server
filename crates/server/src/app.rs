@@ -21,6 +21,9 @@ pub struct SettingsOverrides {
     pub activesync_require_password: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub collab_enabled: Option<bool>,
+    /// How many days audit entries are kept; `0` keeps them forever.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub audit_retention_days: Option<u32>,
 }
 
 /// Key under which the overrides are stored in `meta`.
@@ -69,6 +72,11 @@ impl App {
         self.overrides().collab_enabled.unwrap_or(self.cfg.collab.enabled)
     }
 
+    /// Days audit entries are kept (default one year; `0` = forever).
+    pub fn audit_retention_days(&self) -> u32 {
+        self.overrides().audit_retention_days.unwrap_or(365)
+    }
+
     /// Load persisted overrides from the store into memory (called at startup).
     pub fn load_settings(&self) {
         if let Ok(Some(raw)) = self.store.get_meta(SETTINGS_KEY)
@@ -92,6 +100,9 @@ impl App {
             if patch.collab_enabled.is_some() {
                 g.collab_enabled = patch.collab_enabled;
             }
+            if patch.audit_retention_days.is_some() {
+                g.audit_retention_days = patch.audit_retention_days;
+            }
         }
         let raw = serde_json::to_string(&self.overrides())?;
         self.store.set_meta(SETTINGS_KEY, &raw)?;
@@ -106,6 +117,7 @@ impl App {
                 "activesyncProvisioning": self.activesync_provisioning(),
                 "activesyncRequirePassword": self.activesync_require_password(),
                 "collabEnabled": self.collab_enabled(),
+                "auditRetentionDays": self.audit_retention_days(),
             },
             "readonly": {
                 "hostname": self.cfg.hostname,

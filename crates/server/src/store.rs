@@ -870,12 +870,6 @@ impl Store {
         let _ = self.db().execute("INSERT INTO audit (time, actor, action, detail) VALUES (?1, ?2, ?3, ?4)", params![now(), actor, action, detail]);
     }
 
-    pub fn audit_log(&self, limit: i64) -> Result<Vec<(i64, String, String, String)>> {
-        let db = self.db();
-        let st = db.prepare("SELECT time, actor, action, detail FROM audit ORDER BY id DESC LIMIT ?1")?;
-        let rows = st.query_map([limit], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
-        Ok(rows)
-    }
 
     // ------------------------------------------------------------ domains
 
@@ -1456,6 +1450,18 @@ impl Store {
             || self
                 .db()
                 .query_row("SELECT 1 FROM permissions WHERE owner_id = ?1 AND grantee_id = ?2 AND full_access = 1", params![owner, user], |_| Ok(()))
+                .optional()
+                .ok()
+                .flatten()
+                .is_some()
+    }
+
+    /// Whether `user` may send with `owner`'s address.
+    pub fn can_send_as(&self, user: i64, owner: i64) -> bool {
+        user == owner
+            || self
+                .db()
+                .query_row("SELECT 1 FROM permissions WHERE owner_id = ?1 AND grantee_id = ?2 AND send_as = 1", params![owner, user], |_| Ok(()))
                 .optional()
                 .ok()
                 .flatten()
@@ -2379,7 +2385,9 @@ fn postgres_backend_smoke() {
     s.used_bytes(u.id).unwrap();
     s.user_stats().unwrap();
     s.unread_count(trash.id).unwrap();
-    s.audit_log(10).unwrap();
+    s.audit_search(&crate::audit::Filter { q: "x".into(), action: "admin".into(), from: Some(0), to: Some(1), before: Some(5), limit: 10 }).unwrap();
+    s.audit_actions().unwrap();
+    s.purge_audit(1).unwrap();
     s.domains().unwrap();
     s.users().unwrap();
     s.permissions().unwrap();

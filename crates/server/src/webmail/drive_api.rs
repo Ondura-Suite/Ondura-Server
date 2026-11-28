@@ -448,6 +448,7 @@ pub fn set_member(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     let target = app.store.user_by_email(b.email.trim()).map_err(internal)?.ok_or_else(|| bad("no such user"))?;
     let was_member = app.store.role_in_drive(target.id, b.drive).map_err(internal)?.is_some();
     app.store.set_drive_member(b.drive, target.id, Role::parse(&b.role)).map_err(internal)?;
+    app.store.audit(&user.email, "share.member.set", &format!("library #{} {} {}", b.drive, target.email, Role::parse(&b.role).as_str()));
     if !was_member {
         let name = app.store.list_drives(target.id).map_err(internal)?.into_iter().find(|d| d.id == b.drive).map(|d| d.name).unwrap_or_default();
         let _ = app.store.add_activity(target.id, (user.id, &crate::activity::display_name(user)), "library_member", &name, "", &format!("/sharepoint/{}", b.drive));
@@ -467,6 +468,7 @@ pub fn remove_member(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         return Err(forbidden());
     }
     app.store.remove_drive_member(b.drive, b.user).map_err(internal)?;
+    app.store.audit(&user.email, "share.member.remove", &format!("library #{} account #{}", b.drive, b.user));
     Ok(json!({ "ok": true }))
 }
 
@@ -722,6 +724,12 @@ pub fn item_links(app: &Shared, user: &User, query: &str) -> ApiResult {
     }))
 }
 
+/// What the audit log says about a new link.
+fn link_detail(name: &str, id: i64, write: bool, password: Option<&str>) -> String {
+    let pw = if password.is_some_and(|p| !p.is_empty()) { ", password" } else { "" };
+    format!("{name} (#{id}) {}{pw}", if write { "edit" } else { "view" })
+}
+
 pub fn create_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     let b: LinkCreate = parse(body)?;
     let it = app.store.drive_item(b.item).map_err(internal)?.ok_or_else(not_found)?;
@@ -734,6 +742,7 @@ pub fn create_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     }
     let token = app.store.create_item_link(b.item, b.write, expiry_from_days(b.expires_days), user.id).map_err(internal)?;
     app.store.set_link_password(&token, b.password.as_deref()).map_err(internal)?;
+    app.store.audit(&user.email, "share.link.create", &link_detail(&it.name, it.id, b.write, b.password.as_deref()));
     Ok(json!({ "token": token, "canWrite": b.write }))
 }
 
@@ -768,6 +777,7 @@ pub fn revoke_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
             return Err(forbidden());
         }
         app.store.revoke_library_link(&b.token).map_err(internal)?;
+        app.store.audit(&user.email, "share.link.revoke", &format!("library #{drive}"));
         return Ok(json!({ "ok": true }));
     }
     let item_id = app.store.item_link_item(&b.token).map_err(internal)?.ok_or_else(not_found)?;
@@ -776,6 +786,7 @@ pub fn revoke_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         return Err(forbidden());
     }
     app.store.revoke_item_link(&b.token).map_err(internal)?;
+    app.store.audit(&user.email, "share.link.revoke", &format!("{} (#{})", it.name, it.id));
     Ok(json!({ "ok": true }))
 }
 
@@ -1038,6 +1049,7 @@ pub fn create_library_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult
     }
     let token = app.store.create_library_link(b.drive, b.write, expiry_from_days(b.expires_days), user.id).map_err(internal)?;
     app.store.set_link_password(&token, b.password.as_deref()).map_err(internal)?;
+    app.store.audit(&user.email, "share.link.create", &link_detail("library", b.drive, b.write, b.password.as_deref()));
     Ok(json!({ "token": token, "canWrite": b.write }))
 }
 
@@ -1098,6 +1110,7 @@ pub fn set_permission(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     let target = app.store.user_by_email(b.email.trim()).map_err(internal)?.ok_or_else(|| bad("no such user"))?;
     let had_access = app.store.item_role(target.id, it.drive_id, Some(it.id)).map_err(internal)?.is_some();
     app.store.set_item_acl(b.item, target.id, Role::parse(&b.role)).map_err(internal)?;
+    app.store.audit(&user.email, "share.folder.set", &format!("{} (#{}) {} {}", it.name, it.id, target.email, Role::parse(&b.role).as_str()));
     if !had_access {
         let link = format!("/sharepoint/{}/{}", it.drive_id, it.id);
         let _ = app.store.add_activity(target.id, (user.id, &crate::activity::display_name(user)), "folder_access", &it.name, "", &link);
@@ -1118,6 +1131,7 @@ pub fn remove_permission(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         return Err(forbidden());
     }
     app.store.remove_item_acl(b.item, b.user).map_err(internal)?;
+    app.store.audit(&user.email, "share.folder.remove", &format!("{} (#{}) account #{}", it.name, it.id, b.user));
     Ok(json!({ "ok": true }))
 }
 

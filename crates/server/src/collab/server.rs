@@ -583,6 +583,7 @@ fn create_link(app: &Shared, user: &User, id: &str, body: &Bytes) -> ApiResult {
     }
     let b: B = parse(body)?;
     let token = app.store.create_link(id, b.can_write).map_err(ise)?;
+    app.store.audit(&user.email, "share.link.create", &format!("document #{id} {}", if b.can_write { "edit" } else { "view" }));
     Ok(json!({ "ok": true, "token": token, "canWrite": b.can_write }))
 }
 
@@ -650,6 +651,7 @@ fn share_doc(app: &Shared, user: &User, id: &str, body: &Bytes) -> ApiResult {
     }
     let had_access = app.store.doc_access(target.id, id).map_err(ise)?.is_some();
     app.store.share_doc(id, target.id, b.can_write).map_err(ise)?;
+    app.store.audit(&user.email, "share.document", &format!("document #{id} {} {}", target.email, if b.can_write { "edit" } else { "view" }));
     if !had_access {
         let name = app.store.doc(id).ok().flatten().map(|d| d.name).unwrap_or_default();
         let _ = app.store.add_activity(target.id, (user.id, &display_name(user)), "doc_shared", &name, "", &format!("/files#doc={id}"));
@@ -667,6 +669,7 @@ fn unshare_doc(app: &Shared, user: &User, id: &str, body: &Bytes) -> ApiResult {
     let b: B = parse(body)?;
     if let Some(target) = app.store.user_by_email(&b.email).map_err(ise)? {
         app.store.unshare_doc(id, target.id).map_err(ise)?;
+        app.store.audit(&user.email, "share.document.remove", &format!("document #{id} {}", target.email));
     }
     Ok(json!({ "ok": true }))
 }

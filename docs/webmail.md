@@ -63,6 +63,18 @@ your personal drive and the libraries you belong to. Ticked files are either
 attached as a copy (files only, up to 25 MB together) or added to the message
 as view links (files and documents), the same links **Share** creates in Files.
 
+**Shared mailboxes** — mailboxes you have full access to (shared mailboxes
+such as info@, or a colleague's) are listed under *Mailboxes* at the top of
+the folder list. Picking one shows its folders and messages; reading, replying,
+moving, deleting, flagging and categorising then happen in that mailbox, and
+the composer sends from its address (its sent copy lands in its Sent Items).
+Sending needs the *send-as* permission as well; without it the composer says
+so. Calendar, contacts and settings stay your own. Sending, deleting and moving
+there are recorded in the audit log under your name. Technically, mail calls
+carry `X-Ondura-Mailbox: <account id>` (attachment links `?mailbox=<id>`);
+`GET /mail/api/me` lists the mailboxes under `mailboxes` (with `sendAs` and
+the inbox's unread count).
+
 **Send later** — the composer's **Send later** button sends the message at a
 chosen time (later today, tomorrow morning, Monday morning, or any time up to a
 year ahead). Waiting messages are listed under **Scheduled** in the folder list;

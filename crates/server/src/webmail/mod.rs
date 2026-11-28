@@ -169,6 +169,13 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
         }
         return security_headers(json_response(Ok(json!({ "ok": true }))));
     }
+    // Working in a shared mailbox (or another person's mailbox with full
+    // access): mail calls name it in a header and then run as that mailbox.
+    let user = match delegated_mailbox(&app, &user, headers, query, &method, api) {
+        Ok(Some(owner)) => owner,
+        Ok(None) => user,
+        Err(e) => return security_headers(json_response(Err(e))),
+    };
     // Attachment downloads return binary, handled before the JSON router.
     if method == Method::GET
         && let Some(rest) = api.strip_prefix("/message/")
@@ -209,6 +216,44 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
     }
     let result = route(&app, &user, &method, api, query, &body).await;
     security_headers(json_response(result))
+}
+
+/// The mail calls that can run in a mailbox opened with full access. Anything
+/// else (settings, calendar, files, …) stays with the signed-in account.
+fn delegable(method: &Method, api: &str) -> bool {
+    if *method == Method::GET {
+        return matches!(api, "/me" | "/messages" | "/categories" | "/snoozed") || api.starts_with("/message/");
+    }
+    matches!(
+        api,
+        "/draft" | "/send" | "/flag" | "/categorize" | "/move" | "/delete" | "/empty" | "/sweep" | "/bulk" | "/snooze" | "/unsnooze"
+            | "/folder" | "/folder/rename" | "/folder/delete" | "/folder/read"
+    )
+}
+
+/// Resolve `X-Ondura-Mailbox: <account id>` (or `?mailbox=<id>` on plain
+/// links such as attachment downloads): the mailbox to act in, when it isn't
+/// the caller's own. Requires full access; sending also requires send-as.
+fn delegated_mailbox(app: &Shared, user: &User, headers: &HeaderMap, query: &str, method: &Method, api: &str) -> Result<Option<User>, (StatusCode, String)> {
+    let from_header = headers.get("X-Ondura-Mailbox").and_then(|v| v.to_str().ok()).map(str::to_string);
+    let from_query = (*method == Method::GET).then(|| mail_api::query_param(query, "mailbox").map(str::to_string)).flatten();
+    let Some(id) = from_header.or(from_query).and_then(|v| v.trim().parse::<i64>().ok()) else {
+        return Ok(None);
+    };
+    if id == user.id || !delegable(method, api) {
+        return Ok(None);
+    }
+    let owner = app.store.user(id).map_err(internal)?.filter(|o| o.mailbox);
+    let Some(owner) = owner.filter(|o| app.store.can_access(user.id, o.id)) else {
+        return Err((StatusCode::FORBIDDEN, "You don't have access to that mailbox.".into()));
+    };
+    if api == "/send" && !app.store.can_send_as(user.id, owner.id) {
+        return Err((StatusCode::FORBIDDEN, "You can read this mailbox but not send from it. Ask an administrator for send-as permission.".into()));
+    }
+    if matches!(api, "/send" | "/delete" | "/empty" | "/move" | "/sweep") {
+        app.store.audit(&user.email, &format!("delegate.{}", api.trim_start_matches('/')), &owner.email);
+    }
+    Ok(Some(owner))
 }
 
 /// Dispatch an already-authenticated API call to the shared PIM handlers. Used
@@ -378,11 +423,18 @@ pub(crate) fn second_step(app: &Shared, user: &User, code: Option<&str>) -> Opti
 async fn login(app: &Shared, body: &Bytes, ip: IpAddr, headers: &HeaderMap) -> Response {
     let Ok(req) = serde_json::from_slice::<LoginBody>(body) else { return json_response(Err(bad("invalid request"))) };
     let store = app.store.clone();
+    let email = req.email.clone();
     let res = tokio::task::spawn_blocking(move || auth::login(&store, &req.email, &req.password, Some(ip))).await;
     let user = match res {
         Ok(Ok(u)) => u,
-        Ok(Err(LoginError::Locked)) => return json_response(Err((StatusCode::TOO_MANY_REQUESTS, "Too many failed sign-ins. Try again later.".into()))),
-        _ => return json_response(Err((StatusCode::UNAUTHORIZED, "The e-mail address or password is incorrect.".into()))),
+        Ok(Err(LoginError::Locked)) => {
+            crate::audit::failed_sign_in(app, &email, "webmail", ip, true);
+            return json_response(Err((StatusCode::TOO_MANY_REQUESTS, "Too many failed sign-ins. Try again later.".into())));
+        }
+        _ => {
+            crate::audit::failed_sign_in(app, &email, "webmail", ip, false);
+            return json_response(Err((StatusCode::UNAUTHORIZED, "The e-mail address or password is incorrect.".into())));
+        }
     };
     if user.kind != "user" || !user.enabled {
         return json_response(Err((StatusCode::FORBIDDEN, "This mailbox cannot be used for webmail sign-in.".into())));
@@ -427,6 +479,24 @@ fn activity_read(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
 }
 
 /// Identity plus the folder tree with unread counts.
+/// Mailboxes the account may open besides its own, with unread counts.
+fn delegated_list(app: &Shared, user: &User) -> Vec<Value> {
+    let mut out: Vec<Value> = app
+        .store
+        .full_access_owners(user.id)
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|id| app.store.user(id).ok().flatten())
+        .filter(|o| o.enabled && o.mailbox && o.kind != "room")
+        .map(|o| {
+            let unread = app.store.folder_by_role(o.id, "inbox").ok().flatten().and_then(|f| app.store.unread_count(f.id).ok()).map(|c| c.1).unwrap_or(0);
+            json!({ "id": o.id, "email": o.email, "name": o.name, "kind": o.kind, "sendAs": app.store.can_send_as(user.id, o.id), "unread": unread })
+        })
+        .collect();
+    out.sort_by_key(|v| v["name"].as_str().unwrap_or("").to_lowercase());
+    out
+}
+
 fn me(app: &Shared, user: &User) -> ApiResult {
     let folders = app.store.folders(user.id).map_err(internal)?;
     let mut list = Vec::new();
@@ -458,6 +528,7 @@ fn me(app: &Shared, user: &User) -> ApiResult {
         "avatar": app.store.avatar_updated(user.id).ok().flatten(),
         "id": user.id,
         "folders": list,
+        "mailboxes": delegated_list(app, user),
     }))
 }
 

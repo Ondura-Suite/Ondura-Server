@@ -1054,3 +1054,36 @@ fn directory_profile_and_storage() {
     let usage = app.store.storage_usage(user.id, user.quota).unwrap();
     assert_eq!(usage.files, 0);
 }
+
+#[test]
+fn shared_mailbox_is_opened_with_full_access_only() {
+    use axum::http::{HeaderMap, Method};
+    let (app, user) = App::test();
+    let team = app.store.create_user("team@example.com", "Team", "pw", "shared").unwrap();
+    let mut h = HeaderMap::new();
+    h.insert("X-Ondura-Mailbox", team.id.to_string().parse().unwrap());
+    // No access yet.
+    assert!(super::delegated_mailbox(&app, &user, &h, "", &Method::GET, "/messages").is_err());
+    app.store.grant(team.id, user.id, true, false).unwrap();
+    let owner = super::delegated_mailbox(&app, &user, &h, "", &Method::GET, "/messages").unwrap().unwrap();
+    assert_eq!(owner.id, team.id);
+    // A plain link names it in the query.
+    let none = HeaderMap::new();
+    assert_eq!(super::delegated_mailbox(&app, &user, &none, &format!("mailbox={}", team.id), &Method::GET, "/message/5/attachment/0").unwrap().unwrap().id, team.id);
+    // Calls outside mail stay with the signed-in account.
+    assert!(super::delegated_mailbox(&app, &user, &h, "", &Method::GET, "/settings").unwrap().is_none());
+    // Sending needs send-as.
+    assert!(super::delegated_mailbox(&app, &user, &h, "", &Method::POST, "/send").is_err());
+    app.store.grant(team.id, user.id, true, true).unwrap();
+    assert!(super::delegated_mailbox(&app, &user, &h, "", &Method::POST, "/send").unwrap().is_some());
+    // The account's own data lists the mailbox; the shared one's folders are its own.
+    let mine = me(&app, &user).unwrap();
+    assert_eq!(mine["mailboxes"][0]["email"], "team@example.com");
+    assert_eq!(mine["mailboxes"][0]["sendAs"], true);
+    let theirs = me(&app, &owner).unwrap();
+    assert!(theirs["folders"].as_array().unwrap().iter().all(|f| f["id"] != mine["folders"][0]["id"]));
+    // Deleting in it is audited under the person who did it.
+    assert!(super::delegated_mailbox(&app, &user, &h, "", &Method::POST, "/delete").unwrap().is_some());
+    let log = app.store.audit_search(&crate::audit::Filter { action: "delegate.delete".into(), ..Default::default() }).unwrap();
+    assert_eq!((log[0].actor.as_str(), log[0].detail.as_str()), (user.email.as_str(), "team@example.com"));
+}

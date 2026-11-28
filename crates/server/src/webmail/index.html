@@ -233,6 +233,8 @@ label.calrow { cursor: pointer; }
 .acts { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .acts .sep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--border); }
 .sbar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin: 6px 0 3px; } .sbar > div { height: 100%; background: var(--tint); } .sbar.full > div { background: var(--danger); }
+.notice { padding: 9px 12px; border-radius: 8px; font-size: 13px; border: 1px solid var(--border); }
+.notice.warn { background: rgba(245, 158, 11, .12); border-color: rgba(245, 158, 11, .4); }
 .taskrow .myday { opacity: .35; } .taskrow:hover .myday, .taskrow .myday.on { opacity: 1; } .taskrow .myday.on { color: #f59e0b; }
 .myday-head { padding: 16px 16px 10px; }
 .tboard { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 12px; padding: 12px 16px; overflow-x: auto; }
@@ -482,6 +484,9 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 <script>
 const T = {
   en: {
+    myMailbox: "My mailbox",
+    mailboxes: "Mailboxes",
+    noSendAs: "You can read and organise {m}, but not send from it. Ask an administrator for send-as permission.",
     searchPeople: "Search by name, title or department",
     workPhone: "Work phone",
     fromFiles: "From Files",
@@ -583,6 +588,9 @@ const T = {
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
   de: {
+    myMailbox: "Mein Postfach",
+    mailboxes: "Postfächer",
+    noSendAs: "Sie können {m} lesen und ordnen, aber nicht daraus senden. Dafür ist die Berechtigung „Senden als“ nötig.",
     searchPeople: "Nach Name, Position oder Abteilung suchen",
     workPhone: "Telefon (geschäftlich)",
     fromFiles: "Aus Dateien",
@@ -747,10 +755,24 @@ const icon = (n) => '<svg viewBox="0 0 24 24" aria-hidden="true">' + (ICON[n] ||
 
 function toast(msg, bad) { const el = document.createElement("div"); el.className = "toast" + (bad ? " bad" : ""); el.textContent = msg; document.body.appendChild(el); setTimeout(() => el.remove(), bad ? 5000 : 2200); }
 
+// A mailbox opened with full access (shared mailbox, or a colleague's). Mail
+// calls then run in it; everything else stays with the signed-in account.
+let mbox = null, mailMe = null;
+const MAIL_CALL = /^\/(messages|message\/|categories|categorize|snoozed|snooze|unsnooze|draft|send$|flag|move|delete$|empty|sweep|bulk|folder|me\?folders)/;
+function mboxQuery(sep) { return mbox ? (sep || "?") + "mailbox=" + mbox.id : ""; }
+async function openMailbox(m) {
+  mbox = m && m.id !== me.id ? m : null;
+  mailMe = await api("GET", "/me?folders");
+  folders = mailMe.folders.filter((f) => f.role !== "root");
+  curFolder = folders.find((f) => f.role === "inbox") || folders[0];
+  curMsg = null; selected.clear(); catFilter = null;
+  loadCategories();
+  if (view !== "mail") navTo("mail"); else { renderRail(); renderMail(); }
+}
 async function api(method, path, body) {
   const res = await fetch("/mail/api" + path, {
     method, credentials: "same-origin",
-    headers: { "Content-Type": "application/json", "X-Ondura-Mail": "1" },
+    headers: Object.assign({ "Content-Type": "application/json", "X-Ondura-Mail": "1" }, mbox && MAIL_CALL.test(path) ? { "X-Ondura-Mailbox": String(mbox.id) } : {}),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   let data = null; try { data = await res.json(); } catch (e) { data = null; }
@@ -933,7 +955,7 @@ async function start() {
     showLogin();
     return;
   }
-  me = session;
+  me = session; mailMe = session; mbox = null;
   $("#login").classList.add("hidden"); $("#app").classList.remove("hidden");
   renderAcct();
   folders = me.folders.filter((f) => f.role !== "root");
@@ -1146,12 +1168,16 @@ function renderRail() {
     const inner = [["mail", "mail"], ["calendar", "calendar"], ["contacts", "contacts"]];
     html += inner.map(([k, ic]) => `<div class="navitem ${view === k ? "active" : ""}" data-view="${k}">${icon(ic)}<span>${esc(t(k))}</span></div>`).join("");
     if (view === "mail") {
+      if ((me.mailboxes || []).length) {
+        const box = (m, own) => `<div class="folder mbox ${(own ? !mbox : mbox && mbox.id === m.id) ? "active" : ""}" data-mbox="${own ? "" : m.id}" title="${esc(m.email)}">${icon(own ? "inbox" : "contacts")}<span class="nm">${esc(own ? t("myMailbox") : (m.name || m.email))}</span>${!own && m.unread ? `<span class="ct">${m.unread}</span>` : ""}</div>`;
+        html += `<div class="railsep"></div><div class="raillabel">${esc(t("mailboxes"))}</div>` + box(me, true) + me.mailboxes.map((m) => box(m, false)).join("");
+      }
       html += `<div class="railsep"></div><div class="folder" id="addFolder" style="color:var(--muted)">${icon("plus")}<span class="nm">${esc(t("newFolder"))}</span></div>`;
       html += mailFolders().map((f) => {
         const custom = !f.role;
         return `<div class="folder ${curFolder && f.id === curFolder.id ? "active" : ""}" data-folder="${f.id}">${icon(f.role || "folder")}<span class="nm">${esc(folderLabel(f))}</span>${custom ? `<button class="iconbtn fmenu" data-fid="${f.id}" data-fname="${esc(f.name)}" style="width:22px;height:22px">${icon("dots")}</button>` : ""}${f.unread ? `<span class="ct">${f.unread}</span>` : ""}</div>`;
       }).join("");
-      if (scheduledMail.length) html += `<div class="folder" id="railScheduled">${icon("clock")}<span class="nm">${esc(t("scheduledMail"))}</span><span class="ct">${scheduledMail.length}</span></div>`;
+      if (scheduledMail.length && !mbox) html += `<div class="folder" id="railScheduled">${icon("clock")}<span class="nm">${esc(t("scheduledMail"))}</span><span class="ct">${scheduledMail.length}</span></div>`;
     }
     if (view === "calendar") {
       html += `<div class="railsep"></div><div class="raillabel">${esc(t("calendars"))}</div>`;
@@ -1194,6 +1220,7 @@ function renderRail() {
     toast(t("imported").replace("{n}", d.added).replace("{m}", d.updated)); renderCalendar();
   }); }
   const rsch = $("#railScheduled"); if (rsch) rsch.onclick = openScheduled;
+  $("#rail").querySelectorAll("[data-mbox]").forEach((e) => e.onclick = guard(async () => { const id = +e.dataset.mbox; await openMailbox(id ? me.mailboxes.find((m) => m.id === id) : null); }));
   $("#rail").querySelectorAll("[data-folder]").forEach((e) => e.onclick = (ev) => { if (ev.target.closest(".fmenu")) return; curFolder = folders.find((f) => f.id == e.dataset.folder); curMsg = null; selected.clear(); catFilter = null; msgFilter = "all"; $("#q").value = ""; render(); });
   const af = $("#addFolder"); if (af) af.onclick = guard(async () => { const name = prompt(t("folderName")); if (!name || !name.trim()) return; await api("POST", "/folder", { name: name.trim() }); await refreshFolders(); renderRail(); toast(t("saved")); });
   $("#rail").querySelectorAll(".fmenu").forEach((b) => b.onclick = guard(async (ev) => {
@@ -1760,7 +1787,7 @@ async function openMessage(id) {
   } else {
     bodyHtml = `<pre class="text">${esc(m.text || "")}</pre>`;
   }
-  const atts = (m.attachments || []).map((a) => `<a class="att" href="/mail/api/message/${id}/attachment/${a.index}" download>${icon("paperclip")}${esc(a.name)} <span style="color:var(--muted)">${fmtBytes(a.size)}</span></a>`).join("");
+  const atts = (m.attachments || []).map((a) => `<a class="att" href="/mail/api/message/${id}/attachment/${a.index}${mboxQuery()}" download>${icon("paperclip")}${esc(a.name)} <span style="color:var(--muted)">${fmtBytes(a.size)}</span></a>`).join("");
   reader.innerHTML = `
     <div class="rh"><h1>${esc(m.subject || "")}</h1>
       <div class="meta"><b>${esc(personStr(m.from))}</b> &lt;${esc(m.from ? m.from.email : "")}&gt; · ${esc(fmtDate(m.date))}<br>
@@ -1845,7 +1872,7 @@ async function openMessage(id) {
   }
   wireReaderChips();
 }
-async function refreshFolders() { try { const r = await api("GET", "/me"); folders = r.folders.filter((f) => f.role !== "root"); if (curFolder) curFolder = folders.find((f) => f.id === curFolder.id) || curFolder; renderRail(); } catch (e) {} }
+async function refreshFolders() { try { const r = await api("GET", "/me?folders"); mailMe = r; if (!mbox) me.mailboxes = r.mailboxes; folders = r.folders.filter((f) => f.role !== "root"); if (curFolder) curFolder = folders.find((f) => f.id === curFolder.id) || curFolder; renderRail(); } catch (e) {} }
 
 // ------------------------------------------------------------ COMPOSE
 function closePanel() { $("#overlay").innerHTML = ""; }
@@ -1858,7 +1885,8 @@ function openCompose(opt) {
   opt = opt || {}; pendingFiles = [];
   let to = "", cc = "", bcc = "", subject = "", text = "", answering = null;
   let draftId = opt.mode === "draft" ? opt.draftId : null;
-  const myAddrs = ((me && me.addresses) || []).map((a) => a.toLowerCase());
+  const box = mbox ? (mailMe || {}) : me;
+  const myAddrs = ((box && box.addresses) || []).map((a) => a.toLowerCase());
   const notMe = (p) => p && p.email && !myAddrs.includes(p.email.toLowerCase());
   const joinAddrs = (list) => (list || []).filter(notMe).map((p) => p.email).join(", ");
   if ((opt.mode === "reply" || opt.mode === "replyAll") && opt.msg) {
@@ -1883,9 +1911,9 @@ function openCompose(opt) {
   } else if (opt.to) {
     to = opt.to;
   }
-  if (opt.mode !== "draft" && me && me.signature) { text += `\n\n-- \n${me.signature}`; }
-  const addrs = (me && me.addresses) || [];
-  const fromField = addrs.length > 1
+  if (opt.mode !== "draft" && box && box.signature) { text += `\n\n-- \n${box.signature}`; }
+  const addrs = (box && box.addresses) || [];
+  const fromField = addrs.length > 1 || mbox
     ? `<div class="field"><label>${esc(t("from"))}</label><select id="cfrom">${addrs.map((a) => `<option value="${esc(a)}">${esc(a)}</option>`).join("")}</select></div>`
     : "";
   // Compose takes over the reading pane (like Exchange Online), not a drawer.
@@ -1897,7 +1925,7 @@ function openCompose(opt) {
   reader.innerHTML =
     `<div class="composepane">` +
       `<div class="rh"><h1>${esc(title)}</h1><button class="iconbtn" id="cClose" title="${esc(t("discard"))}"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg></button></div>` +
-      `<div class="cform">${fromField}` +
+      `<div class="cform">${mbox && !mbox.sendAs ? `<div class="notice warn" style="margin-bottom:8px">${esc(t("noSendAs").replace("{m}", mbox.email))}</div>` : ""}${fromField}` +
         `<div class="field acfield"><label>${esc(t("to"))}</label><input id="cto" autocomplete="off" value="${esc(to)}"><button type="button" id="bccToggle" class="bcctoggle">${esc(t("showBcc"))}</button></div>` +
         `<div class="field acfield"><label>${esc(t("cc"))}</label><input id="ccc" autocomplete="off" value="${esc(cc)}"></div>` +
         `<div class="field acfield" id="bccRow" style="${bcc ? "" : "display:none"}"><label>${esc(t("bcc"))}</label><input id="cbcc" autocomplete="off" value="${esc(bcc)}"></div>` +
