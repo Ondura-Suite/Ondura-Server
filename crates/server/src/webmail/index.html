@@ -659,6 +659,9 @@ document.addEventListener("keydown", (e) => {
 });
 
 async function start() {
+  // A file/folder share link opens a read-only guest view, account or not.
+  const shareTok = (location.hash.match(/[#&]s=([a-f0-9]+)/) || [])[1];
+  if (shareTok) return openGuestShare(shareTok);
   // A share link may open a document directly (as a signed-in user or a guest).
   const linkTok = (location.hash.match(/link=([a-f0-9]+)/) || [])[1];
   // Probe the session without triggering the login screen.
@@ -730,6 +733,72 @@ async function openGuestDoc(token) {
     <div class="editorwrap"><div class="mirror" id="docMirror" aria-hidden="true"></div><textarea id="docArea" ${info.canWrite ? "" : "readonly"} spellcheck="false"></textarea><div class="cursors" id="docCursors"></div></div>
     ${info.canWrite ? "" : `<div style="padding:6px 16px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--border)">${esc(t("readOnlyDoc"))}</div>`}`;
   connectDoc(info.docId, info.canWrite, token);
+}
+
+// Open a file or folder share link without an account (read-only guest view).
+const gs = { token: null, root: null, parent: null };
+async function openGuestShare(token) {
+  gs.token = token;
+  let meta;
+  try { meta = await (await fetch(`/mail/api/cloud/shared/${token}`)).json(); } catch (e) { meta = null; }
+  if (!meta || meta.error || !meta.kind) {
+    document.body.innerHTML = `<div style="display:grid;place-items:center;height:100vh;color:var(--muted);font:15px system-ui">${esc(t("linkInvalid"))}</div>`;
+    return;
+  }
+  me = { guest: true };
+  $("#login").classList.add("hidden"); $("#app").classList.remove("hidden"); $("#app").classList.add("norail");
+  gs.root = meta;
+  if (meta.kind === "folder") { gs.parent = meta.root; return renderGuestFolder(); }
+  return renderGuestFile(meta, `/mail/api/cloud/shared/${token}/download`);
+}
+
+function guestChrome(inner) {
+  $("#app").innerHTML = `<div style="display:flex;flex-direction:column;height:100vh">
+    <div class="glass" style="display:flex;gap:10px;align-items:center;padding:12px 18px;border-radius:0">
+      <img src="/mail/logo.svg" style="height:22px" alt=""><strong style="font-size:15px">Ondura</strong>
+      <span class="pill" style="margin-left:auto;font-size:11px;padding:2px 8px;border:1px solid var(--border);border-radius:999px;color:var(--muted)">${esc(t("guestBadge"))}</span>
+    </div>${inner}</div>`;
+}
+
+function renderGuestFile(meta, url) {
+  const prev = canPreview(meta.contentType) ? previewHtml(meta.contentType, url + (url.includes("?") ? "&" : "?") + "inline=1", meta.name) : "";
+  guestChrome(`<div style="flex:1;overflow:auto;display:grid;place-items:center;padding:24px">
+    <div style="max-width:720px;width:100%;text-align:center">
+      <div style="color:var(--muted);display:flex;justify-content:center;margin-bottom:10px">${icon(meta.kind === "doc" ? "doc" : "paperclip")}</div>
+      <h2 style="margin:0 0 4px;font-size:18px">${esc(meta.name)}</h2>
+      <div style="color:var(--muted);font-size:13px;margin-bottom:16px">${esc(fmtSize(meta.size || 0))}</div>
+      <a class="btn" href="${esc(url)}" download style="display:inline-flex;text-decoration:none">${icon("inbox")}<span>${esc(t("download"))}</span></a>
+      ${prev ? `<div style="margin-top:20px">${prev}</div>` : ""}
+    </div></div>`);
+}
+
+async function renderGuestFolder() {
+  let data = { items: [], path: [] };
+  try { data = await (await fetch(`/mail/api/cloud/shared/${gs.token}/items?parent=${gs.parent}`)).json(); } catch (e) {}
+  const items = data.items || [];
+  const crumbs = (data.path || []).map((p, i) => `<span style="color:var(--muted)">${i ? "/" : ""}</span><button style="background:none;border:0;color:var(--muted);cursor:pointer;padding:0 2px;font-size:13px" data-gcrumb="${p.id}">${esc(p.name)}</button>`).join("");
+  const rows = items.length
+    ? items.map((it) => {
+      const ic = it.kind === "folder" ? "folder" : it.kind === "doc" ? "doc" : "paperclip";
+      const meta = it.kind === "file" ? fmtSize(it.size) : "";
+      return `<div class="taskrow" data-gopen="${it.id}" data-gkind="${it.kind}" style="cursor:pointer"><div style="color:var(--muted);display:flex">${icon(ic)}</div><div class="tt" style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)}</div></div><div style="font-size:11.5px;color:var(--muted)">${esc(meta)}</div></div>`;
+    }).join("")
+    : `<div class="empty">${esc(t("emptyFolder"))}</div>`;
+  guestChrome(`<div style="padding:10px 18px;font-size:16px;font-weight:600">${esc(gs.root.name)}</div>
+    <div style="display:flex;gap:4px;align-items:center;padding:0 18px 8px;font-size:13px;flex-wrap:wrap">${crumbs}</div>
+    <div style="flex:1;overflow:auto;padding:0 12px 16px">${rows}</div>`);
+  $("#app").querySelectorAll("[data-gcrumb]").forEach((b) => b.onclick = () => { gs.parent = +b.dataset.gcrumb; renderGuestFolder(); });
+  $("#app").querySelectorAll("[data-gopen]").forEach((el) => el.onclick = () => {
+    const id = +el.dataset.gopen, kind = el.dataset.gkind;
+    if (kind === "folder") { gs.parent = id; renderGuestFolder(); }
+    else if (kind === "file") location.href = `/mail/api/cloud/shared/${gs.token}/download?item=${id}`;
+  });
+}
+
+function canPreview(ct) { ct = ct || ""; return ct.startsWith("image/") || ct === "application/pdf" || ct.startsWith("text/"); }
+function previewHtml(ct, url, name) {
+  if ((ct || "").startsWith("image/")) return `<img src="${esc(url)}" alt="${esc(name)}" style="max-width:100%;border-radius:10px;border:1px solid var(--border)">`;
+  return `<iframe src="${esc(url)}" style="width:100%;height:70vh;border:1px solid var(--border);border-radius:10px;background:#fff"></iframe>`;
 }
 
 // ------------------------------------------------------------ rail + routing
@@ -1954,6 +2023,25 @@ function openShare(id, meta) {
   $("#shClose").onclick = closePanel;
 }
 
+function itemShareUrl(token) { return `${location.origin}/mail#s=${token}`; }
+// Share a file or folder with a view-only link anyone can open (guests included).
+function openItemShare(it) {
+  panel(t("share"),
+    `<div class="field"><label style="display:flex;align-items:center;gap:6px">${icon(it.kind === "folder" ? "folder" : "paperclip")}${esc(it.name)}</label>
+       <div id="ilLinks" style="margin-top:8px"></div>
+       <div class="row" style="display:flex;gap:8px;margin-top:8px"><button class="btn primary" id="ilAdd">${icon("link")}<span>${esc(t("createLink"))}</span></button></div></div>`,
+    `<div style="flex:1"></div><button class="btn" id="ilClose">${esc(t("close") || t("cancel"))}</button>`);
+  const renderLinks = (links) => {
+    $("#ilLinks").innerHTML = links.length ? links.map((l) => `<div class="taskrow"><div class="tt" style="min-width:0;flex:1"><div style="font-size:12.5px">${esc(t("anyoneCanView"))}</div><div class="dm" style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(itemShareUrl(l.token))}</div></div><button class="iconbtn" data-copy="${esc(l.token)}" title="${esc(t("copyLink"))}">${icon("copy")}</button><button class="iconbtn danger" data-lrm="${esc(l.token)}" title="${esc(t("revoke"))}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">${esc(t("noLinks"))}</p>`;
+    $("#ilLinks").querySelectorAll("[data-copy]").forEach((b) => b.onclick = () => { const url = itemShareUrl(b.dataset.copy); if (navigator.clipboard) navigator.clipboard.writeText(url); toast(t("copied")); });
+    $("#ilLinks").querySelectorAll("[data-lrm]").forEach((b) => b.onclick = guard(async () => { await api("POST", "/cloud/link/revoke", { token: b.dataset.lrm }); refresh(); }));
+  };
+  const refresh = async () => { let r = { links: [] }; try { r = await api("GET", "/cloud/links?item=" + it.id); } catch (e) {} renderLinks(r.links || []); };
+  $("#ilAdd").onclick = guard(async () => { await api("POST", "/cloud/link", { item: it.id, write: false }); refresh(); });
+  $("#ilClose").onclick = closePanel;
+  refresh();
+}
+
 // ------------------------------------------------------------ FILES (cloud)
 let fs = { drives: [], driveId: null, parent: null, path: [], items: [], role: "owner", canWrite: true };
 
@@ -2101,6 +2189,7 @@ function itemMenu(ev, it) {
   if (!it) return;
   const items = [];
   if (it.kind === "file") items.push({ ic: "paperclip", label: t("download"), fn: () => downloadItem(it) });
+  if (fs.canWrite && it.kind !== "doc") items.push({ ic: "share", label: t("share"), fn: () => openItemShare(it) });
   if (fs.canWrite) {
     items.push({ ic: "settings", label: t("rename"), fn: guard(async () => { const name = prompt(t("rename"), it.name); if (!name) return; await api("POST", "/cloud/rename", { item: it.id, name: name.trim() }); renderFiles(); }) });
     items.push({ ic: "trash", label: t("delete"), danger: true, fn: guard(async () => { if (!confirm(t("confirmDeleteItem"))) return; await api("POST", "/cloud/delete", { item: it.id }); renderFiles(); }) });

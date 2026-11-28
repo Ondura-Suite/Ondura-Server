@@ -233,6 +233,14 @@ CREATE TABLE IF NOT EXISTS drive_items (
 );
 CREATE INDEX IF NOT EXISTS drive_items_loc ON drive_items(drive_id, parent_id);
 CREATE INDEX IF NOT EXISTS drive_items_doc ON drive_items(doc_id);
+CREATE TABLE IF NOT EXISTS drive_links (
+    token TEXT PRIMARY KEY,
+    item_id INTEGER NOT NULL REFERENCES drive_items(id) ON DELETE CASCADE,
+    can_write INTEGER NOT NULL DEFAULT 0,
+    created INTEGER NOT NULL,
+    created_by INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS drive_links_item ON drive_links(item_id);
 CREATE TABLE IF NOT EXISTS app_passwords (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

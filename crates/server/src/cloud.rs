@@ -505,6 +505,65 @@ impl Store {
         Ok(files)
     }
 
+    // ------------------------------------------------------------ share links
+
+    /// Create a share link for a file or folder and return its token. The link
+    /// grants view (or edit) access to anyone who holds it, signed in or not.
+    pub fn create_item_link(&self, item_id: i64, can_write: bool, by: i64) -> Result<String> {
+        let mut bytes = [0u8; 24];
+        rand::fill(&mut bytes);
+        let token = hex::encode(bytes);
+        self.db().execute(
+            "INSERT INTO drive_links (token, item_id, can_write, created, created_by) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![&token, item_id, can_write as i64, now(), by],
+        )?;
+        Ok(token)
+    }
+
+    /// Resolve a link token to the item it points at, if the link exists and the
+    /// item is still live (not trashed).
+    pub fn item_by_link(&self, token: &str) -> Result<Option<(Item, bool)>> {
+        let row: Option<(i64, bool)> = self
+            .db()
+            .query_row("SELECT item_id, can_write FROM drive_links WHERE token = ?1", [token], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)? != 0)))
+            .optional()?;
+        let Some((item_id, can_write)) = row else { return Ok(None) };
+        // A trashed item's links stop resolving until it is restored.
+        let live: Option<i64> = self.db().query_row("SELECT 1 FROM drive_items WHERE id = ?1 AND trashed = 0", [item_id], |r| r.get(0)).optional()?;
+        if live.is_none() {
+            return Ok(None);
+        }
+        match self.drive_item(item_id)? {
+            Some(it) => Ok(Some((it, can_write))),
+            None => Ok(None),
+        }
+    }
+
+    /// A share link's item id, regardless of trashed state (for authorizing
+    /// changes to the link itself).
+    pub fn item_link_item(&self, token: &str) -> Result<Option<i64>> {
+        self.db()
+            .query_row("SELECT item_id FROM drive_links WHERE token = ?1", [token], |r| r.get(0))
+            .optional()
+    }
+
+    /// An item's share links: (token, can_write, created).
+    pub fn item_links(&self, item_id: i64) -> Result<Vec<(String, bool, i64)>> {
+        let db = self.db();
+        let stmt = db.prepare("SELECT token, can_write, created FROM drive_links WHERE item_id = ?1 ORDER BY created")?;
+        stmt.query_map([item_id], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? != 0, r.get(2)?)))
+    }
+
+    pub fn set_item_link_write(&self, token: &str, can_write: bool) -> Result<()> {
+        self.db().execute("UPDATE drive_links SET can_write = ?1 WHERE token = ?2", params![can_write as i64, token])?;
+        Ok(())
+    }
+
+    pub fn revoke_item_link(&self, token: &str) -> Result<()> {
+        self.db().execute("DELETE FROM drive_links WHERE token = ?1", [token])?;
+        Ok(())
+    }
+
     /// Breadcrumb trail from the drive root down to `id` (inclusive), each a
     /// `(id, name)` pair.
     pub fn drive_item_path(&self, id: i64) -> Result<Vec<(i64, String)>> {
@@ -651,6 +710,31 @@ mod tests {
         assert_eq!(files, vec![file]);
         assert!(s.drive_item(folder).unwrap().is_none());
         assert!(s.trashed_items(d).unwrap().is_empty());
+    }
+
+    #[test]
+    fn item_share_links_resolve_and_revoke() {
+        let (app, user) = App::test();
+        let s = &app.store;
+        let d = s.ensure_personal_drive(user.id).unwrap();
+        let file = s.create_drive_file(d, None, "a.txt", 3, "text/plain", user.id).unwrap();
+
+        let token = s.create_item_link(file, false, user.id).unwrap();
+        let (it, can_write) = s.item_by_link(&token).unwrap().unwrap();
+        assert_eq!(it.id, file);
+        assert!(!can_write);
+        assert_eq!(s.item_links(file).unwrap().len(), 1);
+
+        // A trashed item's links stop resolving, and resolve again once restored.
+        s.trash_item(file, user.id).unwrap();
+        assert!(s.item_by_link(&token).unwrap().is_none());
+        s.restore_item(file).unwrap();
+        assert!(s.item_by_link(&token).unwrap().is_some());
+
+        // Revoking the link makes it a dead token.
+        s.revoke_item_link(&token).unwrap();
+        assert!(s.item_by_link(&token).unwrap().is_none());
+        assert!(s.item_links(file).unwrap().is_empty());
     }
 
     #[test]

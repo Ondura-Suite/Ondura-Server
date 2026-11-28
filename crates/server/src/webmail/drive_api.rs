@@ -365,11 +365,153 @@ pub fn download(app: &Shared, user: &User, item_id: &str) -> Response {
         Ok(Some(_)) => {}
         _ => return not_found(),
     }
+    serve_file(app, &it, inline_wanted(&it))
+}
+
+/// True for types a browser can safely render in place (images, PDFs); these are
+/// served inline so a preview can show them, everything else as a download.
+fn inline_wanted(it: &crate::cloud::Item) -> bool {
+    let ct = it.content_type.as_str();
+    ct.starts_with("image/") || ct == "application/pdf" || ct.starts_with("text/")
+}
+
+/// Stream a stored file's bytes with the right type and disposition.
+fn serve_file(app: &Shared, it: &crate::cloud::Item, inline: bool) -> Response {
+    let not_found = || (StatusCode::NOT_FOUND, "Not found").into_response();
     let Ok(data) = std::fs::read(file_path(app, it.drive_id, it.id)) else { return not_found() };
     let mut r = data.into_response();
     let h = r.headers_mut();
     h.insert(header::CONTENT_TYPE, HeaderValue::from_str(&it.content_type).unwrap_or(HeaderValue::from_static("application/octet-stream")));
     let safe: String = it.name.chars().filter(|c| !c.is_control() && *c != '"').collect();
-    h.insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&format!("attachment; filename=\"{safe}\"")).unwrap_or(HeaderValue::from_static("attachment")));
+    let disp = if inline { "inline" } else { "attachment" };
+    h.insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&format!("{disp}; filename=\"{safe}\"")).unwrap_or(HeaderValue::from_static("attachment")));
     r
+}
+
+// ------------------------------------------------------------- item share links
+
+#[derive(Deserialize)]
+struct LinkCreate {
+    item: i64,
+    #[serde(default)]
+    write: bool,
+}
+
+#[derive(Deserialize)]
+struct LinkRef {
+    token: String,
+    #[serde(default)]
+    write: bool,
+}
+
+/// List an item's share links (anyone with write access to the drive).
+pub fn item_links(app: &Shared, user: &User, query: &str) -> ApiResult {
+    let item_id: i64 = query_param(query, "item").and_then(|v| v.parse().ok()).ok_or_else(|| bad("item required"))?;
+    let it = app.store.drive_item(item_id).map_err(internal)?.ok_or_else(not_found)?;
+    if !role(app, user, it.drive_id)?.can_write() {
+        return Err(forbidden());
+    }
+    let links = app.store.item_links(item_id).map_err(internal)?;
+    Ok(json!({
+        "links": links.iter().map(|(t, w, c)| json!({ "token": t, "canWrite": w, "created": c })).collect::<Vec<_>>(),
+    }))
+}
+
+pub fn create_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: LinkCreate = parse(body)?;
+    let it = app.store.drive_item(b.item).map_err(internal)?.ok_or_else(not_found)?;
+    if it.kind == "doc" {
+        // Documents are shared through their own collaborative-link mechanism.
+        return Err(bad("documents use document share links"));
+    }
+    if !role(app, user, it.drive_id)?.can_write() {
+        return Err(forbidden());
+    }
+    let token = app.store.create_item_link(b.item, b.write, user.id).map_err(internal)?;
+    Ok(json!({ "token": token, "canWrite": b.write }))
+}
+
+pub fn update_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: LinkRef = parse(body)?;
+    let item_id = app.store.item_link_item(&b.token).map_err(internal)?.ok_or_else(not_found)?;
+    let it = app.store.drive_item(item_id).map_err(internal)?.ok_or_else(not_found)?;
+    if !role(app, user, it.drive_id)?.can_write() {
+        return Err(forbidden());
+    }
+    app.store.set_item_link_write(&b.token, b.write).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+pub fn revoke_item_link(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: LinkRef = parse(body)?;
+    let item_id = app.store.item_link_item(&b.token).map_err(internal)?.ok_or_else(not_found)?;
+    let it = app.store.drive_item(item_id).map_err(internal)?.ok_or_else(not_found)?;
+    if !role(app, user, it.drive_id)?.can_write() {
+        return Err(forbidden());
+    }
+    app.store.revoke_item_link(&b.token).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+// --------------------------------------------------------- public (guest) access
+
+/// Metadata for a shared link, with no account required. For a folder the guest
+/// can browse the subtree; for a file it can be previewed or downloaded.
+pub fn shared_meta(app: &Shared, token: &str) -> ApiResult {
+    let (it, can_write) = app.store.item_by_link(token).map_err(internal)?.ok_or_else(not_found)?;
+    Ok(json!({
+        "kind": it.kind,
+        "name": it.name,
+        "size": it.size,
+        "contentType": it.content_type,
+        "canWrite": can_write,
+        "root": it.id,
+    }))
+}
+
+/// List a folder share's children. `parent` must be the shared folder itself or
+/// a descendant of it, so a link can't reach the rest of the drive.
+pub fn shared_items(app: &Shared, token: &str, query: &str) -> ApiResult {
+    let (root, _) = app.store.item_by_link(token).map_err(internal)?.ok_or_else(not_found)?;
+    if root.kind != "folder" {
+        return Err(not_found());
+    }
+    let parent: i64 = query_param(query, "parent").and_then(|v| v.parse().ok()).unwrap_or(root.id);
+    if parent != root.id && !app.store.is_within(root.id, Some(parent)).map_err(internal)? {
+        return Err(not_found());
+    }
+    let items = app.store.drive_items(root.drive_id, Some(parent)).map_err(internal)?;
+    // Breadcrumb within the share only (root-relative).
+    let full = app.store.drive_item_path(parent).map_err(internal)?;
+    let path: Vec<_> = full.into_iter().skip_while(|(id, _)| *id != root.id).collect();
+    Ok(json!({
+        "items": items.iter().map(item_json).collect::<Vec<_>>(),
+        "path": path.iter().map(|(id, name)| json!({ "id": id, "name": name })).collect::<Vec<_>>(),
+        "canWrite": false,
+    }))
+}
+
+/// Download (or preview) a file reached through a share link. For a folder share
+/// an `item` query names a descendant file; for a file share it is the file.
+pub fn shared_download(app: &Shared, token: &str, query: &str) -> Response {
+    let nf = || (StatusCode::NOT_FOUND, "Not found").into_response();
+    let Ok(Some((root, _))) = app.store.item_by_link(token) else { return nf() };
+    let target = if root.kind == "folder" {
+        let Some(id) = query_param(query, "item").and_then(|v| v.parse::<i64>().ok()) else { return nf() };
+        let Ok(within) = app.store.is_within(root.id, Some(id)) else { return nf() };
+        if !within {
+            return nf();
+        }
+        match app.store.drive_item(id) {
+            Ok(Some(it)) => it,
+            _ => return nf(),
+        }
+    } else {
+        root
+    };
+    if target.kind != "file" {
+        return nf();
+    }
+    let inline = query_param(query, "inline").is_some();
+    serve_file(app, &target, inline && inline_wanted(&target))
 }

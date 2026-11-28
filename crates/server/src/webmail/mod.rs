@@ -135,6 +135,16 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
     if api == "/login" && method == Method::POST {
         return security_headers(login(&app, &body, ip, headers).await);
     }
+    // Public cloud share links need no account: resolve, browse and download.
+    if app.cfg.cloud.enabled && method == Method::GET && let Some(rest) = api.strip_prefix("/cloud/shared/") {
+        let (token, sub) = rest.split_once('/').unwrap_or((rest, ""));
+        return match sub {
+            "" => security_headers(json_response(drive_api::shared_meta(&app, token))),
+            "items" => security_headers(json_response(drive_api::shared_items(&app, token, query))),
+            "download" => security_headers(drive_api::shared_download(&app, token, query)),
+            _ => json_response(Err((StatusCode::NOT_FOUND, "Not found".into()))),
+        };
+    }
     let Some(user) = session_user(&app, headers) else {
         return json_response(Err((StatusCode::UNAUTHORIZED, "Not signed in".into())));
     };
@@ -207,6 +217,10 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::GET, "/cloud/members") => drive_api::members(app, user, query),
         (&Method::POST, "/cloud/member") => drive_api::set_member(app, user, body),
         (&Method::POST, "/cloud/member/delete") => drive_api::remove_member(app, user, body),
+        (&Method::GET, "/cloud/links") => drive_api::item_links(app, user, query),
+        (&Method::POST, "/cloud/link") => drive_api::create_item_link(app, user, body),
+        (&Method::POST, "/cloud/link/update") => drive_api::update_item_link(app, user, body),
+        (&Method::POST, "/cloud/link/revoke") => drive_api::revoke_item_link(app, user, body),
         (&Method::GET, "/me") => me(app, user),
         (&Method::GET, "/messages") => mail_api::messages(app, user, query),
         (&Method::GET, "/calendar") => calendar_api::list(app, user, query),
