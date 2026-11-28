@@ -105,6 +105,17 @@ fn nextcloud_on(app: &Shared, user_id: i64) -> bool {
     app.store.settings(user_id).map(|s| s.nextcloud).unwrap_or(false)
 }
 
+/// Whether storing `new` bytes (replacing `old`) on the personal drive would
+/// exceed the user's quota (0 = unlimited). WebDAV always targets the personal
+/// drive, so this applies to every upload.
+fn over_quota(user: &User, app: &Shared, drive: i64, old: i64, new: i64) -> bool {
+    if user.quota <= 0 {
+        return false;
+    }
+    let used = app.store.drive_total_size(drive).unwrap_or(0);
+    used - old + new > user.quota
+}
+
 fn unauthorized() -> Response {
     let mut r = (StatusCode::UNAUTHORIZED, "").into_response();
     r.headers_mut().insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Basic realm=\"Ondura\""));
@@ -530,6 +541,9 @@ fn dav_put(app: &Shared, user: &User, drive: i64, rel: &str, headers: &HeaderMap
     if existing.as_ref().map(|e| e.kind != "file").unwrap_or(false) {
         return (StatusCode::METHOD_NOT_ALLOWED, "").into_response();
     }
+    if over_quota(user, app, drive, existing.as_ref().map(|e| e.size).unwrap_or(0), body.len() as i64) {
+        return (StatusCode::INSUFFICIENT_STORAGE, "").into_response();
+    }
     let ct = headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).filter(|v| !v.is_empty()).unwrap_or("application/octet-stream");
     let (id, created) = match &existing {
         Some(e) => {
@@ -722,6 +736,7 @@ fn assemble_upload(app: &Shared, user: &User, drive: i64, dir: &std::path::Path,
         chunks.push((key, e.path()));
     }
     chunks.sort_by_key(|(k, _)| *k);
+    let assembled: i64 = chunks.iter().map(|(_, p)| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0) as i64).sum();
 
     let (parent_dir, fname) = split_parent(dest);
     let parent = match app.store.ensure_folders(drive, parent_dir, user.id) {
@@ -729,6 +744,10 @@ fn assemble_upload(app: &Shared, user: &User, drive: i64, dir: &std::path::Path,
         Err(_) => return (StatusCode::CONFLICT, "").into_response(),
     };
     let existing = app.store.child_by_name(drive, parent, fname).ok().flatten();
+    if over_quota(user, app, drive, existing.as_ref().map(|e| e.size).unwrap_or(0), assembled) {
+        let _ = std::fs::remove_dir_all(dir);
+        return (StatusCode::INSUFFICIENT_STORAGE, "").into_response();
+    }
     let ct = "application/octet-stream";
     let id = match &existing {
         Some(e) if e.kind == "file" => e.id,

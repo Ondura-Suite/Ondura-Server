@@ -26,6 +26,20 @@ fn forbidden() -> (StatusCode, String) {
     (StatusCode::FORBIDDEN, "You don't have access to this.".into())
 }
 
+/// Whether storing `new` bytes (replacing `old`) would push the user's personal
+/// drive past their quota. Only personal drives are metered; a quota of 0 means
+/// unlimited.
+fn over_quota(app: &Shared, user: &User, drive_id: i64, old: i64, new: i64) -> bool {
+    if user.quota <= 0 {
+        return false;
+    }
+    if app.store.ensure_personal_drive(user.id).ok() != Some(drive_id) {
+        return false;
+    }
+    let used = app.store.drive_total_size(drive_id).unwrap_or(0);
+    used - old + new > user.quota
+}
+
 /// The directory that holds a drive's file contents on disk.
 fn drive_dir(app: &Shared, drive_id: i64) -> PathBuf {
     app.cfg.cloud.files_dir(&app.cfg.data_dir).join(drive_id.to_string())
@@ -273,6 +287,9 @@ pub fn upload(app: &Shared, user: &User, query: &str, headers: &HeaderMap, body:
     }
     if body.len() > MAX_UPLOAD {
         return json_err(StatusCode::PAYLOAD_TOO_LARGE, "file too large");
+    }
+    if over_quota(app, user, drive_id, 0, body.len() as i64) {
+        return json_err(StatusCode::INSUFFICIENT_STORAGE, "not enough storage");
     }
     let parent: Option<i64> = query_param(query, "parent").and_then(|v| v.parse().ok());
     let name = query_param(query, "name").map(decode).unwrap_or_default();

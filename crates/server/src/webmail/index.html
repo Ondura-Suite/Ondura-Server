@@ -1800,8 +1800,7 @@ function transformCursor(pos, op) {
 let curDoc = null, docWs = null;
 async function renderDocuments() {
   if (docWs) { try { docWs.close(); } catch (e) {} docWs = null; }
-  $("#view").innerHTML = `<div class="docgrid"><div class="doclist"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 16px;display:flex;gap:8px;position:sticky;top:0;background:var(--bg)"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("documents"))}</h2><button class="btn primary" id="newDoc">${icon("plus")}</button></div><div id="docItems"></div></div><div class="editor" id="docEditor"><div class="empty">${esc(t("selectMessage"))}</div></div></div>`;
-  $("#newDoc").onclick = guard(async () => { const name = prompt(t("newDocument")); if (name === null) return; const r = await capi("POST", "/docs", { name: name.trim() || t("newDocument") }); await loadDocs(); openDoc(r.id); });
+  $("#view").innerHTML = `<div class="docgrid"><div class="doclist"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 16px;display:flex;gap:8px;position:sticky;top:0;background:var(--bg)"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("documents"))}</h2></div><div id="docItems"></div></div><div class="editor" id="docEditor"><div class="empty">${esc(t("selectMessage"))}</div></div></div>`;
   await loadDocs();
 }
 async function loadDocs() {
@@ -1995,6 +1994,7 @@ async function renderFiles() {
     <input type="file" id="fFile" multiple style="display:none">` : "";
   const memBtn = drive && drive.kind === "library" ? `<button class="btn" id="fMembers">${icon("contacts")}<span>${esc(t("members"))}</span></button>` : "";
   const linkBtn = drive && drive.kind === "library" ? `<button class="btn" id="fLink">${icon("link")}<span>${esc(t("copyLink"))}</span></button>` : "";
+  const delLibBtn = drive && drive.kind === "library" && fs.role === "owner" ? `<button class="btn" id="fDelLib">${icon("trash")}<span>${esc(t("deleteLibrary"))}</span></button>` : "";
   const crumbs = `<button style="background:none;border:0;color:var(--muted);cursor:pointer;padding:0;font-size:13px" data-crumb="">${esc(rootName)}</button>`
     + fs.path.map((p) => `<span style="color:var(--muted)">/</span><button style="background:none;border:0;color:var(--muted);cursor:pointer;padding:0;font-size:13px" data-crumb="${p.id}">${esc(p.name)}</button>`).join("");
   const rows = fs.items.length
@@ -2007,7 +2007,7 @@ async function renderFiles() {
   $("#view").innerHTML = `<div style="display:flex;flex-direction:column;height:100%">
     <div class="glass" style="display:flex;gap:8px;align-items:center;padding:10px 16px;flex-wrap:wrap;border-radius:0">
       <h2 style="flex:1;font-size:16px;margin:0">${esc(rootName)}</h2>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">${tools}${linkBtn}${memBtn}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${tools}${linkBtn}${memBtn}${delLibBtn}</div>
     </div>
     <div style="display:flex;gap:4px;align-items:center;padding:8px 16px;font-size:13px;flex-wrap:wrap">${crumbs}</div>
     <div style="flex:1;overflow:auto;padding:0 10px 16px">${rows}</div></div>`;
@@ -2017,6 +2017,7 @@ async function renderFiles() {
   const up = $("#fUpload"); const fi = $("#fFile"); if (up && fi) { up.onclick = () => fi.click(); fi.onchange = () => uploadFiles(fi.files); }
   const mb = $("#fMembers"); if (mb) mb.onclick = () => openMembers(fs.driveId);
   const lb = $("#fLink"); if (lb) lb.onclick = () => { const url = location.origin + appPath("sharepoint", { drive: fs.driveId }); if (navigator.clipboard) navigator.clipboard.writeText(url); toast(t("copied")); };
+  const dl = $("#fDelLib"); if (dl) dl.onclick = guard(async () => { if (!confirm(t("confirmDeleteLibrary"))) return; await api("POST", "/cloud/library/delete", { drive: fs.driveId }); fs.drives = []; fs.driveId = null; fs.parent = null; navTo("sharepoint"); });
   $("#view").querySelectorAll("[data-open]").forEach((el) => el.onclick = () => openItem(fs.items.find((x) => x.id === +el.dataset.open)));
   $("#view").querySelectorAll("[data-menu]").forEach((el) => el.onclick = (ev) => { ev.stopPropagation(); itemMenu(ev, fs.items.find((x) => x.id === +el.dataset.menu)); });
   // Refresh the left nav (libraries) now that they are loaded.
