@@ -323,8 +323,30 @@ impl Store {
         Ok(())
     }
 
+    /// Whether `node` is `ancestor` or sits somewhere beneath it, so a move into
+    /// it would create a cycle.
+    pub fn is_within(&self, ancestor: i64, node: Option<i64>) -> Result<bool> {
+        let mut cur = node;
+        let db = self.db();
+        let mut hops = 0;
+        while let Some(c) = cur {
+            if c == ancestor {
+                return Ok(true);
+            }
+            cur = db.query_row("SELECT parent_id FROM drive_items WHERE id = ?1", [c], |r| r.get(0)).optional()?.flatten();
+            hops += 1;
+            if hops > 1024 {
+                return Ok(true); // treat a pre-existing cycle as "within"
+            }
+        }
+        Ok(false)
+    }
+
     /// Move an item to a new parent folder and name in one step (WebDAV MOVE).
     pub fn relocate_item(&self, id: i64, parent: Option<i64>, name: &str, by: i64) -> Result<()> {
+        if self.is_within(id, parent)? {
+            bail!("cannot move an item into itself");
+        }
         let name = sanitize_name(name)?;
         self.db().execute(
             "UPDATE drive_items SET parent_id = ?1, name = ?2, updated = ?3, updated_by = ?4 WHERE id = ?5",
@@ -398,6 +420,9 @@ impl Store {
     /// Move an item to a new parent folder (or the root when `parent` is
     /// `None`) within the same drive.
     pub fn move_drive_item(&self, id: i64, parent: Option<i64>, by: i64) -> Result<()> {
+        if self.is_within(id, parent)? {
+            bail!("cannot move a folder into itself");
+        }
         self.db().execute("UPDATE drive_items SET parent_id = ?1, updated = ?2, updated_by = ?3 WHERE id = ?4", params![parent, now(), by, id])?;
         Ok(())
     }
@@ -534,5 +559,20 @@ mod tests {
         assert!(s.role_in_drive(bob.id, lib).unwrap().is_none());
         s.remove_drive_member(lib, owner.id).unwrap();
         assert_eq!(s.role_in_drive(owner.id, lib).unwrap().unwrap(), Role::Owner);
+    }
+
+    #[test]
+    fn cannot_move_a_folder_into_itself() {
+        let (app, user) = App::test();
+        let s = &app.store;
+        let d = s.ensure_personal_drive(user.id).unwrap();
+        let a = s.create_drive_folder(d, None, "A", user.id).unwrap();
+        let b = s.create_drive_folder(d, Some(a), "B", user.id).unwrap();
+        // Into itself or into a descendant is rejected (would create a cycle).
+        assert!(s.move_drive_item(a, Some(a), user.id).is_err());
+        assert!(s.move_drive_item(a, Some(b), user.id).is_err());
+        assert!(s.relocate_item(a, Some(b), "A", user.id).is_err());
+        // Moving a child up to the root is fine.
+        assert!(s.move_drive_item(b, None, user.id).is_ok());
     }
 }
