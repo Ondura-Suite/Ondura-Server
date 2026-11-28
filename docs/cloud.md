@@ -158,6 +158,7 @@ SharePoint site.
 
 ## Nextcloud clients
 
-Each user's personal drive is also reachable by the official Nextcloud mobile
-and desktop clients (WebDAV, Login Flow, chunked uploads), which is how photo
-auto-upload works. See `nextcloud.md`.
+Each user's personal drive, and the libraries they belong to (in a `SharePoint`
+folder), are reachable by the official Nextcloud mobile and desktop clients
+(WebDAV, Login Flow, chunked uploads) — that is how photo auto-upload and desktop
+sync work. See `nextcloud.md`.

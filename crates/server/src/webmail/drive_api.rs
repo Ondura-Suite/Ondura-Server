@@ -63,6 +63,31 @@ pub(crate) fn purge_item_disk(app: &Shared, drive_id: i64, item_id: i64) {
     let _ = std::fs::remove_dir_all(versions_dir(app, drive_id, item_id));
 }
 
+/// Move a file's contents and its version history to another drive's directory
+/// after the item itself was moved there.
+pub(crate) fn move_item_disk(app: &Shared, from_drive: i64, to_drive: i64, item_id: i64) {
+    let _ = std::fs::create_dir_all(drive_dir(app, to_drive));
+    for (from, to) in [
+        (file_path(app, from_drive, item_id), file_path(app, to_drive, item_id)),
+        (versions_dir(app, from_drive, item_id), versions_dir(app, to_drive, item_id)),
+    ] {
+        if from.exists() && std::fs::rename(&from, &to).is_err() {
+            // Different filesystems: fall back to copy and remove.
+            if from.is_dir() {
+                let _ = std::fs::create_dir_all(&to);
+                if let Ok(entries) = std::fs::read_dir(&from) {
+                    for e in entries.flatten() {
+                        let _ = std::fs::copy(e.path(), to.join(e.file_name()));
+                    }
+                }
+                let _ = std::fs::remove_dir_all(&from);
+            } else if std::fs::copy(&from, &to).is_ok() {
+                let _ = std::fs::remove_file(&from);
+            }
+        }
+    }
+}
+
 /// Snapshot a file's current contents as a new version before it is overwritten
 /// or restored over. Best-effort: a snapshot failure never blocks the write.
 pub(crate) fn snapshot_version(app: &Shared, drive_id: i64, item_id: i64, by: i64) {

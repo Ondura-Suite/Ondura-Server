@@ -47,7 +47,7 @@ Everything runs as one program with one database: no separate mail transfer agen
 - **Personal drives** (like OneDrive) and shared **libraries** (like SharePoint) with members and owner/editor/viewer roles — see [Cloud storage](docs/cloud.md)
 - Folders, file upload and download, inline previews for images, PDFs and text, a Recent list, rename, move and a per-drive recycle bin
 - **Share links** for files and folders that anyone can open as a read-only guest, and **version history** that keeps previous contents of a file
-- **Nextcloud-compatible** so the official Nextcloud mobile and desktop apps connect to the personal drive for automatic photo upload — see [Nextcloud clients](docs/nextcloud.md)
+- **Nextcloud-compatible** so the official Nextcloud mobile and desktop apps connect to the personal drive and the shared libraries, for automatic photo upload and desktop sync — see [Nextcloud clients](docs/nextcloud.md)
 
 **Collaboration**
 
@@ -113,7 +113,7 @@ Then open `https://<your host name>/admin` and sign in with the mailbox you just
 - [Admin guide](docs/admin.md) – installation, configuration, DNS, certificates, clients, backups, accounts and mailboxes
 - [Webmail](docs/webmail.md) – browser access to mail, calendar, contacts, files and SharePoint at `/mail`
 - [Cloud storage](docs/cloud.md) – personal drives, shared libraries, sharing and versions
-- [Nextcloud clients](docs/nextcloud.md) – connecting the Nextcloud app for photo auto-upload
+- [Nextcloud clients](docs/nextcloud.md) – connecting the Nextcloud apps for photo auto-upload and sync
 - [Collaborative documents](docs/collab.md) – real-time co-editing, sharing, and the client API
 - [Development](docs/development.md) – architecture, protocols, building and testing
 - [Security](SECURITY.md) and [fuzzing](docs/fuzzing.md)

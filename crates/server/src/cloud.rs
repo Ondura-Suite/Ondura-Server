@@ -483,8 +483,8 @@ impl Store {
 
     /// Delete an item (recursively for folders). Returns the ids of the file
     /// items whose on-disk contents the caller must remove.
-    pub fn delete_drive_item(&self, id: i64) -> Result<Vec<i64>> {
-        // Collect the item and all descendants.
+    /// An item and all of its descendants (trashed ones included).
+    pub fn subtree_ids(&self, id: i64) -> Result<Vec<i64>> {
         let mut stack = vec![id];
         let mut all = Vec::new();
         while let Some(cur) = stack.pop() {
@@ -496,6 +496,65 @@ impl Store {
             };
             stack.extend(children);
         }
+        Ok(all)
+    }
+
+    /// Total size of the files in an item's subtree (the item itself if a file).
+    pub fn subtree_file_size(&self, id: i64) -> Result<i64> {
+        let mut total = 0;
+        for item in self.subtree_ids(id)? {
+            let size: Option<i64> = self.db().query_row("SELECT size FROM drive_items WHERE id = ?1 AND kind = 'file'", [item], |r| r.get(0)).optional()?;
+            total += size.unwrap_or(0);
+        }
+        Ok(total)
+    }
+
+    /// Move an item (with its subtree) into another drive, under `parent` there
+    /// and with a new name. Returns the ids of the files in the subtree, whose
+    /// contents the caller moves to the new drive's directory.
+    pub fn move_to_drive(&self, id: i64, drive_id: i64, parent: Option<i64>, name: &str, by: i64) -> Result<Vec<i64>> {
+        let name = sanitize_name(name)?;
+        let all = self.subtree_ids(id)?;
+        let db = self.db();
+        let mut files = Vec::new();
+        for item in &all {
+            let kind: Option<String> = db.query_row("SELECT kind FROM drive_items WHERE id = ?1", [*item], |r| r.get(0)).optional()?;
+            if kind.as_deref() == Some("file") {
+                files.push(*item);
+            }
+            db.execute("UPDATE drive_items SET drive_id = ?1 WHERE id = ?2", params![drive_id, *item])?;
+        }
+        db.execute(
+            "UPDATE drive_items SET parent_id = ?1, name = ?2, updated = ?3, updated_by = ?4 WHERE id = ?5",
+            params![parent, name.as_str(), now(), by, id],
+        )?;
+        Self::touch_drive(&db, drive_id);
+        Ok(files)
+    }
+
+    /// A fingerprint of everything below a folder (or the drive root when
+    /// `folder` is `None`): the newest change time and the number of live items.
+    /// Sync clients compare folder ETags to decide where to look for changes, so
+    /// a folder's ETag must change whenever anything inside it does.
+    pub fn subtree_state(&self, drive_id: i64, folder: Option<i64>) -> Result<(i64, i64)> {
+        let db = self.db();
+        let tail = "SELECT COALESCE(MAX(i.updated), 0), COUNT(CASE WHEN i.trashed = 0 THEN 1 END) FROM drive_items i JOIN sub ON i.id = sub.id";
+        match folder {
+            Some(f) => db.query_row(
+                &format!("WITH RECURSIVE sub(id) AS (SELECT id FROM drive_items WHERE parent_id = ?1 UNION ALL SELECT d.id FROM drive_items d JOIN sub ON d.parent_id = sub.id) {tail}"),
+                [f],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            ),
+            None => db.query_row(
+                &format!("WITH RECURSIVE sub(id) AS (SELECT id FROM drive_items WHERE drive_id = ?1 AND parent_id IS NULL UNION ALL SELECT d.id FROM drive_items d JOIN sub ON d.parent_id = sub.id) {tail}"),
+                [drive_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            ),
+        }
+    }
+
+    pub fn delete_drive_item(&self, id: i64) -> Result<Vec<i64>> {
+        let all = self.subtree_ids(id)?;
         let db = self.db();
         let mut files = Vec::new();
         for item in &all {
