@@ -293,6 +293,23 @@ time with `user mailbox you@example.com on|off`; in the Admin Center the mailbox
 is a checkbox on the account's *General* tab and on the create dialog. `shared`
 and `room` accounts are always mailboxes.
 
+### Two-step sign-in
+
+Each person can turn on two-step sign-in in the web app's settings: an
+authenticator app (any TOTP app — Microsoft or Google Authenticator, Aegis,
+1Password, …) scans a QR code, and from then on signing in to the web app, the
+Admin Center and the Nextcloud client's login page needs a six-digit code as
+well as the password. Ten one-time recovery codes are shown when it is turned
+on. After five wrong codes, codes are refused for 15 minutes.
+
+Mail apps (IMAP, POP3, SMTP, ActiveSync, EWS) keep signing in with the
+password, as they have no way to ask for a code.
+
+If someone loses their phone, turn it off for them in the Admin Center (the
+account's *Password* tab shows a reset button when two-step sign-in is on) or
+with `user two-step-reset`; they then sign in with the password and set it up
+again.
+
 ## Settings and avatars
 
 The Admin Center has a **Settings** page for operational settings that take
@@ -327,6 +344,7 @@ ondura-server user add you@example.com --name "Your Name" [--password …] [--ad
 ondura-server user passwd you@example.com [--password …]     # without --password: random, printed
 ondura-server user admin you@example.com on|off
 ondura-server user mailbox you@example.com on|off            # give or remove the mailbox
+ondura-server user two-step-reset you@example.com            # turn off two-step sign-in (lost phone)
 ondura-server user delete you@example.com
 ondura-server user list
 ondura-server alias add info@example.com you@example.com

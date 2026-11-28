@@ -250,6 +250,7 @@ code, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospac
     <p class="sub" data-t="signInLead"></p>
     <div class="field"><label for="le" data-t="email"></label><input id="le" type="email" autocomplete="username" required></div>
     <div class="field"><label for="lp" data-t="password"></label><input id="lp" type="password" autocomplete="current-password" required></div>
+    <div class="field hidden" id="lcWrap"><label for="lc" data-t="signInCode"></label><input id="lc" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"></div>
     <div class="error" id="loginError"></div>
     <button class="btn primary" style="width:100%;justify-content:center" data-t="signIn"></button>
   </form>
@@ -282,6 +283,8 @@ code, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospac
 // ------------------------------------------------------------ texts
 const T = {
   de: {
+    signInCode: "Code aus der Authenticator-App (oder Wiederherstellungscode)", twoStep: "Zwei-Faktor-Anmeldung", twoStepReset: "Zwei-Faktor-Anmeldung zurücksetzen",
+    twoStepResetHint: "Für dieses Konto ist die Zwei-Faktor-Anmeldung aktiv. Bei verlorenem Handy hier ausschalten; die Person meldet sich dann mit dem Passwort an und richtet sie neu ein.", twoStepResetConfirm: "Zwei-Faktor-Anmeldung für dieses Konto ausschalten?",
     dns_mx: "E-Mail für die Domäne wird an diesen Server zugestellt", dns_spf: "SPF: Dieser Server darf für die Domäne senden", dns_dkim: "DKIM-Signaturschlüssel",
     dns_dmarc: "DMARC-Richtlinie", dns_autodiscover: "Autodiscover für Outlook, Smartphones und Ondura", dns_autodiscoverSrv: "Autodiscover (Alternative zum CNAME)",
     dns_submission: "Versand für andere Mail-Programme", hostText: "{host} braucht A-/AAAA-Einträge auf diesen Server. Der Reverse-DNS-Eintrag (PTR) dieser Adressen sollte {host} lauten.",
@@ -322,6 +325,8 @@ const T = {
     setupText: "Ondura Mail, Outlook für iOS und Android, die Mail-Apps von iOS und Android sowie EWS-Clients finden den Server über Autodiscover. Es reicht die E-Mail-Adresse und das Kennwort.",
   },
   en: {
+    signInCode: "Code from the authenticator app (or a recovery code)", twoStep: "Two-step sign-in", twoStepReset: "Reset two-step sign-in",
+    twoStepResetHint: "This account uses two-step sign-in. If the phone is lost, turn it off here; the person then signs in with the password and sets it up again.", twoStepResetConfirm: "Turn off two-step sign-in for this account?",
     dns_mx: "Mail for the domain is delivered to this server", dns_spf: "SPF: this server may send mail for the domain", dns_dkim: "DKIM signature key",
     dns_dmarc: "DMARC policy", dns_autodiscover: "Autodiscover for Outlook, phones and Ondura", dns_autodiscoverSrv: "Autodiscover (alternative to the CNAME)",
     dns_submission: "Mail submission for other clients", hostText: "{host} needs A/AAAA records pointing to this server, and the reverse DNS (PTR) of these addresses should be {host}.",
@@ -412,7 +417,7 @@ async function api(method, path, body) {
   let data = null;
   try { data = await res.json(); } catch (e) { data = null; }
   if (res.status === 401 && path !== "/login") { showLogin(); throw new Error("unauthorized"); }
-  if (!res.ok) { const msg = (data && data.error) || res.statusText; throw new Error(msg); }
+  if (!res.ok) { const msg = (data && data.error) || res.statusText; const err = new Error(msg); err.data = data; throw err; }
   return data;
 }
 const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { if (e.message !== "unauthorized") toast(e.message, true); } };
@@ -432,11 +437,20 @@ function showLogin() {
 $("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   $("#loginError").textContent = "";
+  const code = $("#lc").value.trim();
   try {
-    await api("POST", "/login", { email: $("#le").value, password: $("#lp").value });
-    $("#lp").value = "";
+    await api("POST", "/login", { email: $("#le").value, password: $("#lp").value, code: code || undefined });
+    $("#lp").value = ""; $("#lc").value = ""; $("#lcWrap").classList.add("hidden");
     start();
-  } catch (err) { $("#loginError").textContent = err.message; }
+  } catch (err) {
+    // Two-step sign-in: the password was right, now the code is needed.
+    if (err.data && err.data.mfa) {
+      const first = $("#lcWrap").classList.contains("hidden");
+      $("#lcWrap").classList.remove("hidden"); $("#lc").value = ""; $("#lc").focus();
+      if (first) return;
+    }
+    $("#loginError").textContent = err.message;
+  }
 });
 
 // ------------------------------------------------------------ shell
@@ -652,6 +666,10 @@ function tabPassword(c, m, foot) {
   foot.innerHTML = '<button class="btn primary" id="setPw">' + esc(t("setPassword")) + '</button><button class="btn" id="genPw">' + esc(t("generatePassword")) + "</button>";
   $("#setPw").onclick = guard(async () => { await api("POST", "/mailboxes/" + m.id + "/password", { password: $("#pw1").value }); $("#pw1").value = ""; toast(t("saved")); });
   $("#genPw").onclick = guard(async () => { const r = await api("POST", "/mailboxes/" + m.id + "/password", {}); $("#pwOut").innerHTML = '<div class="secret">' + esc(t("passwordShown")) + "<br>" + copyable(r.password) + "</div>"; });
+  if (m.twoStep) {
+    c.insertAdjacentHTML("beforeend", '<div class="section" style="margin-top:18px"><h3>' + esc(t("twoStep")) + '</h3><p class="muted">' + esc(t("twoStepResetHint")) + '</p><button class="btn" id="reset2fa">' + esc(t("twoStepReset")) + "</button></div>");
+    $("#reset2fa").onclick = guard(async () => { if (!confirm(t("twoStepResetConfirm"))) return; await api("POST", "/mailboxes/" + m.id + "/2fa/reset", {}); m.twoStep = false; tabPassword(c, m, foot); toast(t("saved")); });
+  }
 }
 function tabForward(c, m, foot) {
   c.innerHTML = '<div class="field"><label>' + esc(t("forwardTo")) + '</label><input id="fwd" type="email" value="' + esc(m.forwardTo || "") + '"></div><p class="muted">' + esc(t("noForward")) + "</p>" +

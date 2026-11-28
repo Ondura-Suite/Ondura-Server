@@ -425,6 +425,8 @@ pub struct Exception {
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Event {
+    /// Empty for a new event; the server assigns one.
+    #[serde(default)]
     pub uid: String,
     #[serde(default)]
     pub subject: String,
@@ -842,6 +844,27 @@ pub struct Task {
     pub reminder: Option<i64>,
     pub categories: Vec<String>,
     pub recurrence: Option<Recurrence>,
+    /// A checklist of smaller steps.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub steps: Vec<TaskStep>,
+    /// On the assigner's task: the account it is assigned to, and the id of
+    /// the copy in that account's task list.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assigned_to: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assigned_copy: Option<i64>,
+    /// On the assignee's copy: who assigned it, and the id of the original.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assigned_by: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub assigned_origin: Option<i64>,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default)]
+pub struct TaskStep {
+    pub text: String,
+    pub done: bool,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

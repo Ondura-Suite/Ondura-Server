@@ -192,6 +192,9 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
             return security_headers(drive_api::download_version(&app, &user, query));
         }
     }
+    if method == Method::GET && api == "/contacts/export.vcf" {
+        return security_headers(contacts_api::export(&app, &user));
+    }
     if method == Method::GET && api == "/calendar/export.ics" {
         return security_headers(calendar_api::export(&app, &user, query));
     }
@@ -253,6 +256,11 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/cloud/review") => drive_api::review(app, user, body),
         (&Method::GET, "/activity") => activity_list(app, user),
         (&Method::POST, "/activity/read") => activity_read(app, user, body),
+        (&Method::GET, "/calendar/rooms") => calendar_api::rooms(app, user, query),
+        (&Method::GET, "/security/2fa") => settings_api::two_step_status(app, user),
+        (&Method::POST, "/security/2fa/begin") => settings_api::two_step_begin(app, user, body),
+        (&Method::POST, "/security/2fa/enable") => settings_api::two_step_enable(app, user, body),
+        (&Method::POST, "/security/2fa/disable") => settings_api::two_step_disable(app, user, body),
         (&Method::GET, "/me") => me(app, user),
         (&Method::GET, "/messages") => mail_api::messages(app, user, query),
         (&Method::GET, "/calendar") => calendar_api::list(app, user, query),
@@ -282,6 +290,10 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/event/respond") => calendar_api::respond(app, user, body).await,
         (&Method::POST, "/contact") => contacts_api::save(app, user, body),
         (&Method::POST, "/contact/delete") => contacts_api::delete(app, user, body),
+        (&Method::POST, "/contacts/import") => contacts_api::import(app, user, body),
+        (&Method::GET, "/contact-groups") => contacts_api::groups(app, user),
+        (&Method::POST, "/contact-group") => contacts_api::save_group(app, user, body),
+        (&Method::POST, "/contact-group/delete") => contacts_api::delete_group(app, user, body),
         (&Method::GET, "/tasks") => pim_api::tasks(app, user),
         (&Method::POST, "/task") => pim_api::save_task(app, user, body),
         (&Method::POST, "/task/delete") => pim_api::delete_task(app, user, body),
@@ -305,6 +317,30 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
 struct LoginBody {
     email: String,
     password: String,
+    /// The code from an authenticator app (or a recovery code), for accounts
+    /// with two-step sign-in.
+    #[serde(default)]
+    code: Option<String>,
+}
+
+/// The second step of a browser sign-in. `None` lets the sign-in continue;
+/// otherwise the response to send: `401` with `"mfa": true` asks the page for
+/// a code (none given, or a wrong one), `429` after too many wrong codes.
+pub(crate) fn second_step(app: &Shared, user: &User, code: Option<&str>) -> Option<Response> {
+    let ask = |msg: &str| Some((StatusCode::UNAUTHORIZED, axum::Json(json!({ "error": msg, "mfa": true }))).into_response());
+    match app.store.totp_enabled(user.id) {
+        Ok(false) => None,
+        Err(e) => Some(json_response(Err(internal(e)))),
+        Ok(true) => match code.map(str::trim).filter(|c| !c.is_empty()) {
+            None => ask("Enter the code from your authenticator app."),
+            Some(c) => match app.store.totp_check(user.id, c) {
+                Ok(crate::totp::CodeCheck::Ok) => None,
+                Ok(crate::totp::CodeCheck::Wrong) => ask("The code is not correct."),
+                Ok(crate::totp::CodeCheck::Locked) => Some(json_response(Err((StatusCode::TOO_MANY_REQUESTS, "Too many wrong codes. Try again later.".into())))),
+                Err(e) => Some(json_response(Err(internal(e)))),
+            },
+        },
+    }
 }
 
 async fn login(app: &Shared, body: &Bytes, ip: IpAddr, headers: &HeaderMap) -> Response {
@@ -318,6 +354,9 @@ async fn login(app: &Shared, body: &Bytes, ip: IpAddr, headers: &HeaderMap) -> R
     };
     if user.kind != "user" || !user.enabled {
         return json_response(Err((StatusCode::FORBIDDEN, "This mailbox cannot be used for webmail sign-in.".into())));
+    }
+    if let Some(r) = second_step(app, &user, req.code.as_deref()) {
+        return r;
     }
     let token = match app.store.create_session(user.id, SESSION_LIFETIME) {
         Ok(t) => t,
@@ -337,7 +376,6 @@ async fn login(app: &Shared, body: &Bytes, ip: IpAddr, headers: &HeaderMap) -> R
     r
 }
 
-/// Identity plus the folder tree with unread counts.
 /// GET /activity — the account's newest notices and how many are unread.
 fn activity_list(app: &Shared, user: &User) -> ApiResult {
     let items = app.store.activities(user.id, 50).map_err(internal)?;
@@ -356,6 +394,7 @@ fn activity_read(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     Ok(serde_json::json!({ "ok": true }))
 }
 
+/// Identity plus the folder tree with unread counts.
 fn me(app: &Shared, user: &User) -> ApiResult {
     let folders = app.store.folders(user.id).map_err(internal)?;
     let mut list = Vec::new();

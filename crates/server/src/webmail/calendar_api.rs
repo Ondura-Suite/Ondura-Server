@@ -549,3 +549,25 @@ pub async fn respond(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     crate::calendar::respond(app, user, r.id, response, r.occurrence, r.send, &r.comment).await.map_err(internal)?;
     Ok(json!({ "ok": true }))
 }
+
+/// GET /calendar/rooms?from=&to=[&uid=] — the room accounts, each with
+/// whether it is free in `[from, to)`. A meeting being edited (`uid`) doesn't
+/// count against the room it already holds.
+pub fn rooms(app: &Shared, _user: &User, query: &str) -> ApiResult {
+    let param = |k: &str| query.split('&').filter_map(|p| p.split_once('=')).find(|(x, _)| *x == k).map(|(_, v)| super::mail_api::decode(v));
+    let from: i64 = param("from").and_then(|v| v.parse().ok()).ok_or_else(|| bad("from required"))?;
+    let to: i64 = param("to").and_then(|v| v.parse().ok()).ok_or_else(|| bad("to required"))?;
+    if to <= from || to - from > 62 * 86_400 {
+        return Err(bad("invalid range"));
+    }
+    let uid = param("uid").unwrap_or_default();
+    let mut rooms: Vec<_> = app.store.users().map_err(internal)?.into_iter().filter(|u| u.kind == "room" && u.enabled).collect();
+    rooms.sort_by_key(|u| u.name.to_lowercase());
+    let mut out = Vec::new();
+    for r in rooms {
+        let busy = crate::calendar::busy_times(app, r.id, from, to).map_err(internal)?;
+        let taken = busy.iter().any(|b| uid.is_empty() || app.store.item(b.item_id).ok().flatten().and_then(|i| i.event()).is_none_or(|e| e.uid != uid));
+        out.push(json!({ "email": r.email, "name": if r.name.is_empty() { r.email.clone() } else { r.name.clone() }, "free": !taken }));
+    }
+    Ok(json!({ "rooms": out }))
+}

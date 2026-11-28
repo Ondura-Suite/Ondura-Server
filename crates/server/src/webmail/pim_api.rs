@@ -12,7 +12,7 @@ use crate::store::User;
 // ----------------------------------------------------------------- tasks
 
 fn task_json(id: i64, folder: i64, tk: &Task) -> Value {
-    json!({ "id": id, "folder": folder, "subject": tk.subject, "body": tk.body, "due": tk.due, "complete": tk.complete, "percentComplete": tk.percent_complete, "task": tk })
+    json!({ "id": id, "folder": folder, "subject": tk.subject, "body": tk.body, "due": tk.due, "complete": tk.complete, "percentComplete": tk.percent_complete, "reminder": tk.reminder, "importance": tk.importance, "task": tk })
 }
 
 pub fn tasks(app: &Shared, user: &User) -> ApiResult {
@@ -37,22 +37,187 @@ pub fn save_task(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         task: Task,
     }
     let b: B = parse(body)?;
-    let data = serde_json::to_string(&b.task).map_err(|e| internal(e.into()))?;
-    if let Some(id) = b.id {
-        let item = own_item(app, user, id)?;
-        if item.kind != ItemKind::Task {
-            return Err(bad("not a task"));
+    let mut task = b.task;
+    let prev = match b.id {
+        Some(id) => {
+            let item = own_item(app, user, id)?;
+            if item.kind != ItemKind::Task {
+                return Err(bad("not a task"));
+            }
+            Some((item.id, item.task().unwrap_or_default()))
         }
-        app.store.update_pim(item.id, &data, WRITER).map_err(internal)?;
-        return Ok(json!({ "ok": true, "id": item.id }));
+        None => None,
+    };
+    // Fields the server keeps track of can't be set from outside.
+    let old = prev.as_ref().map(|(_, t)| t.clone()).unwrap_or_default();
+    task.assigned_copy = old.assigned_copy;
+    task.assigned_by = old.assigned_by.clone();
+    task.assigned_origin = old.assigned_origin;
+    if task.assigned_by.is_some() {
+        // An assigned copy keeps its assigner and can't be passed on.
+        task.assigned_to = None;
     }
-    let folder = app.store.folder_by_role(user.id, "tasks").map_err(internal)?.ok_or_else(not_found)?;
-    let uid = uuid::Uuid::new_v4().simple().to_string();
-    let id = app.store.insert_pim(user.id, folder.id, ItemKind::Task, &data, Some(&uid), WRITER).map_err(internal)?;
+    task.assigned_to = task.assigned_to.map(|e| e.trim().to_ascii_lowercase()).filter(|e| !e.is_empty());
+    let completed_now = task.complete && !old.complete;
+    if completed_now {
+        task.completed_at = Some(crate::store::now());
+        task.percent_complete = 100;
+    } else if !task.complete {
+        task.completed_at = None;
+    }
+    // Completing a repeating task finishes this one and starts the next.
+    let next = if completed_now { next_occurrence(&task) } else { None };
+    if next.is_some() {
+        task.recurrence = None;
+    }
+    let assignee = match task.assigned_to.as_deref() {
+        Some(e) if task.assigned_by.is_none() => {
+            let u = app.store.resolve_address(e).map_err(internal)?.and_then(|(uid, _)| app.store.user(uid).ok().flatten()).filter(|u| u.enabled && u.kind == "user");
+            let Some(u) = u else { return Err(bad("No account with that address on this server.")) };
+            (u.id != user.id).then_some(u)
+        }
+        _ => None,
+    };
+    if assignee.is_none() {
+        task.assigned_to = None;
+    }
+
+    let id = match prev {
+        Some((id, _)) => {
+            write_task(app, id, &task)?;
+            id
+        }
+        None => {
+            let folder = app.store.folder_by_role(user.id, "tasks").map_err(internal)?.ok_or_else(not_found)?;
+            let uid = uuid::Uuid::new_v4().simple().to_string();
+            let data = serde_json::to_string(&task).map_err(|e| internal(e.into()))?;
+            app.store.insert_pim(user.id, folder.id, ItemKind::Task, &data, Some(&uid), WRITER).map_err(internal)?
+        }
+    };
+    let actor = crate::activity::display_name(user);
+
+    // Assignment: keep a copy in the assignee's task list in step.
+    if task.assigned_by.is_none() {
+        let copy = task.assigned_copy.and_then(|c| app.store.item(c).ok().flatten()).filter(|i| i.kind == ItemKind::Task);
+        match (&assignee, copy) {
+            // Same person: refresh their copy, keeping their progress.
+            (Some(a), Some(item)) if item.user_id == a.id => {
+                if let Some(mut c) = item.task() {
+                    sync_copy(&mut c, &task);
+                    write_task(app, item.id, &c)?;
+                }
+            }
+            (_, copy) => {
+                if let Some(item) = copy {
+                    let _ = app.store.delete_item(item.id, WRITER);
+                }
+                let had = task.assigned_copy.take().is_some();
+                if let Some(a) = &assignee {
+                    let folder = app.store.folder_by_role(a.id, "tasks").map_err(internal)?.ok_or_else(|| bad("That account has no task list."))?;
+                    let mut c = Task { assigned_by: Some(user.email.clone()), assigned_origin: Some(id), ..Default::default() };
+                    sync_copy(&mut c, &task);
+                    let uid = uuid::Uuid::new_v4().simple().to_string();
+                    let data = serde_json::to_string(&c).map_err(|e| internal(e.into()))?;
+                    task.assigned_copy = Some(app.store.insert_pim(a.id, folder.id, ItemKind::Task, &data, Some(&uid), WRITER).map_err(internal)?);
+                    let _ = app.store.add_activity(a.id, (user.id, &actor), "task_assigned", &task.subject, "", "/tasks");
+                }
+                if had || task.assigned_copy.is_some() {
+                    write_task(app, id, &task)?;
+                }
+            }
+        }
+    }
+    // Progress on an assigned copy flows back to the assigner.
+    if let Some(origin) = task.assigned_origin
+        && let Some(item) = app.store.item(origin).map_err(internal)?.filter(|i| i.kind == ItemKind::Task)
+        && let Some(mut orig) = item.task()
+        && orig.assigned_copy == Some(id)
+        && (orig.complete != task.complete || orig.percent_complete != task.percent_complete || orig.steps != task.steps)
+    {
+        orig.complete = task.complete;
+        orig.percent_complete = task.percent_complete;
+        orig.completed_at = task.completed_at;
+        orig.steps = task.steps.clone();
+        write_task(app, origin, &orig)?;
+        if completed_now {
+            let _ = app.store.add_activity(item.user_id, (user.id, &actor), "task_completed", &task.subject, "", "/tasks");
+        }
+    }
+    if let Some(n) = next {
+        let folder = app.store.folder_by_role(user.id, "tasks").map_err(internal)?.ok_or_else(not_found)?;
+        let uid = uuid::Uuid::new_v4().simple().to_string();
+        let data = serde_json::to_string(&n).map_err(|e| internal(e.into()))?;
+        app.store.insert_pim(user.id, folder.id, ItemKind::Task, &data, Some(&uid), WRITER).map_err(internal)?;
+    }
     Ok(json!({ "ok": true, "id": id }))
 }
 
+fn write_task(app: &Shared, id: i64, task: &Task) -> Result<(), (axum::http::StatusCode, String)> {
+    let data = serde_json::to_string(task).map_err(|e| internal(e.into()))?;
+    app.store.update_pim(id, &data, WRITER).map_err(internal)
+}
+
+/// Copy what the assigner decides (what, when, how important) onto the
+/// assignee's copy; progress stays the assignee's.
+fn sync_copy(copy: &mut Task, from: &Task) {
+    copy.subject = from.subject.clone();
+    copy.body = from.body.clone();
+    copy.start = from.start;
+    copy.due = from.due;
+    copy.importance = from.importance;
+    if copy.steps.len() != from.steps.len() {
+        copy.steps = from.steps.clone();
+    } else {
+        for (c, f) in copy.steps.iter_mut().zip(&from.steps) {
+            c.text = f.text.clone();
+        }
+    }
+}
+
+/// The next task of a repeating series, or `None` once it has ended. Its due
+/// date (and start and reminder) move by the same amount.
+fn next_occurrence(t: &Task) -> Option<Task> {
+    let r = t.recurrence.clone()?;
+    let due = t.due?;
+    if r.count.is_some_and(|c| c <= 1) {
+        return None;
+    }
+    // Due dates are the local midnight of the person's day. Twelve hours later
+    // is still that day in UTC for any time zone, so the pattern (weekday,
+    // day of month) is evaluated on the right date.
+    let anchor = due + 12 * 3600;
+    let ev = crate::model::Event { start: anchor, end: anchor, tz: "UTC".into(), recurrence: Some(r.clone()), ..Default::default() };
+    let next = ev.occurrences(anchor + 1, anchor + 5 * 366 * 86_400).into_iter().map(|o| o.start).find(|s| *s > anchor)?;
+    let shift = next - anchor;
+    let mut n = t.clone();
+    n.due = Some(due + shift);
+    n.start = t.start.map(|s| s + shift);
+    n.reminder = t.reminder.map(|s| s + shift);
+    n.complete = false;
+    n.completed_at = None;
+    n.percent_complete = 0;
+    n.steps.iter_mut().for_each(|s| s.done = false);
+    n.assigned_copy = None;
+    n.assigned_to = None;
+    let mut r = r;
+    r.count = r.count.map(|c| c - 1);
+    n.recurrence = Some(r);
+    Some(n)
+}
+
 pub fn delete_task(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    // Deleting an assigned task removes the assignee's copy too.
+    #[derive(Deserialize)]
+    struct D {
+        id: i64,
+    }
+    if let Ok(d) = serde_json::from_slice::<D>(body)
+        && let Ok(item) = own_item(app, user, d.id)
+        && let Some(cid) = item.task().and_then(|t| t.assigned_copy)
+        && app.store.item(cid).ok().flatten().is_some_and(|c| c.kind == ItemKind::Task)
+    {
+        let _ = app.store.delete_item(cid, WRITER);
+    }
     delete_pim(app, user, body)
 }
 

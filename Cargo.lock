@@ -1657,6 +1657,7 @@ dependencies = [
  "quick-xml",
  "rand 0.10.4",
  "rcgen",
+ "ring",
  "rusqlite",
  "rustls",
  "rustls-pemfile",

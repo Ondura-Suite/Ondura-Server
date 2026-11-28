@@ -97,6 +97,11 @@ be moved, renamed or deleted on its own, and the rest of the series stays as it
 is. Accept, decline or tentatively answer meeting invitations, for one occurrence
 or the whole series.
 
+**Rooms** — room accounts (`--kind room`) show up in the event editor's
+**Room** list, each marked free or booked for the chosen time. Picking one adds
+it to the attendees and fills in the location; when the invitation goes out,
+the room accepts it if it is free and declines it otherwise.
+
 **Shared calendars** — **Share calendar** in the calendar's left navigation lets
 other accounts on the server see when you are busy, see all details, or edit
 your calendar. Calendars shared with you (and those of mailboxes you have full
@@ -123,6 +128,15 @@ person's calendar shared with you for reading can be exported with
 unless you may edit it.
 
 **Contacts** — list, create, edit and delete contacts with the common fields.
+The **⋯** menu imports a vCard file (`.vcf`, versions 2.1 to 4.0, several
+contacts per file; cards whose address is already in the address book are
+skipped) and exports all contacts as one vCard file. **Groups** are named lists
+of addresses: typing a group's name in To, Cc or Bcc offers it, and picking it
+adds every member; a group's page also starts a new message to all of them.
+Endpoints: `GET /mail/api/contacts/export.vcf`, `POST /mail/api/contacts/import`
+(`{ "vcf": "…" }`), `GET /mail/api/contact-groups`, `POST
+/mail/api/contact-group` (`{ "id"?, "name", "members": [{ "name", "email" }] }`),
+`POST /mail/api/contact-group/delete`.
 
 **Documents** — collaborative documents are created and opened from Files (see
 `collab.md`). The editor has a formatting toolbar (headings, bold, italic,
@@ -135,17 +149,26 @@ its own address (`/files#doc=<id>`), which mention e-mails link to.
 **Notifications** — the bell in the top bar collects notices about what other
 people did that concerns you: a mention in a document comment, a document,
 folder, library or calendar shared with you, a file submitted for your approval
-and the decision on a file you submitted. Unread notices are counted on the
+and the decision on a file you submitted, a task assigned to you and the
+completion of a task you assigned. Unread notices are counted on the
 bell; clicking one opens what it is about. The newest 200 per account are kept.
 The list is `GET /mail/api/activity` (`items`, `unread`); `POST
 /mail/api/activity/read` with `{ "id": N }` marks one as read, with `{}` all.
 
-**Tasks and notes** — keep a task list (with due dates and completion) and
-simple notes.
+**Tasks and notes** — keep a task list and simple notes. A task has a due
+date, an importance, a reminder (announced like event reminders while the web
+app is open), a list of steps to tick off, and can repeat daily, on weekdays,
+weekly, monthly or yearly: completing a repeating task starts the next one with
+the next due date. A task can be **assigned** to another account on the server:
+it appears in their task list (marked with who assigned it), changes to title,
+due date and steps follow it there, and their progress and completion show on
+the original; both sides get a notice. Deleting the original removes the copy.
 
 **Settings** (gear icon) — change your display name and signature, set an
 out-of-office auto-reply (with separate texts for internal and external
-senders), and change your password.
+senders), change your password, and turn on two-step sign-in with an
+authenticator app (see `admin.md`). With it on, the sign-in page asks for the
+code after the password.
 
 **Multiple addresses** — a mailbox can have several e-mail addresses
 (aliases); mail to any of them arrives in the one inbox. An administrator

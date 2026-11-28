@@ -128,6 +128,8 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
 struct LoginBody {
     email: String,
     password: String,
+    #[serde(default)]
+    code: Option<String>,
 }
 
 async fn login(app: &Shared, body: &Bytes, ip: IpAddr, headers: &HeaderMap) -> Response {
@@ -141,6 +143,9 @@ async fn login(app: &Shared, body: &Bytes, ip: IpAddr, headers: &HeaderMap) -> R
     };
     if !user.is_admin {
         return json_response(Err((StatusCode::FORBIDDEN, "This account has no administrator rights.".into())));
+    }
+    if let Some(r) = crate::webmail::second_step(app, &user, req.code.as_deref()) {
+        return security_headers(r);
     }
     let token = match app.store.create_session(user.id, SESSION_LIFETIME) {
         Ok(t) => t,
@@ -167,6 +172,7 @@ fn user_json(app: &Shared, u: &User, stats: Option<(i64, i64)>) -> Value {
     json!({
         "id": u.id, "email": u.email, "name": u.name, "kind": u.kind, "isAdmin": u.is_admin, "enabled": u.enabled,
         "mailbox": u.mailbox,
+        "twoStep": app.store.totp_enabled(u.id).unwrap_or(false),
         "quota": u.quota, "items": items, "used": bytes, "created": u.created,
         "aliases": app.store.aliases_of(u.id).unwrap_or_default(),
     })
@@ -393,6 +399,14 @@ async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &By
             audit("mailbox.password", &u.email);
             Ok(if generated { json!({ "password": password }) } else { json!({}) })
         }
+        ("POST", ["mailboxes", id, "2fa", "reset"]) => {
+            // For a lost phone: turns two-step sign-in off so the person can
+            // sign in with the password and set it up again.
+            let u = find_user(app, id)?;
+            store.totp_disable(u.id).map_err(internal)?;
+            audit("mailbox.2fa.reset", &u.email);
+            Ok(json!({}))
+        }
         ("DELETE", ["mailboxes", id]) => {
             let u = find_user(app, id)?;
             if u.id == admin.id {
@@ -600,6 +614,32 @@ mod tests {
         let cookie = resp.headers().get("set-cookie").map(|c| c.to_str().unwrap().split(';').next().unwrap().to_string());
         let bytes = axum::body::to_bytes(resp.into_body(), usize::MAX).await.unwrap();
         (status, serde_json::from_slice(&bytes).unwrap_or(Value::Null), cookie)
+    }
+
+    #[tokio::test]
+    async fn admin_sign_in_needs_the_code_and_admins_can_reset_it() {
+        let (app, user) = crate::app::App::test();
+        app.store.update_user(user.id, None, None, Some(true), None).unwrap();
+        let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+        let secret = app.store.totp_begin(user.id).unwrap();
+        let key = crate::totp::base32_decode(&secret).unwrap();
+        let step = crate::store::now() / 30;
+        app.store.totp_enable(user.id, &format!("{:06}", crate::totp::code_at(&key, step))).unwrap();
+        let (s, v, _) = req(&app, "POST", "/admin/api/login", None, json!({ "email": "niklas@example.com", "password": "secret" })).await;
+        assert_eq!((s, v["mfa"].clone()), (StatusCode::UNAUTHORIZED, json!(true)));
+        let code = format!("{:06}", crate::totp::code_at(&key, step + 1));
+        let (s, _, cookie) = req(&app, "POST", "/admin/api/login", None, json!({ "email": "niklas@example.com", "password": "secret", "code": code })).await;
+        assert_eq!(s, StatusCode::OK);
+        let c = cookie.unwrap();
+        // Another account's two-step sign-in is shown and can be reset.
+        let s2 = app.store.totp_begin(anna.id).unwrap();
+        let k2 = crate::totp::base32_decode(&s2).unwrap();
+        app.store.totp_enable(anna.id, &format!("{:06}", crate::totp::code_at(&k2, step))).unwrap();
+        let (_, v, _) = req(&app, "GET", &format!("/admin/api/mailboxes/{}", anna.id), Some(&c), json!(null)).await;
+        assert_eq!(v["twoStep"], true);
+        let (s, _, _) = req(&app, "POST", &format!("/admin/api/mailboxes/{}/2fa/reset", anna.id), Some(&c), json!({})).await;
+        assert_eq!(s, StatusCode::OK);
+        assert!(!app.store.totp_enabled(anna.id).unwrap());
     }
 
     #[tokio::test]

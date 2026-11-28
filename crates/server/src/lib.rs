@@ -12,6 +12,7 @@ pub mod calendar;
 pub mod cloud;
 pub mod library;
 pub mod config;
+pub mod contacts;
 pub mod db;
 pub mod directory;
 pub mod dns;
@@ -26,6 +27,7 @@ pub(crate) fn serde_true() -> bool {
 pub mod ical;
 pub mod imap;
 pub mod mime;
+pub mod qr;
 pub mod model;
 pub mod netlimit;
 pub mod nextcloud;
@@ -33,6 +35,7 @@ pub mod setup;
 pub mod smtp;
 pub mod store;
 pub mod tls;
+pub mod totp;
 pub mod tzinfo;
 pub mod webmail;
 pub mod xml;
@@ -75,7 +78,7 @@ enum Command {
         #[command(subcommand)]
         cmd: DomainCmd,
     },
-    /// Manage mailboxes.
+    /// Manage accounts and mailboxes.
     User {
         #[command(subcommand)]
         cmd: UserCmd,
@@ -175,6 +178,9 @@ enum UserCmd {
         #[arg(value_parser = ["on", "off"])]
         state: String,
     },
+    /// Turn off two-step sign-in for an account (lost phone); the person can
+    /// then sign in with the password and set it up again.
+    TwoStepReset { email: String },
     Delete { email: String },
     List,
 }
@@ -449,6 +455,11 @@ fn run_command(cfg: &Config, command: Command) -> Result<()> {
                     let u = find(&email)?;
                     s.set_mailbox(u.id, state == "on")?;
                     println!("Mailbox for {} turned {}.", u.email, state);
+                }
+                UserCmd::TwoStepReset { email } => {
+                    let u = find(&email)?;
+                    s.totp_disable(u.id)?;
+                    println!("Two-step sign-in turned off for {}.", u.email);
                 }
                 UserCmd::Delete { email } => {
                     let u = find(&email)?;

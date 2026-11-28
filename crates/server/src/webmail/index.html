@@ -184,6 +184,8 @@ label.calrow { cursor: pointer; }
 .msg .msgchk { opacity: 0; transition: opacity .1s; }
 .msg:hover .msgchk, .msg.sel .msgchk { opacity: 1; }
 #ctxMenu .navitem { padding: 7px 10px; }
+#st2fa svg { width: 100%; height: 100%; display: block; }
+.clabel { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); padding: 10px 14px 4px; }
 .bellcount { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 10px; font-weight: 600; line-height: 16px; text-align: center; }
 .actitem { display: flex; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; align-items: flex-start; }
 .actitem:hover { background: var(--hover, rgba(127,127,127,.12)); }
@@ -411,6 +413,7 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
     <p class="sub" data-t="signInSub">Sign in to your mailbox</p>
     <div class="field"><label data-t="email">E-mail</label><input id="le" type="email" autocomplete="username" required></div>
     <div class="field"><label data-t="password">Password</label><input id="lp" type="password" autocomplete="current-password" required></div>
+    <div class="field hidden" id="lcWrap"><label data-t="signInCode">Code from your authenticator app</label><input id="lc" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"><div style="font-size:12px;color:var(--muted);margin-top:4px" data-t="signInCodeHint">Or one of your recovery codes.</div></div>
     <div class="error" id="loginError"></div>
     <button class="btn primary" style="width:100%;justify-content:center" type="submit" data-t="signIn">Sign in</button>
     <div style="text-align:center;margin-top:14px"><a href="#" id="langToggle" style="font-size:12.5px"></a></div>
@@ -444,6 +447,17 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 <script>
 const T = {
   en: {
+    editGroup: "Edit",
+    room: "Room", noRoom: "No room", roomFree: "free", roomBusy: "booked",
+    importance: "Importance", impLow: "Low", impNormal: "Normal", impHigh: "High", steps: "Steps", addStep: "Add a step", assignTo: "Assign to", assignHint: "E-mail address of a person on this server", assignedBy: "Assigned by",
+    repeatNeedsDue: "A repeating task needs a due date.", act_task_assigned: "{a} assigned you the task “{s}”", act_task_completed: "{a} completed the task “{s}”",
+    more: "More", newGroup: "New group", contactGroups: "Groups", groupMembers: "{n} members", groupName: "Group name", groupMembersLabel: "Members", groupMembersHint: "One per line: an address, or Name <address>. Typing the group's name as a recipient adds all members.", addFromContacts: "Add from contacts",
+    importVcf: "Import vCard file", exportVcf: "Export as vCard (.vcf)", contactsImported: "{n} added, {m} already there",
+    signInCode: "Code from your authenticator app", signInCodeHint: "Or one of your recovery codes.", twoStep: "Two-step sign-in",
+    twoStepHint: "Signing in to the web app and the Admin Center then also needs a code from an authenticator app on your phone. Mail apps keep using your password or an app password.",
+    twoStepSetup: "Set up", twoStepOn: "Two-step sign-in is on.", recoveryLeft: "{n} recovery codes left.", twoStepOff: "Turn off",
+    twoStepScan: "Scan the QR code with your authenticator app (or enter the key), then enter the code it shows.", twoStepKey: "Key", twoStepOpenApp: "Open in an authenticator app on this device",
+    twoStepConfirm: "Turn on", twoStepDone: "Two-step sign-in is on. Keep these recovery codes somewhere safe; each works once if your phone is not at hand:", twoStepSaved: "I've saved them",
     calDay: "Day", calWeek: "Week", calMonth: "Month",
     sortBy: "Sort:", sortName: "Name", sortModified: "Modified", sortSize: "Size", filterAllItems: "All items",
     librarySettings: "Settings", requireApproval: "Require approval", requireApprovalHint: "New and changed files from editors wait until an owner approves them; until then, people with view access don't see them.",
@@ -482,6 +496,17 @@ const T = {
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
   de: {
+    editGroup: "Bearbeiten",
+    room: "Raum", noRoom: "Kein Raum", roomFree: "frei", roomBusy: "belegt",
+    importance: "Wichtigkeit", impLow: "Niedrig", impNormal: "Normal", impHigh: "Hoch", steps: "Schritte", addStep: "Schritt hinzufügen", assignTo: "Zuweisen an", assignHint: "E-Mail-Adresse einer Person auf diesem Server", assignedBy: "Zugewiesen von",
+    repeatNeedsDue: "Eine wiederkehrende Aufgabe braucht ein Fälligkeitsdatum.", act_task_assigned: "{a} hat dir die Aufgabe „{s}“ zugewiesen", act_task_completed: "{a} hat die Aufgabe „{s}“ erledigt",
+    more: "Mehr", newGroup: "Neue Gruppe", contactGroups: "Gruppen", groupMembers: "{n} Mitglieder", groupName: "Gruppenname", groupMembersLabel: "Mitglieder", groupMembersHint: "Eine pro Zeile: eine Adresse oder Name <Adresse>. Wer den Gruppennamen als Empfänger eingibt, fügt alle Mitglieder ein.", addFromContacts: "Aus Kontakten hinzufügen",
+    importVcf: "vCard-Datei importieren", exportVcf: "Als vCard exportieren (.vcf)", contactsImported: "{n} hinzugefügt, {m} schon vorhanden",
+    signInCode: "Code aus deiner Authenticator-App", signInCodeHint: "Oder einer deiner Wiederherstellungscodes.", twoStep: "Zwei-Faktor-Anmeldung",
+    twoStepHint: "Die Anmeldung an der Web-App und am Admin Center braucht dann zusätzlich einen Code aus einer Authenticator-App auf deinem Handy. Mail-Apps verwenden weiter dein Passwort oder ein App-Passwort.",
+    twoStepSetup: "Einrichten", twoStepOn: "Die Zwei-Faktor-Anmeldung ist aktiv.", recoveryLeft: "Noch {n} Wiederherstellungscodes.", twoStepOff: "Ausschalten",
+    twoStepScan: "Scanne den QR-Code mit deiner Authenticator-App (oder gib den Schlüssel ein) und trage dann den angezeigten Code ein.", twoStepKey: "Schlüssel", twoStepOpenApp: "In einer Authenticator-App auf diesem Gerät öffnen",
+    twoStepConfirm: "Einschalten", twoStepDone: "Die Zwei-Faktor-Anmeldung ist aktiv. Bewahre diese Wiederherstellungscodes sicher auf; jeder funktioniert einmal, falls dein Handy nicht zur Hand ist:", twoStepSaved: "Gespeichert",
     calDay: "Tag", calWeek: "Woche", calMonth: "Monat",
     sortBy: "Sortieren:", sortName: "Name", sortModified: "Geändert", sortSize: "Größe", filterAllItems: "Alle Elemente",
     librarySettings: "Einstellungen", requireApproval: "Freigabe erforderlich", requireApprovalHint: "Neue und geänderte Dateien von Bearbeitern warten, bis ein Besitzer sie freigibt; bis dahin sehen Personen mit Lesezugriff sie nicht.",
@@ -588,7 +613,7 @@ async function api(method, path, body) {
   });
   let data = null; try { data = await res.json(); } catch (e) { data = null; }
   if (res.status === 401 && path !== "/login") { showLogin(); throw new Error("unauthorized"); }
-  if (!res.ok) throw new Error((data && data.error) || res.statusText);
+  if (!res.ok) { const err = new Error((data && data.error) || res.statusText); err.data = data; throw err; }
   return data;
 }
 const guard = (fn) => async (...a) => { try { await fn(...a); } catch (e) { if (e.message !== "unauthorized") toast(e.message, true); } };
@@ -635,8 +660,19 @@ function showLogin() { $("#app").classList.add("hidden"); $("#login").classList.
 
 $("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("#loginError").textContent = "";
-  try { await api("POST", "/login", { email: $("#le").value, password: $("#lp").value }); $("#lp").value = ""; start(); }
-  catch (err) { $("#loginError").textContent = err.message; }
+  const code = $("#lc").value.trim();
+  try {
+    await api("POST", "/login", { email: $("#le").value, password: $("#lp").value, code: code || undefined });
+    $("#lp").value = ""; $("#lc").value = ""; $("#lcWrap").classList.add("hidden"); start();
+  } catch (err) {
+    // Two-step sign-in: the password was right, now the code is needed.
+    if (err.data && err.data.mfa) {
+      const first = $("#lcWrap").classList.contains("hidden");
+      $("#lcWrap").classList.remove("hidden"); $("#lc").value = ""; $("#lc").focus();
+      if (first) return;
+    }
+    $("#loginError").textContent = err.message;
+  }
 });
 function setLang(l) { lang = l; try { localStorage.setItem("ondura-mail-lang", l); } catch (e) {} applyTexts(); if (!$("#app").classList.contains("hidden")) render(); }
 $("#langToggle").addEventListener("click", (e) => { e.preventDefault(); setLang(lang === "de" ? "en" : "de"); });
@@ -1594,6 +1630,8 @@ function openCompose(opt) {
     bcc = (opt.msg.bcc || []).map((p) => p.email).join(", ");
     subject = opt.msg.subject || "";
     text = opt.msg.text || "";
+  } else if (opt.to) {
+    to = opt.to;
   }
   if (opt.mode !== "draft" && me && me.signature) { text += `\n\n-- \n${me.signature}`; }
   const addrs = (me && me.addresses) || [];
@@ -1701,6 +1739,8 @@ async function loadContacts() {
     const r = await api("GET", "/contacts");
     (r.contacts || []).forEach((c) => (c.emails || []).forEach((em) => { if (em) recips.push({ name: c.displayName || em, email: em }); }));
   } catch (e) { /* no contacts */ }
+  // Contact groups expand to all their members.
+  try { ((await api("GET", "/contact-groups")).groups || []).forEach((g) => { if (g.members.length) recips.unshift({ name: g.name, email: "", group: g.members }); }); } catch (e) {}
   contactsCache = recips; return recips;
 }
 function attachAutocomplete(input) {
@@ -1711,18 +1751,18 @@ function attachAutocomplete(input) {
   const apply = (m) => {
     const { start } = token();
     const before = input.value.slice(0, start).replace(/\s+$/, "");
-    input.value = (before ? before + " " : "") + m.email + ", ";
+    input.value = (before ? before + " " : "") + (m.group ? m.group.map((x) => x.email).join(", ") : m.email) + ", ";
     close(); input.focus();
   };
   const show = () => {
     const { q } = token();
     if (q.length < 1) { close(); return; }
     const ql = q.toLowerCase();
-    matches = recips.filter((r) => r.email.toLowerCase().includes(ql) || (r.name || "").toLowerCase().includes(ql)).slice(0, 7);
+    matches = recips.filter((r) => (r.email && r.email.toLowerCase().includes(ql)) || (r.name || "").toLowerCase().includes(ql)).slice(0, 7);
     if (!matches.length) { close(); return; }
     if (sel >= matches.length) sel = matches.length - 1;
     if (!drop) { drop = document.createElement("div"); drop.className = "acdrop"; input.parentNode.appendChild(drop); }
-    drop.innerHTML = matches.map((m, i) => `<div class="acitem ${i === sel ? "sel" : ""}" data-i="${i}"><span class="nm">${esc(m.name || m.email)}</span><span class="em">${esc(m.email)}</span></div>`).join("");
+    drop.innerHTML = matches.map((m, i) => `<div class="acitem ${i === sel ? "sel" : ""}" data-i="${i}"><span class="nm">${esc(m.name || m.email)}</span><span class="em">${esc(m.group ? t("groupMembers").replace("{n}", m.group.length) : m.email)}</span></div>`).join("");
     drop.querySelectorAll(".acitem").forEach((el) => el.onmousedown = (e) => { e.preventDefault(); apply(matches[+el.dataset.i]); });
   };
   input.addEventListener("input", () => { sel = -1; show(); });
@@ -1964,7 +2004,8 @@ function eventEditor(ev, full, mode, dayTs, atTs) {
   panel(title,
     `${!ev && writable.length ? `<div class="field"><label>${esc(t("calendar"))}</label><select id="evCal"><option value="">${esc(t("myCalendar"))}</option>${writable.map((c) => `<option value="${c.id}">${esc(c.name || c.email)}</option>`).join("")}</select></div>` : ""}
      <div class="field"><label>${esc(t("title"))}</label><input id="evTitle" ${dis} value="${esc(subject)}"></div>
-     <div class="field"><label>${esc(t("location"))}</label><input id="evLoc" ${dis} value="${esc(location)}"></div>
+     <div class="row2"><div class="field"><label>${esc(t("location"))}</label><input id="evLoc" ${dis} value="${esc(location)}"></div>
+     <div class="field" id="evRoomF" style="display:none"><label>${esc(t("room"))}</label><select id="evRoom"></select></div></div>
      <div class="row2" id="evTimes"><div class="field"><label>${esc(t("start"))}</label><input id="evStart" ${dis} type="datetime-local" value="${toLocalInput(start)}"></div>
        <div class="field"><label>${esc(t("end"))}</label><input id="evEnd" ${dis} type="datetime-local" value="${toLocalInput(end)}"></div></div>
      <div class="row2" id="evDates"><div class="field"><label>${esc(t("start"))}</label><input id="evStartD" ${dis} type="date" value="${toLocalDate(start)}"></div>
@@ -1997,7 +2038,7 @@ function eventEditor(ev, full, mode, dayTs, atTs) {
     if ($("#evAllDay").checked) { const s = fromLocalDate($("#evStartD").value); const last = fromLocalDate($("#evEndD").value || $("#evStartD").value); return [s, addDays(Math.max(s, last), 1), true]; }
     return [fromLocalInput($("#evStart").value), fromLocalInput($("#evEnd").value), false];
   };
-  if (!occ && !isInvite && !readOnly && !foreign) scheduleAssist(times, ev ? ev.id : null);
+  if (!occ && !isInvite && !readOnly && !foreign) { scheduleAssist(times, ev ? ev.id : null); roomPicker(times, e ? e.uid : ""); }
   if ($("#evSave")) $("#evSave").onclick = guard(async () => {
     const [s, en, ad] = times();
     if (en < s) throw new Error(t("endBeforeStart"));
@@ -2016,7 +2057,8 @@ function eventEditor(ev, full, mode, dayTs, atTs) {
       if (r) out.recurrence = r; else delete out.recurrence;
       const toOther = $("#evCal") && $("#evCal").value;
       const emails = $("#evAtt") && !toOther ? $("#evAtt").value.split(/[,;\s]+/).map((x) => x.trim()).filter((x) => x.includes("@")) : attendees.map((a) => a.email);
-      out.attendees = emails.map((em) => attendees.find((a) => a.email.toLowerCase() === em.toLowerCase()) || { email: em, kind: "required", status: "none" });
+      const roomSet = new Set((roomCache || []).map((r) => r.email.toLowerCase()));
+      out.attendees = emails.map((em) => attendees.find((a) => a.email.toLowerCase() === em.toLowerCase()) || { email: em, kind: roomSet.has(em.toLowerCase()) ? "resource" : "required", status: "none" });
       const body = { event: out };
       if (ev) body.id = ev.id;
       if (toOther) body.owner = +toOther;
@@ -2059,6 +2101,39 @@ async function openCalendarShare() {
 
 // Scheduling assistant in the event editor: everyone's busy times on the
 // meeting day as bars, the chosen slot outlined, and a "next free time" search.
+// Room booking: rooms are accounts that accept a meeting when they are free.
+// Picking one adds it to the attendees (as a resource) and fills in the
+// location; the list shows which rooms are free at the chosen time.
+let roomCache = null;
+function roomPicker(times, uid) {
+  const sel = $("#evRoom"); const att = $("#evAtt"); if (!sel || !att) return;
+  const current = () => att.value.split(/[,;\s]+/).map((x) => x.trim().toLowerCase()).filter(Boolean);
+  const refresh = async () => {
+    const [s, en] = times();
+    if (!(en > s)) return;
+    let rooms = [];
+    try { rooms = (await api("GET", `/calendar/rooms?from=${s}&to=${en}` + (uid ? `&uid=${encodeURIComponent(uid)}` : ""))).rooms || []; } catch (e) {}
+    roomCache = rooms;
+    $("#evRoomF").style.display = rooms.length ? "" : "none";
+    const chosen = rooms.find((r) => current().includes(r.email.toLowerCase()));
+    sel.innerHTML = `<option value="">${esc(t("noRoom"))}</option>` + rooms.map((r) => `<option value="${esc(r.email)}" ${chosen && chosen.email === r.email ? "selected" : ""} ${!r.free && !(chosen && chosen.email === r.email) ? "disabled" : ""}>${esc(r.name)} · ${esc(r.free ? t("roomFree") : t("roomBusy"))}</option>`).join("");
+  };
+  sel.onchange = () => {
+    const rooms = roomCache || [];
+    const others = current().filter((em) => !rooms.some((r) => r.email.toLowerCase() === em));
+    const pick = rooms.find((r) => r.email === sel.value);
+    att.value = others.concat(pick ? [pick.email] : []).join(", ");
+    const loc = $("#evLoc");
+    if (pick && (!loc.value || rooms.some((r) => r.name === loc.value))) loc.value = pick.name;
+    if (!pick && rooms.some((r) => r.name === loc.value)) loc.value = "";
+    att.dispatchEvent(new Event("input"));
+  };
+  let timer = null;
+  const later = () => { clearTimeout(timer); timer = setTimeout(refresh, 300); };
+  ["#evStart", "#evEnd", "#evStartD", "#evEndD", "#evAllDay"].forEach((id) => { const el = $(id); if (el) { el.addEventListener("input", later); el.addEventListener("change", later); } });
+  refresh();
+}
+
 function scheduleAssist(times, selfId) {
   const box = $("#evSched"); if (!box) return;
   const H0 = 7, H1 = 20;
@@ -2118,12 +2193,69 @@ function scheduleAssist(times, selfId) {
 // ------------------------------------------------------------ CONTACTS
 let contacts = [], curContact = null;
 async function renderContacts() {
-  $("#view").innerHTML = `<div class="cgrid" style="height:100%;display:grid;grid-template-columns:340px 1fr;min-height:0"><div class="clist"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 14px;display:flex;gap:8px;position:sticky;top:0;background:var(--bg)"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("contacts"))}</h2><button class="btn primary" id="ctNew">${icon("contacts")}</button></div><div id="clist"></div></div><div class="cdetail" id="cdetail"><div class="empty">${esc(t("selectContact"))}</div></div></div>`;
+  $("#view").innerHTML = `<div class="cgrid" style="height:100%;display:grid;grid-template-columns:340px 1fr;min-height:0"><div class="clist"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 14px;display:flex;gap:6px;position:sticky;top:0;background:var(--bg);align-items:center"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("contacts"))}</h2>
+    <button class="iconbtn" id="ctMore" title="${esc(t("more"))}">${icon("dots")}</button><button class="btn" id="ctNewGroup" title="${esc(t("newGroup"))}">${icon("share")}</button><button class="btn primary" id="ctNew" title="${esc(t("newContact"))}">${icon("contacts")}</button></div><div id="clist"></div></div><div class="cdetail" id="cdetail"><div class="empty">${esc(t("selectContact"))}</div></div></div>
+    <input type="file" id="ctImportFile" accept=".vcf,text/vcard,text/x-vcard" style="display:none">`;
   $("#ctNew").onclick = () => openContact();
+  $("#ctNewGroup").onclick = () => openGroup();
+  $("#ctMore").onclick = (ev) => { ev.stopPropagation(); openMenu(ev, [
+    { ic: "outbox", label: t("importVcf"), fn: () => $("#ctImportFile").click() },
+    { ic: "inbox", label: t("exportVcf"), fn: () => { const a = document.createElement("a"); a.href = "/mail/api/contacts/export.vcf"; a.download = "contacts.vcf"; document.body.appendChild(a); a.click(); a.remove(); } },
+  ]); };
+  $("#ctImportFile").onchange = guard(async () => {
+    const f = $("#ctImportFile").files[0]; if (!f) return;
+    const r = await api("POST", "/contacts/import", { vcf: await f.text() });
+    contactsCache = null;
+    toast(t("contactsImported").replace("{n}", r.added).replace("{m}", r.skipped));
+    renderContacts();
+  });
   try { contacts = (await api("GET", "/contacts")).contacts; } catch (e) { contacts = []; }
+  try { contactGroups = (await api("GET", "/contact-groups")).groups || []; } catch (e) { contactGroups = []; }
   const box = $("#clist");
-  box.innerHTML = contacts.length ? contacts.map((c) => `<div class="citem" data-id="${c.id}"><div class="cn">${esc(c.displayName)}</div><div class="ce">${esc((c.emails && c.emails[0]) || c.company || "")}</div></div>`).join("") : `<div class="empty" style="height:auto;padding:40px">${esc(t("noContacts"))}</div>`;
-  box.querySelectorAll(".citem").forEach((e) => e.onclick = () => showContact(+e.dataset.id));
+  const groupRows = contactGroups.map((g) => `<div class="citem" data-gid="${g.id}"><div class="cn" style="display:flex;gap:6px;align-items:center">${icon("share")}${esc(g.name)}</div><div class="ce">${esc(t("groupMembers").replace("{n}", g.members.length))}</div></div>`).join("");
+  box.innerHTML = (groupRows ? `<div class="clabel">${esc(t("contactGroups"))}</div>${groupRows}<div class="clabel">${esc(t("contacts"))}</div>` : "")
+    + (contacts.length ? contacts.map((c) => `<div class="citem" data-id="${c.id}"><div class="cn">${esc(c.displayName)}</div><div class="ce">${esc((c.emails && c.emails[0]) || c.company || "")}</div></div>`).join("") : `<div class="empty" style="height:auto;padding:40px">${esc(t("noContacts"))}</div>`);
+  box.querySelectorAll("[data-id]").forEach((e) => e.onclick = () => showContact(+e.dataset.id));
+  box.querySelectorAll("[data-gid]").forEach((e) => e.onclick = () => showGroup(+e.dataset.gid));
+}
+let contactGroups = [];
+function showGroup(id) {
+  const g = contactGroups.find((x) => x.id === id); if (!g) return;
+  $("#cdetail").innerHTML = `<div style="display:flex;gap:16px;align-items:center"><div class="avatar">${icon("share")}</div><div><h1 style="margin:0;font-size:22px">${esc(g.name)}</h1><div style="color:var(--muted)">${esc(t("groupMembers").replace("{n}", g.members.length))}</div></div><div style="flex:1"></div><button class="btn" id="grMail">${icon("mail")}<span>${esc(t("newMessage"))}</span></button><button class="btn" id="grEdit">${esc(t("editGroup"))}</button></div>
+    <div class="kv">${g.members.map((m) => `<div class="k">${esc(m.name || "")}</div><div>${esc(m.email)}</div>`).join("")}</div>`;
+  $("#grEdit").onclick = () => openGroup(g);
+  $("#grMail").onclick = () => openCompose({ to: g.members.map((m) => m.email).join(", ") });
+}
+// A group's members are edited as lines of "Name <address>" (or just the address).
+function openGroup(g) {
+  const lines = g ? g.members.map((m) => m.name ? `${m.name} <${m.email}>` : m.email).join("\n") : "";
+  panel(g ? g.name : t("newGroup"),
+    `<div class="field"><label>${esc(t("groupName"))}</label><input id="grName" value="${esc(g ? g.name : "")}"></div>
+     <div class="field"><label>${esc(t("groupMembersLabel"))}</label><textarea id="grMembers" style="min-height:180px" placeholder="Anna Becker <anna@example.com>">${esc(lines)}</textarea>
+     <div style="font-size:12px;color:var(--muted);margin-top:4px">${esc(t("groupMembersHint"))}</div></div>
+     <div class="field" style="position:relative"><label>${esc(t("addFromContacts"))}</label><input id="grAdd" placeholder="${esc(t("search"))}"></div>`,
+    `${g ? `<button class="btn danger" id="grDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div><button class="btn primary" id="grSave">${esc(t("save"))}</button>`);
+  // Picking a contact appends it as a line.
+  const add = $("#grAdd");
+  attachAutocomplete(add);
+  add.addEventListener("input", () => {
+    const v = add.value; if (!v.endsWith(", ")) return;
+    const ta = $("#grMembers");
+    v.split(",").map((x) => x.trim()).filter((x) => x.includes("@")).forEach((em) => {
+      const c = (contactsCache || []).find((r) => r.email === em);
+      ta.value = (ta.value.trim() ? ta.value.trim() + "\n" : "") + (c && c.name && c.name !== em ? `${c.name} <${em}>` : em);
+    });
+    add.value = "";
+  });
+  $("#grSave").onclick = guard(async () => {
+    const members = $("#grMembers").value.split("\n").map((l) => l.trim()).filter(Boolean).map((l) => {
+      const m = l.match(/^(.*?)\s*<([^>]+)>$/);
+      return m ? { name: m[1].replace(/^"|"$/g, ""), email: m[2].trim() } : { name: "", email: l.replace(/[,;]$/, "") };
+    });
+    await api("POST", "/contact-group", { id: g ? g.id : undefined, name: $("#grName").value, members });
+    contactsCache = null; closePanel(); toast(t("saved")); renderContacts();
+  });
+  if ($("#grDel")) $("#grDel").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("POST", "/contact-group/delete", { id: g.id }); contactsCache = null; closePanel(); renderContacts(); });
 }
 function showContact(id) {
   const c = contacts.find((x) => x.id === id); if (!c) return;
@@ -2160,10 +2292,22 @@ async function renderTasks() {
   let tasks = [];
   try { tasks = (await api("GET", "/tasks")).tasks; } catch (e) {}
   const box = $("#taskList");
-  box.innerHTML = tasks.length ? tasks.map((tk) => `<div class="taskrow ${tk.complete ? "done" : ""}" data-id="${tk.id}">
+  const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+  box.innerHTML = tasks.length ? tasks.map((tk) => {
+    const x = tk.task || {};
+    const steps = x.steps || [];
+    const meta = [];
+    if (steps.length) meta.push(`${steps.filter((s) => s.done).length}/${steps.length}`);
+    if (x.recurrence) meta.push("↻");
+    if (tk.reminder && !tk.complete) meta.push("⏰");
+    if (x.assigned_to) meta.push(`→ ${x.assigned_to}`);
+    if (x.assigned_by) meta.push(`${t("assignedBy")} ${x.assigned_by}`);
+    const overdue = !tk.complete && tk.due && tk.due < dayStart.getTime() / 1000;
+    return `<div class="taskrow ${tk.complete ? "done" : ""}" data-id="${tk.id}">
     <div class="tck ${tk.complete ? "done" : ""}" data-toggle="${tk.id}">${tk.complete ? icon("check") : ""}</div>
-    <div class="tt" data-edit="${tk.id}">${esc(tk.subject)}</div>
-    ${tk.due ? `<div class="td">${esc(t("due"))}: ${esc(fmtDate(tk.due))}</div>` : ""}</div>`).join("") : `<div class="empty" style="height:auto;padding:40px">${esc(t("noTasks"))}</div>`;
+    <div class="tt" data-edit="${tk.id}">${tk.importance === "high" ? `<b style="color:var(--danger)">!</b> ` : ""}${esc(tk.subject)}${meta.length ? `<div style="font-size:11.5px;color:var(--muted)">${esc(meta.join(" · "))}</div>` : ""}</div>
+    ${tk.due ? `<div class="td" style="${overdue ? "color:var(--danger)" : ""}">${esc(t("due"))}: ${esc(fmtDate(tk.due))}</div>` : ""}</div>`;
+  }).join("") : `<div class="empty" style="height:auto;padding:40px">${esc(t("noTasks"))}</div>`;
   box.querySelectorAll("[data-toggle]").forEach((e) => e.onclick = guard(async () => {
     const tk = tasks.find((x) => x.id == e.dataset.toggle);
     const task = Object.assign({}, tk.task, { complete: !tk.complete, percent_complete: !tk.complete ? 100 : 0 });
@@ -2172,16 +2316,45 @@ async function renderTasks() {
   box.querySelectorAll("[data-edit]").forEach((e) => e.onclick = () => { const tk = tasks.find((x) => x.id == e.dataset.edit); openTask(tk); });
 }
 function openTask(tk) {
-  const task = tk ? tk.task : {};
+  const task = tk ? Object.assign({}, tk.task) : {};
+  const copy = !!task.assigned_by;
+  const ro = copy ? "disabled" : "";
+  let steps = (task.steps || []).map((x) => Object.assign({}, x));
+  const rep = task.recurrence ? recurToUi(task.recurrence, task.due || 0) : "none";
+  const repOpts = [["none", t("repeatNone")], ["daily", t("repeatDaily")], ["weekdays", t("repeatWeekdays")], ["weekly", t("repeatWeekly")], ["monthly", t("repeatMonthly")], ["yearly", t("repeatYearly")]].concat(rep === "custom" ? [["custom", t("repeatCustom")]] : []);
   panel(tk ? t("editTask") : t("newTask"),
-    `<div class="field"><label>${esc(t("title"))}</label><input id="tkSub" value="${esc(task.subject || "")}"></div>
-     <div class="field"><label>${esc(t("due"))}</label><input id="tkDue" type="date" value="${task.due ? toLocalInput(task.due).slice(0, 10) : ""}"></div>
-     <div class="field"><label>${esc(t("content"))}</label><textarea id="tkBody" style="min-height:120px">${esc(task.body || "")}</textarea></div>
+    `${copy ? `<p style="margin:0 0 10px;color:var(--muted)">${esc(t("assignedBy"))} ${esc(task.assigned_by)}</p>` : ""}
+     <div class="field"><label>${esc(t("title"))}</label><input id="tkSub" value="${esc(task.subject || "")}" ${ro}></div>
+     <div class="row2"><div class="field"><label>${esc(t("due"))}</label><input id="tkDue" type="date" value="${task.due ? toLocalInput(task.due).slice(0, 10) : ""}" ${ro}></div>
+     <div class="field"><label>${esc(t("importance"))}</label><select id="tkImp" ${ro}>${[["low", t("impLow")], ["normal", t("impNormal")], ["high", t("impHigh")]].map(([v, l]) => `<option value="${v}" ${(task.importance || "normal") === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div></div>
+     <div class="row2"><div class="field"><label>${esc(t("reminder"))}</label><input id="tkRem" type="datetime-local" value="${task.reminder ? toLocalInput(task.reminder) : ""}"></div>
+     <div class="field"><label>${esc(t("repeat"))}</label><select id="tkRep" ${ro}>${repOpts.map(([v, l]) => `<option value="${v}" ${rep === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></div></div>
+     <div class="field"><label>${esc(t("steps"))}</label><div id="tkSteps"></div><div style="display:flex;gap:6px;margin-top:6px"><input id="tkStepNew" placeholder="${esc(t("addStep"))}" style="flex:1" ${ro}><button class="btn" id="tkStepAdd" ${ro}>${esc(t("add"))}</button></div></div>
+     ${copy ? "" : `<div class="field acfield" style="position:relative"><label>${esc(t("assignTo"))}</label><input id="tkAssign" autocomplete="off" placeholder="${esc(t("assignHint"))}" value="${esc(task.assigned_to || "")}"></div>`}
+     <div class="field"><label>${esc(t("content"))}</label><textarea id="tkBody" style="min-height:100px" ${ro}>${esc(task.body || "")}</textarea></div>
      <div class="field"><label><input type="checkbox" id="tkDone" ${task.complete ? "checked" : ""}> ${esc(t("complete"))}</label></div>`,
-    `${tk ? `<button class="btn danger" id="tkDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div><button class="btn primary" id="tkSave">${esc(t("save"))}</button>`);
+    `${tk && !copy ? `<button class="btn danger" id="tkDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div><button class="btn primary" id="tkSave">${esc(t("save"))}</button>`);
+  const drawSteps = () => {
+    $("#tkSteps").innerHTML = steps.map((x, i) => `<div style="display:flex;gap:8px;align-items:center;padding:3px 0"><input type="checkbox" data-sd="${i}" ${x.done ? "checked" : ""} style="width:auto"><span style="flex:1;${x.done ? "text-decoration:line-through;color:var(--muted)" : ""}">${esc(x.text)}</span>${copy ? "" : `<button class="iconbtn" data-sr="${i}" style="width:24px;height:24px">${icon("trash")}</button>`}</div>`).join("");
+    $("#tkSteps").querySelectorAll("[data-sd]").forEach((c) => c.onchange = () => { steps[+c.dataset.sd].done = c.checked; drawSteps(); });
+    $("#tkSteps").querySelectorAll("[data-sr]").forEach((b) => b.onclick = () => { steps.splice(+b.dataset.sr, 1); drawSteps(); });
+  };
+  drawSteps();
+  const addStep = () => { const v = $("#tkStepNew").value.trim(); if (!v) return; steps.push({ text: v, done: false }); $("#tkStepNew").value = ""; drawSteps(); };
+  $("#tkStepAdd").onclick = addStep;
+  $("#tkStepNew").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); addStep(); } };
+  if ($("#tkAssign")) attachAutocomplete($("#tkAssign"));
   $("#tkSave").onclick = guard(async () => {
     const done = $("#tkDone").checked;
-    const t2 = Object.assign({}, task, { subject: $("#tkSub").value, body: $("#tkBody").value, complete: done, percent_complete: done ? 100 : 0, due: $("#tkDue").value ? fromLocalInput($("#tkDue").value + "T00:00") : null });
+    const due = $("#tkDue").value ? fromLocalInput($("#tkDue").value + "T00:00") : null;
+    const repV = $("#tkRep").value;
+    if (repV !== "none" && !due) { toast(t("repeatNeedsDue"), true); return; }
+    const t2 = Object.assign({}, task, {
+      subject: $("#tkSub").value, body: $("#tkBody").value, complete: done, percent_complete: done ? 100 : (task.percent_complete === 100 ? 0 : task.percent_complete || 0),
+      due, importance: $("#tkImp").value, reminder: $("#tkRem").value ? fromLocalInput($("#tkRem").value) : null,
+      recurrence: copy ? task.recurrence : uiToRecur(repV, due || 0, "", task.recurrence), steps,
+    });
+    if ($("#tkAssign")) t2.assigned_to = $("#tkAssign").value.replace(/[,\s]+$/, "").trim() || null;
     const b = { task: t2 }; if (tk) b.id = tk.id;
     await api("POST", "/task", b); closePanel(); toast(t("saved")); renderTasks();
   });
@@ -2231,7 +2404,9 @@ async function openSettings() {
      <div class="field"><label>${esc(t("currentPassword"))}</label><input id="stPwCur" type="password" autocomplete="current-password"></div>
      <div class="row2"><div class="field"><label>${esc(t("newPassword"))}</label><input id="stPwNew" type="password" autocomplete="new-password"></div>
      <div class="field"><label>&nbsp;</label><input id="stPwNew2" type="password" autocomplete="new-password" placeholder="${esc(t("newPassword"))}"></div></div>
-     <button class="btn" id="stPwBtn">${esc(t("changePassword"))}</button>`,
+     <button class="btn" id="stPwBtn">${esc(t("changePassword"))}</button>
+     <h3 style="margin:22px 0 10px">${esc(t("twoStep"))}</h3>
+     <div id="st2fa"></div>`,
     `<div style="flex:1"></div><button class="btn primary" id="stSave">${esc(t("save"))}</button>`);
   $("#stSave").onclick = guard(async () => {
     await api("POST", "/settings", {
@@ -2242,11 +2417,45 @@ async function openSettings() {
     me = await api("GET", "/me"); renderAcct();
     closePanel(); toast(t("saved"));
   });
+  draw2fa();
   $("#stPwBtn").onclick = guard(async () => {
     if ($("#stPwNew").value !== $("#stPwNew2").value) { toast(t("pwMismatch"), true); return; }
     await api("POST", "/password", { current: $("#stPwCur").value, new: $("#stPwNew").value });
     $("#stPwCur").value = $("#stPwNew").value = $("#stPwNew2").value = "";
     toast(t("passwordChanged"));
+  });
+}
+
+// Two-step sign-in in the settings panel: set up with a QR code and a first
+// code, show recovery codes once, turn off with the password.
+async function draw2fa() {
+  const box = $("#st2fa"); if (!box) return;
+  let st = { enabled: false };
+  try { st = await api("GET", "/security/2fa"); } catch (e) {}
+  if (st.enabled) {
+    box.innerHTML = `<p style="margin:0 0 8px">${esc(t("twoStepOn"))} ${esc(t("recoveryLeft").replace("{n}", st.recoveryLeft))}</p>
+      <div style="display:flex;gap:8px"><input id="st2Pw" type="password" placeholder="${esc(t("password"))}" style="flex:1"><button class="btn" id="st2Off">${esc(t("twoStepOff"))}</button></div>`;
+    $("#st2Off").onclick = guard(async () => { await api("POST", "/security/2fa/disable", { password: $("#st2Pw").value }); toast(t("saved")); draw2fa(); });
+    return;
+  }
+  box.innerHTML = `<p style="margin:0 0 8px;color:var(--muted);font-size:12.5px">${esc(t("twoStepHint"))}</p>
+    <div style="display:flex;gap:8px"><input id="st2Pw" type="password" placeholder="${esc(t("password"))}" style="flex:1"><button class="btn" id="st2Begin">${esc(t("twoStepSetup"))}</button></div>`;
+  $("#st2Begin").onclick = guard(async () => {
+    const r = await api("POST", "/security/2fa/begin", { password: $("#st2Pw").value });
+    const secret = r.secret.replace(/(.{4})/g, "$1 ").trim();
+    box.innerHTML = `<p style="margin:0 0 8px">${esc(t("twoStepScan"))}</p>
+      <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+        ${r.qr ? `<div style="width:176px;height:176px;background:#fff;border-radius:8px;padding:4px">${r.qr}</div>` : ""}
+        <div style="flex:1;min-width:200px"><div style="font-size:12px;color:var(--muted)">${esc(t("twoStepKey"))}</div><code style="font-size:13px;word-break:break-all">${esc(secret)}</code>
+        <div style="margin-top:6px"><a href="${esc(r.uri)}" style="font-size:12.5px">${esc(t("twoStepOpenApp"))}</a></div></div></div>
+      <div style="display:flex;gap:8px;margin-top:12px"><input id="st2Code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456" style="flex:1"><button class="btn primary" id="st2Enable">${esc(t("twoStepConfirm"))}</button></div>`;
+    $("#st2Enable").onclick = guard(async () => {
+      const e = await api("POST", "/security/2fa/enable", { code: $("#st2Code").value });
+      box.innerHTML = `<p style="margin:0 0 8px">${esc(t("twoStepDone"))}</p>
+        <pre style="background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:10px;font-size:13px;columns:2">${e.recovery.map(esc).join("\n")}</pre>
+        <button class="btn" id="st2Ok">${esc(t("twoStepSaved"))}</button>`;
+      $("#st2Ok").onclick = () => draw2fa();
+    });
   });
 }
 
@@ -3106,9 +3315,27 @@ function startActivity() {
 // occurrence is announced once per browser.
 const reminders = { seen: new Set(), timer: null };
 try { JSON.parse(localStorage.getItem("ondura.reminders") || "[]").forEach((k) => reminders.seen.add(k)); } catch (e) {}
+function announce(key, title, text, target) {
+  reminders.seen.add(key);
+  if ("Notification" in window && Notification.permission === "granted") {
+    try { const n = new Notification(title, { body: text, tag: key }); n.onclick = () => { window.focus(); navTo(target); n.close(); }; } catch (err) { toast(`${title} — ${text}`); }
+  } else {
+    toast(`${t("reminder")}: ${title}${text ? " — " + text : ""}`);
+  }
+}
 async function checkReminders() {
-  if (!me || me.guest || me.mail === false) return;
+  if (!me || me.guest) return;
   const now = Math.floor(Date.now() / 1000);
+  // Tasks with a reminder time (any account with a task list).
+  try {
+    for (const tk of (await api("GET", "/tasks")).tasks || []) {
+      if (tk.complete || tk.reminder == null) continue;
+      const key = `task:${tk.id}:${tk.reminder}`;
+      if (reminders.seen.has(key) || now < tk.reminder || now > tk.reminder + 3600) continue;
+      announce(key, tk.subject || t("tasks"), tk.due ? `${t("due")}: ${fmtDate(tk.due)}` : "", "tasks");
+    }
+  } catch (e) {}
+  if (me.mail === false) { try { localStorage.setItem("ondura.reminders", JSON.stringify([...reminders.seen].slice(-500))); } catch (e) {} return; }
   let events = [];
   try { events = (await api("GET", `/calendar?from=${now - 3600}&to=${now + 86400}`)).events || []; } catch (e) { return; }
   for (const e of events) {
@@ -3116,14 +3343,8 @@ async function checkReminders() {
     const key = `${e.id}:${e.occurrenceStart}`;
     const due = e.start - e.reminder * 60;
     if (reminders.seen.has(key) || now < due || now > e.start + 600) continue;
-    reminders.seen.add(key);
     const when = e.allDay ? t("allDay") : new Date(e.start * 1000).toLocaleTimeString(lang === "de" ? "de-DE" : "en-GB", { hour: "2-digit", minute: "2-digit" });
-    const text = `${when}${e.location ? " · " + e.location : ""}`;
-    if ("Notification" in window && Notification.permission === "granted") {
-      try { const n = new Notification(e.subject || t("event"), { body: text, tag: key }); n.onclick = () => { window.focus(); navTo("calendar"); n.close(); }; } catch (err) { toast(`${e.subject} — ${text}`); }
-    } else {
-      toast(`${t("reminder")}: ${e.subject} — ${text}`);
-    }
+    announce(key, e.subject || t("event"), `${when}${e.location ? " · " + e.location : ""}`, "calendar");
   }
   try { localStorage.setItem("ondura.reminders", JSON.stringify([...reminders.seen].slice(-500))); } catch (e) {}
 }

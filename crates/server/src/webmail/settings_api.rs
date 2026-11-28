@@ -127,3 +127,59 @@ pub fn password(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     app.store.set_password(user.id, &b.new).map_err(internal)?;
     Ok(json!({ "ok": true }))
 }
+
+// ------------------------------------------------------- two-step sign-in
+
+#[derive(Deserialize)]
+struct PasswordOnly {
+    password: String,
+}
+
+#[derive(Deserialize)]
+struct CodeOnly {
+    code: String,
+}
+
+fn check_password(user: &User, password: &str) -> Result<(), (axum::http::StatusCode, String)> {
+    if !auth::verify_hash(password, &user.password) {
+        return Err((axum::http::StatusCode::FORBIDDEN, "The password is incorrect.".into()));
+    }
+    Ok(())
+}
+
+/// GET /security/2fa — whether two-step sign-in is on, and recovery codes left.
+pub fn two_step_status(app: &Shared, user: &User) -> ApiResult {
+    Ok(json!({
+        "enabled": app.store.totp_enabled(user.id).map_err(internal)?,
+        "recoveryLeft": app.store.totp_recovery_left(user.id).map_err(internal)?,
+    }))
+}
+
+/// POST /security/2fa/begin { password } — a new secret for the authenticator
+/// app, as text and as an `otpauth://` link (the page shows it as a QR code).
+pub fn two_step_begin(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: PasswordOnly = parse(body)?;
+    check_password(user, &b.password)?;
+    let secret = app.store.totp_begin(user.id).map_err(|e| bad(e.to_string()))?;
+    let issuer = format!("Ondura {}", app.cfg.hostname);
+    let uri = crate::totp::otpauth_uri(&issuer, &user.email, &secret);
+    Ok(json!({ "secret": secret, "qr": crate::qr::svg(&uri), "uri": uri }))
+}
+
+/// POST /security/2fa/enable { code } — turn it on with a code from the app;
+/// returns the recovery codes (shown once).
+pub fn two_step_enable(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: CodeOnly = parse(body)?;
+    let codes = app.store.totp_enable(user.id, &b.code).map_err(|e| bad(e.to_string()))?;
+    app.store.audit(&user.email, "2fa.enable", "");
+    Ok(json!({ "recovery": codes }))
+}
+
+/// POST /security/2fa/disable { password } — turn it off.
+pub fn two_step_disable(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: PasswordOnly = parse(body)?;
+    check_password(user, &b.password)?;
+    app.store.totp_disable(user.id).map_err(internal)?;
+    app.store.audit(&user.email, "2fa.disable", "");
+    Ok(json!({ "ok": true }))
+}

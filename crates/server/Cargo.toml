@@ -28,6 +28,7 @@ ondura-wbxml = { path = "../wbxml" }
 postgres = "0.19"
 quick-xml = "0.42"
 rand = "0.10.4"
+ring = "0.17"
 rcgen = { version = "0.13", default-features = false, features = ["ring", "pem"] }
 rusqlite = { version = "0.43.0", features = ["bundled"] }
 rustls = { version = "0.23.46", default-features = false, features = ["ring", "std", "tls12", "logging"] }

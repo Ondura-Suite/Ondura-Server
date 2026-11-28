@@ -339,6 +339,21 @@ CREATE TABLE IF NOT EXISTS activity (
     seen INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS activity_user ON activity(user_id, id);
+CREATE TABLE IF NOT EXISTS totp (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    secret TEXT NOT NULL,
+    enabled INTEGER NOT NULL DEFAULT 0,
+    recovery TEXT NOT NULL DEFAULT '',
+    last_step INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (user_id)
+);
+CREATE TABLE IF NOT EXISTS contact_groups (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    members TEXT NOT NULL DEFAULT '[]'
+);
+CREATE INDEX IF NOT EXISTS contact_groups_user ON contact_groups(user_id);
 CREATE TABLE IF NOT EXISTS app_passwords (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

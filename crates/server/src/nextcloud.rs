@@ -317,6 +317,11 @@ async fn login_flow(app: &Shared, method: &Method, rest: &str, _headers: &Header
                     return (StatusCode::OK, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], html_page("Nextcloud access is turned off for this account. Enable it in Ondura webmail settings, then try again.")).into_response();
                 }
                 Ok(u) if u.kind == "user" && u.enabled => {
+                    // Accounts with two-step sign-in also enter a code here.
+                    let code = form_value(&form, "code").unwrap_or_default();
+                    if app.store.totp_enabled(u.id).unwrap_or(true) && app.store.totp_check(u.id, &code).ok() != Some(crate::totp::CodeCheck::Ok) {
+                        return (StatusCode::OK, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], grant_page_error(login_token)).into_response();
+                    }
                     let app_pw = app.store.create_app_password(u.id, "Nextcloud client").unwrap_or_default();
                     let _ = app.store.complete_login_flow(login_token, u.id, &app_pw);
                     return (StatusCode::OK, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], html_page("Account connected. You can return to the app.")).into_response();
@@ -342,7 +347,7 @@ fn grant_page(token: &str) -> String {
     grant_page_inner(token, "")
 }
 fn grant_page_error(token: &str) -> String {
-    grant_page_inner(token, "<p style=\"color:#ef4444;font-size:13px;margin:0 0 10px\">Wrong e-mail or password.</p>")
+    grant_page_inner(token, "<p style=\"color:#ef4444;font-size:13px;margin:0 0 10px\">Wrong e-mail, password or code.</p>")
 }
 fn grant_page_inner(token: &str, err: &str) -> String {
     format!(
@@ -351,7 +356,8 @@ fn grant_page_inner(token: &str, err: &str) -> String {
          <form method=post action=\"/index.php/login/v2/flow/{token}\" style=\"max-width:340px;width:100%;padding:28px;border:1px solid #232733;border-radius:14px;background:#141824\">\
          <h2 style=\"margin:0 0 4px\">Connect app</h2><p style=\"color:#9aa3b2;margin:0 0 16px;font-size:13px\">Sign in to grant the app access to your files.</p>{err}\
          <input name=user type=email placeholder=\"E-mail\" autocomplete=username style=\"width:100%;box-sizing:border-box;margin:0 0 10px;padding:10px;border-radius:8px;border:1px solid #232733;background:#0b0d12;color:#e7e9ee\">\
-         <input name=password type=password placeholder=\"Password\" autocomplete=current-password style=\"width:100%;box-sizing:border-box;margin:0 0 16px;padding:10px;border-radius:8px;border:1px solid #232733;background:#0b0d12;color:#e7e9ee\">\
+         <input name=password type=password placeholder=\"Password\" autocomplete=current-password style=\"width:100%;box-sizing:border-box;margin:0 0 10px;padding:10px;border-radius:8px;border:1px solid #232733;background:#0b0d12;color:#e7e9ee\">\
+         <input name=code inputmode=numeric autocomplete=one-time-code placeholder=\"Code (with two-step sign-in)\" style=\"width:100%;box-sizing:border-box;margin:0 0 16px;padding:10px;border-radius:8px;border:1px solid #232733;background:#0b0d12;color:#e7e9ee\">\
          <button type=submit style=\"width:100%;padding:10px;border:0;border-radius:8px;background:#4f6ef7;color:#fff;font-weight:600;cursor:pointer\">Grant access</button></form></body>"
     )
 }

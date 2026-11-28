@@ -730,3 +730,146 @@ fn activity_endpoint_lists_and_marks_read() {
     super::activity_read(&app, &user, &Bytes::new()).unwrap();
     assert_eq!(super::activity_list(&app, &user).unwrap()["unread"], 0);
 }
+
+#[tokio::test]
+async fn sign_in_asks_for_a_code_when_two_step_is_on() {
+    use axum::http::{HeaderMap, StatusCode};
+    let (app, user) = App::test();
+    let ip: std::net::IpAddr = "192.0.2.7".parse().unwrap();
+    let login = |code: Option<String>| {
+        let mut b = serde_json::json!({ "email": user.email, "password": "secret" });
+        if let Some(c) = code {
+            b["code"] = c.into();
+        }
+        body(b)
+    };
+    let r = super::login(&app, &login(None), ip, &HeaderMap::new()).await;
+    assert_eq!(r.status(), StatusCode::OK);
+
+    // Setting up needs the password, then a code from the app.
+    assert!(super::settings_api::two_step_begin(&app, &user, &body(serde_json::json!({ "password": "wrong" }))).is_err());
+    let r = super::settings_api::two_step_begin(&app, &user, &body(serde_json::json!({ "password": "secret" }))).unwrap();
+    let key = crate::totp::base32_decode(r["secret"].as_str().unwrap()).unwrap();
+    assert!(r["uri"].as_str().unwrap().starts_with("otpauth://totp/"));
+    let step = crate::store::now() / 30;
+    let code = |s: i64| format!("{:06}", crate::totp::code_at(&key, s));
+    let rec = super::settings_api::two_step_enable(&app, &user, &body(serde_json::json!({ "code": code(step) }))).unwrap();
+    assert_eq!(rec["recovery"].as_array().unwrap().len(), 10);
+
+    // The password alone is no longer enough; the page is asked for a code.
+    let r = super::login(&app, &login(None), ip, &HeaderMap::new()).await;
+    assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+    let v: serde_json::Value = serde_json::from_slice(&axum::body::to_bytes(r.into_body(), 10_000).await.unwrap()).unwrap();
+    assert_eq!(v["mfa"], true);
+    let r = super::login(&app, &login(Some("000000".into())), ip, &HeaderMap::new()).await;
+    assert_eq!(r.status(), StatusCode::UNAUTHORIZED);
+    let r = super::login(&app, &login(Some(code(step + 1))), ip, &HeaderMap::new()).await;
+    assert_eq!(r.status(), StatusCode::OK);
+    // A recovery code works too.
+    let r = super::login(&app, &login(Some(rec["recovery"][0].as_str().unwrap().into())), ip, &HeaderMap::new()).await;
+    assert_eq!(r.status(), StatusCode::OK);
+
+    super::settings_api::two_step_disable(&app, &user, &body(serde_json::json!({ "password": "secret" }))).unwrap();
+    let r = super::login(&app, &login(None), ip, &HeaderMap::new()).await;
+    assert_eq!(r.status(), StatusCode::OK);
+}
+
+#[tokio::test]
+async fn contacts_export_and_import_vcards() {
+    let (app, user) = App::test();
+    contacts_api::save(&app, &user, &body(serde_json::json!({ "contact": { "first_name": "Anna", "last_name": "Becker", "display_name": "Anna Becker", "emails": ["anna@example.com"] } }))).unwrap();
+    let r = contacts_api::export(&app, &user);
+    let text = String::from_utf8(axum::body::to_bytes(r.into_body(), 100_000).await.unwrap().to_vec()).unwrap();
+    assert!(text.contains("FN:Anna Becker") && text.contains("EMAIL;TYPE=INTERNET:anna@example.com"));
+    // Importing it again adds nothing; a new card is added.
+    let more = format!("{text}BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Bob Kraus\r\nEMAIL:bob@example.com\r\nEND:VCARD\r\n");
+    let r = contacts_api::import(&app, &user, &body(serde_json::json!({ "vcf": more }))).unwrap();
+    assert_eq!((r["added"].as_i64(), r["skipped"].as_i64()), (Some(1), Some(1)));
+    let list = contacts_api::list(&app, &user).unwrap();
+    assert_eq!(list["contacts"].as_array().unwrap().len(), 2);
+    assert!(contacts_api::import(&app, &user, &body(serde_json::json!({ "vcf": "nothing" }))).is_err());
+}
+
+#[test]
+fn repeating_task_starts_the_next_one_when_completed() {
+    let (app, user) = App::test();
+    let due = 1_800_000_000i64; // a Friday
+    let rec = serde_json::json!({ "freq": "weekly", "interval": 1, "days": 32, "count": 2 });
+    let saved = pim_api::save_task(&app, &user, &body(serde_json::json!({ "task": {
+        "subject": "Report", "due": due, "reminder": due - 3600, "recurrence": rec,
+        "steps": [{ "text": "Collect numbers", "done": true }, { "text": "Send", "done": false }] } }))).unwrap();
+    let id = saved["id"].as_i64().unwrap();
+    let task = |v: &serde_json::Value| v["task"].clone();
+    let mut t = task(&pim_api::tasks(&app, &user).unwrap()["tasks"][0]);
+    t["complete"] = true.into();
+    pim_api::save_task(&app, &user, &body(serde_json::json!({ "id": id, "task": t }))).unwrap();
+    let list = pim_api::tasks(&app, &user).unwrap()["tasks"].as_array().unwrap().clone();
+    assert_eq!(list.len(), 2);
+    let open = list.iter().find(|x| x["complete"] == false).unwrap();
+    assert_eq!(open["due"], due + 7 * 86_400);
+    assert_eq!(open["reminder"], due + 7 * 86_400 - 3600);
+    assert_eq!(task(open)["steps"][0]["done"], false);
+    assert_eq!(task(open)["recurrence"]["count"], 1);
+    // The last one of the series doesn't start another.
+    let mut t2 = task(open);
+    t2["complete"] = true.into();
+    pim_api::save_task(&app, &user, &body(serde_json::json!({ "id": open["id"], "task": t2 }))).unwrap();
+    assert_eq!(pim_api::tasks(&app, &user).unwrap()["tasks"].as_array().unwrap().len(), 2);
+}
+
+#[test]
+fn assigned_tasks_are_copied_and_report_back() {
+    let (app, user) = App::test();
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    assert!(pim_api::save_task(&app, &user, &body(serde_json::json!({ "task": { "subject": "X", "assigned_to": "nobody@else.org" } }))).is_err());
+    let saved = pim_api::save_task(&app, &user, &body(serde_json::json!({ "task": { "subject": "Prepare slides", "assigned_to": "anna@example.com", "steps": [{ "text": "Outline" }] } }))).unwrap();
+    let id = saved["id"].as_i64().unwrap();
+    let theirs = pim_api::tasks(&app, &anna).unwrap()["tasks"][0].clone();
+    assert_eq!(theirs["subject"], "Prepare slides");
+    assert_eq!(theirs["task"]["assigned_by"], user.email.as_str());
+    assert_eq!(app.store.activities(anna.id, 5).unwrap()[0].kind, "task_assigned");
+
+    // The assigner renames it; the copy follows.
+    let mine = pim_api::tasks(&app, &user).unwrap()["tasks"][0]["task"].clone();
+    let mut m = mine.clone();
+    m["subject"] = "Prepare slides v2".into();
+    pim_api::save_task(&app, &user, &body(serde_json::json!({ "id": id, "task": m }))).unwrap();
+    let theirs = pim_api::tasks(&app, &anna).unwrap()["tasks"][0].clone();
+    assert_eq!(theirs["subject"], "Prepare slides v2");
+
+    // Anna finishes it: the original is marked complete and the assigner is told.
+    let mut t = theirs["task"].clone();
+    t["complete"] = true.into();
+    t["steps"][0]["done"] = true.into();
+    pim_api::save_task(&app, &anna, &body(serde_json::json!({ "id": theirs["id"], "task": t }))).unwrap();
+    let mine = pim_api::tasks(&app, &user).unwrap()["tasks"][0].clone();
+    assert_eq!(mine["complete"], true);
+    assert_eq!(mine["task"]["steps"][0]["done"], true);
+    assert_eq!(app.store.activities(user.id, 5).unwrap()[0].kind, "task_completed");
+
+    // Deleting the original removes Anna's copy.
+    pim_api::delete_task(&app, &user, &body(serde_json::json!({ "id": id }))).unwrap();
+    assert!(pim_api::tasks(&app, &anna).unwrap()["tasks"].as_array().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn rooms_show_whether_they_are_free() {
+    let (app, user) = App::test();
+    app.store.create_user("saar@example.com", "Raum Saar", "pw", "room").unwrap();
+    app.store.create_user("blies@example.com", "Raum Blies", "pw", "room").unwrap();
+    let (s, e) = (1_800_000_000i64, 1_800_003_600i64);
+    let q = format!("from={s}&to={e}");
+    let r = calendar_api::rooms(&app, &user, &q).unwrap();
+    assert_eq!(r["rooms"].as_array().unwrap().iter().map(|x| x["name"].as_str().unwrap()).collect::<Vec<_>>(), ["Raum Blies", "Raum Saar"]);
+    assert!(r["rooms"].as_array().unwrap().iter().all(|x| x["free"] == true));
+    // Book the Saar room: it accepts and is no longer free, except for the
+    // meeting that holds it.
+    let event = serde_json::json!({ "uid": "m-1", "subject": "Planning", "start": s, "end": e, "tz": "Europe/Berlin",
+        "attendees": [{ "email": "saar@example.com", "kind": "resource" }] });
+    calendar_api::save(&app, &user, &body(serde_json::json!({ "event": event }))).await.unwrap();
+    let r = calendar_api::rooms(&app, &user, &q).unwrap();
+    let saar = r["rooms"].as_array().unwrap().iter().find(|x| x["name"] == "Raum Saar").unwrap().clone();
+    assert_eq!(saar["free"], false);
+    let r = calendar_api::rooms(&app, &user, &format!("{q}&uid=m-1")).unwrap();
+    assert!(r["rooms"].as_array().unwrap().iter().all(|x| x["free"] == true));
+}
