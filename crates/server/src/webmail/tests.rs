@@ -390,3 +390,90 @@ async fn meeting_save_sends_request_and_cancel() {
     calendar_api::delete(&app, &user, &body(serde_json::json!({ "id": id }))).await.unwrap();
     assert_eq!(app.store.items(anna_inbox.id, 0, 10).unwrap().len(), 2);
 }
+
+#[tokio::test]
+async fn editing_an_event_keeps_its_identity_and_series() {
+    let (app, user) = App::test();
+    let event = serde_json::json!({
+        "uid": "weekly-1", "subject": "Standup", "body": "Daily notes",
+        "start": 1_800_000_000i64, "end": 1_800_001_800i64, "tz": "Europe/Berlin",
+        "reminder": 15,
+        "recurrence": { "freq": "weekly", "interval": 1, "days": 2 }
+    });
+    let id = calendar_api::save(&app, &user, &body(serde_json::json!({ "event": event }))).await.unwrap()["id"].as_i64().unwrap();
+    let full = calendar_api::get(&app, &user, &format!("id={id}")).unwrap();
+    assert_eq!(full["event"]["body"], "Daily notes");
+
+    // Saving the edited full event (empty uid, as a careless client might send)
+    // keeps the UID and does not touch the pattern.
+    let mut ev = full["event"].clone();
+    ev["subject"] = "Standup (team)".into();
+    ev["uid"] = "".into();
+    calendar_api::save(&app, &user, &body(serde_json::json!({ "id": id, "event": ev }))).await.unwrap();
+    let after = calendar_api::get(&app, &user, &format!("id={id}")).unwrap();
+    assert_eq!(after["event"]["uid"], "weekly-1");
+    assert_eq!(after["event"]["subject"], "Standup (team)");
+    assert_eq!(after["event"]["reminder"], 15);
+    assert!(after["event"]["recurrence"].is_object());
+}
+
+#[tokio::test]
+async fn single_occurrence_can_be_changed_and_deleted() {
+    let (app, user) = App::test();
+    let start = 1_800_000_000i64;
+    let event = serde_json::json!({
+        "uid": "daily-1", "subject": "Sync", "start": start, "end": start + 1800, "tz": "UTC",
+        "recurrence": { "freq": "daily", "interval": 1, "count": 5 }
+    });
+    let id = calendar_api::save(&app, &user, &body(serde_json::json!({ "event": event }))).await.unwrap()["id"].as_i64().unwrap();
+    let day = 86_400;
+    let range = format!("from={}&to={}", start - 1, start + 6 * day);
+    assert_eq!(calendar_api::list(&app, &user, &range).unwrap()["events"].as_array().unwrap().len(), 5);
+
+    // Move the second occurrence by an hour and rename it.
+    calendar_api::occurrence(&app, &user, &body(serde_json::json!({
+        "id": id, "occurrence": start + day, "subject": "Sync (moved)", "start": start + day + 3600, "end": start + day + 5400
+    }))).await.unwrap();
+    // Delete the third.
+    calendar_api::occurrence(&app, &user, &body(serde_json::json!({ "id": id, "occurrence": start + 2 * day, "delete": true }))).await.unwrap();
+
+    let events = calendar_api::list(&app, &user, &range).unwrap()["events"].as_array().unwrap().clone();
+    assert_eq!(events.len(), 4);
+    let moved = events.iter().find(|e| e["occurrenceStart"] == start + day).unwrap();
+    assert_eq!(moved["subject"], "Sync (moved)");
+    assert_eq!(moved["start"], start + day + 3600);
+    assert!(!events.iter().any(|e| e["occurrenceStart"] == start + 2 * day));
+    // Other occurrences are untouched.
+    assert!(events.iter().any(|e| e["occurrenceStart"] == start && e["subject"] == "Sync"));
+
+    // An occurrence the pattern does not produce is refused.
+    assert!(calendar_api::occurrence(&app, &user, &body(serde_json::json!({ "id": id, "occurrence": start + 7, "delete": true }))).await.is_err());
+}
+
+#[tokio::test]
+async fn removing_an_attendee_sends_them_a_cancellation() {
+    let (app, user) = App::test();
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    let bert = app.store.create_user("bert@example.com", "Bert", "pw", "user").unwrap();
+    let event = serde_json::json!({
+        "uid": "mtg-2", "subject": "Review", "start": 1_800_000_000i64, "end": 1_800_003_600i64, "tz": "UTC",
+        "attendees": [ { "email": "anna@example.com" }, { "email": "bert@example.com" } ]
+    });
+    let id = calendar_api::save(&app, &user, &body(serde_json::json!({ "event": event }))).await.unwrap()["id"].as_i64().unwrap();
+    let full = calendar_api::get(&app, &user, &format!("id={id}")).unwrap();
+    let seq = full["event"]["sequence"].as_u64().unwrap_or(0);
+
+    let mut ev = full["event"].clone();
+    ev["attendees"] = serde_json::json!([ { "email": "anna@example.com" } ]);
+    calendar_api::save(&app, &user, &body(serde_json::json!({ "id": id, "event": ev }))).await.unwrap();
+
+    // Bert got the invitation and then a cancellation; Anna got two requests.
+    let inbox = |id| app.store.folder_by_role(id, "inbox").unwrap().unwrap().id;
+    let bert_mail = app.store.items(inbox(bert.id), 0, 10).unwrap();
+    assert_eq!(bert_mail.len(), 2);
+    assert!(bert_mail.iter().any(|m| m.subject.starts_with("Canceled:")));
+    assert_eq!(app.store.items(inbox(anna.id), 0, 10).unwrap().len(), 2);
+    // The update raised the meeting sequence.
+    let after = calendar_api::get(&app, &user, &format!("id={id}")).unwrap();
+    assert!(after["event"]["sequence"].as_u64().unwrap() > seq);
+}

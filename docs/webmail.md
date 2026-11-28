@@ -86,8 +86,13 @@ that sender in the current folder at once: delete them all, keep only the newest
 or move them all to another folder.
 
 **Calendar** — a month view with your events; series are expanded by the
-server. Create and edit events, delete them, and accept, decline or tentatively
-answer meeting invitations.
+server. Create and edit events with a description, attendees, a reminder, a
+free/busy status, a private flag and a repeat pattern (daily, weekdays, weekly,
+monthly, yearly, with an optional end date). Opening an occurrence of a series
+asks whether to work on that occurrence or on the whole series: an occurrence can
+be moved, renamed or deleted on its own, and the rest of the series stays as it
+is. Accept, decline or tentatively answer meeting invitations, for one occurrence
+or the whole series.
 
 **Contacts** — list, create, edit and delete contacts with the common fields.
 
@@ -127,7 +132,10 @@ webmail = true   # set to false to disable browser webmail
 
 **Meetings** — adding attendees to a calendar event turns it into a meeting:
 saving it sends an iCalendar invitation (iMIP `METHOD:REQUEST`) to each
-attendee and deleting it sends a cancellation, matching Outlook and ActiveSync.
+attendee, an update raises the meeting's sequence so clients accept it, an
+attendee taken off the list gets a cancellation, and deleting the meeting — or a
+single occurrence of it — sends a cancellation, matching Outlook and ActiveSync.
+The editor lists each attendee's response.
 Attendees accept, decline or tentatively accept from the invitation, which
 sends a reply back to the organizer; incoming invitations and replies update
 the calendar automatically on delivery.

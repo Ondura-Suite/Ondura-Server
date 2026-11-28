@@ -77,6 +77,35 @@ pub async fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         event: Event,
     }
     let mut req: SaveBody = parse(body)?;
+    // On an update, keep what identifies the event: its UID, its organizer and
+    // the meeting sequence (raised so attendees' clients accept the change).
+    let existing = match req.id {
+        Some(id) => {
+            let item = own_item(app, user, id)?;
+            if item.kind != ItemKind::Event {
+                return Err(bad("not a calendar item"));
+            }
+            Some((item.id, item.event().unwrap_or_default()))
+        }
+        None => None,
+    };
+    if let Some((_, old)) = &existing {
+        if req.event.uid.is_empty() || req.event.uid != old.uid {
+            req.event.uid = old.uid.clone();
+        }
+        if req.event.organizer.is_none() {
+            req.event.organizer = old.organizer.clone();
+        }
+        // Changing a series' time or pattern resets its changed occurrences,
+        // since their original start times no longer line up (as Outlook does).
+        if old.recurrence.is_some() && (old.recurrence != req.event.recurrence || old.start != req.event.start || old.end != req.event.end) {
+            req.event.exceptions.clear();
+        }
+        req.event.sequence = old.sequence.max(req.event.sequence);
+        if !req.event.attendees.is_empty() || !old.attendees.is_empty() {
+            req.event.sequence += 1;
+        }
+    }
     if req.event.uid.is_empty() {
         req.event.uid = uuid::Uuid::new_v4().simple().to_string();
     }
@@ -84,19 +113,32 @@ pub async fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     if !req.event.attendees.is_empty() && req.event.organizer.is_none() {
         req.event.organizer = Some(Person::new(&user.name, &user.email));
     }
+    req.event.dtstamp = crate::store::now();
     let data = serde_json::to_string(&req.event).map_err(|e| internal(e.into()))?;
 
-    let id = if let Some(id) = req.id {
-        let item = own_item(app, user, id)?;
-        if item.kind != ItemKind::Event {
-            return Err(bad("not a calendar item"));
-        }
-        app.store.update_pim(item.id, &data, WRITER).map_err(internal)?;
-        item.id
+    // Attendees taken off a meeting we organize get a cancellation.
+    let removed: Vec<Person> = match &existing {
+        Some((_, old)) if crate::calendar::user_is_organizer(app, user, old) => old
+            .attendees
+            .iter()
+            .filter(|a| !req.event.attendees.iter().any(|n| n.person.email.eq_ignore_ascii_case(&a.person.email)))
+            .map(|a| a.person.clone())
+            .collect(),
+        _ => Vec::new(),
+    };
+    let id = if let Some((id, _)) = existing {
+        app.store.update_pim(id, &data, WRITER).map_err(internal)?;
+        id
     } else {
         let folder = app.store.folder_by_role(user.id, "calendar").map_err(internal)?.ok_or_else(not_found)?;
         app.store.insert_pim(user.id, folder.id, ItemKind::Event, &data, Some(&req.event.uid), WRITER).map_err(internal)?
     };
+    if req.send
+        && !removed.is_empty()
+        && let Err(e) = crate::calendar::send_invitations(app, user, &req.event, "CANCEL", Some(&removed), None).await
+    {
+        tracing::warn!("meeting cancellation failed: {e:#}");
+    }
 
     // Send a meeting request to the attendees of a meeting we organize.
     if req.send
@@ -107,6 +149,104 @@ pub async fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         tracing::warn!("meeting request failed: {e:#}");
     }
     Ok(json!({ "ok": true, "id": id }))
+}
+
+/// GET /event?id= — the full stored event, so an editor can change it without
+/// losing fields it does not show.
+pub fn get(app: &Shared, user: &User, query: &str) -> ApiResult {
+    let id: i64 = query.split('&').filter_map(|p| p.split_once('=')).find(|(k, _)| *k == "id").and_then(|(_, v)| v.parse().ok()).ok_or_else(|| bad("id required"))?;
+    let item = own_item(app, user, id)?;
+    let e = item.event().ok_or_else(|| bad("not a calendar item"))?;
+    Ok(json!({
+        "id": item.id,
+        "folder": item.folder_id,
+        "isOrganizer": e.attendees.is_empty() || crate::calendar::user_is_organizer(app, user, &e),
+        "event": e,
+    }))
+}
+
+/// POST /event/occurrence — change or delete one occurrence of a series. The
+/// change is stored as an exception of the series; for a meeting we organize
+/// the attendees get an update (or a cancellation) for that occurrence.
+pub async fn occurrence(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    #[serde(rename_all = "camelCase")]
+    struct OccBody {
+        id: i64,
+        /// Original start of the occurrence, as given by the pattern.
+        occurrence: i64,
+        #[serde(default)]
+        delete: bool,
+        subject: Option<String>,
+        location: Option<String>,
+        body: Option<String>,
+        start: Option<i64>,
+        end: Option<i64>,
+        all_day: Option<bool>,
+        busy: Option<crate::model::BusyStatus>,
+        #[serde(default = "crate::serde_true")]
+        send: bool,
+    }
+    let b: OccBody = parse(body)?;
+    let item = own_item(app, user, b.id)?;
+    let mut ev = item.event().ok_or_else(|| bad("not a calendar item"))?;
+    if ev.recurrence.is_none() {
+        return Err(bad("not a recurring event"));
+    }
+    // The occurrence has to be one the pattern produces.
+    let mut pattern = ev.clone();
+    pattern.exceptions.clear();
+    if !pattern.occurrences(b.occurrence - 1, b.occurrence + 1).iter().any(|o| o.original_start == b.occurrence) {
+        return Err(bad("no such occurrence"));
+    }
+    if let (Some(s), Some(e)) = (b.start, b.end)
+        && e < s
+    {
+        return Err(bad("end before start"));
+    }
+    let mut ex = ev.exceptions.iter().find(|x| x.original_start == b.occurrence).cloned().unwrap_or(crate::model::Exception { original_start: b.occurrence, ..Default::default() });
+    if b.delete {
+        ex.deleted = true;
+    } else {
+        if b.subject.is_some() {
+            ex.subject = b.subject;
+        }
+        if b.location.is_some() {
+            ex.location = b.location;
+        }
+        if b.body.is_some() {
+            ex.body = b.body;
+        }
+        if b.start.is_some() {
+            ex.start = b.start;
+        }
+        if b.end.is_some() {
+            ex.end = b.end;
+        }
+        if b.all_day.is_some() {
+            ex.all_day = b.all_day;
+        }
+        if b.busy.is_some() {
+            ex.busy = b.busy;
+        }
+    }
+    ev.exceptions.retain(|x| x.original_start != b.occurrence);
+    ev.exceptions.push(ex);
+    ev.exceptions.sort_by_key(|x| x.original_start);
+    let organizer = !ev.attendees.is_empty() && crate::calendar::user_is_organizer(app, user, &ev);
+    if organizer {
+        ev.sequence += 1;
+    }
+    ev.dtstamp = crate::store::now();
+    let data = serde_json::to_string(&ev).map_err(|e| internal(e.into()))?;
+    app.store.update_pim(item.id, &data, WRITER).map_err(internal)?;
+    if b.send
+        && organizer
+        && let Err(e) = crate::calendar::send_invitations(app, user, &ev, if b.delete { "CANCEL" } else { "REQUEST" }, None, Some(b.occurrence)).await
+    {
+        tracing::warn!("occurrence update failed: {e:#}");
+    }
+    Ok(json!({ "ok": true }))
 }
 
 /// POST /event/delete
