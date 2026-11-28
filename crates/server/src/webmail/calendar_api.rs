@@ -151,6 +151,44 @@ pub async fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     Ok(json!({ "ok": true, "id": id }))
 }
 
+/// GET /calendar/freebusy?emails=a,b&from=&to= — when each person is busy, for
+/// scheduling. Accounts on this server report their busy blocks (free/busy is
+/// visible across the organisation, as in Exchange); subjects are included only
+/// where the caller may see that calendar's details. Other addresses are
+/// reported as unknown.
+pub fn freebusy(app: &Shared, user: &User, query: &str) -> ApiResult {
+    let param = |k: &str| query.split('&').filter_map(|p| p.split_once('=')).find(|(x, _)| *x == k).map(|(_, v)| v.to_string());
+    let num = |k: &str| param(k).and_then(|v| v.parse::<i64>().ok());
+    let from = num("from").ok_or_else(|| bad("from required"))?;
+    let to = num("to").ok_or_else(|| bad("to required"))?;
+    if to <= from || to - from > 62 * 86_400 {
+        return Err(bad("invalid range"));
+    }
+    let emails = param("emails").map(|v| super::mail_api::decode(&v)).unwrap_or_default();
+    let mut out = Vec::new();
+    for email in emails.split(',').map(str::trim).filter(|e| !e.is_empty()).take(50) {
+        let owner = app.store.resolve_address(email).ok().flatten().and_then(|(id, _)| app.store.user(id).ok().flatten());
+        let Some(owner) = owner.filter(|u| u.enabled && u.mailbox) else {
+            out.push(json!({ "email": email, "known": false }));
+            continue;
+        };
+        let details = crate::calendar::can_see_details(app, user.id, owner.id);
+        let busy = crate::calendar::busy_times(app, owner.id, from, to).map_err(internal)?;
+        out.push(json!({
+            "email": email,
+            "known": true,
+            "name": owner.name,
+            "busy": busy.iter().map(|b| json!({
+                "start": b.start, "end": b.end,
+                "status": format!("{:?}", b.status).to_ascii_lowercase(),
+                "subject": if details && !b.private { Some(b.subject.clone()) } else { None },
+                "id": if details { Some(b.item_id) } else { None },
+            })).collect::<Vec<_>>(),
+        }));
+    }
+    Ok(json!({ "people": out }))
+}
+
 /// GET /event?id= — the full stored event, so an editor can change it without
 /// losing fields it does not show.
 pub fn get(app: &Shared, user: &User, query: &str) -> ApiResult {

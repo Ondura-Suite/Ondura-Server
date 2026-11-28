@@ -477,3 +477,27 @@ async fn removing_an_attendee_sends_them_a_cancellation() {
     let after = calendar_api::get(&app, &user, &format!("id={id}")).unwrap();
     assert!(after["event"]["sequence"].as_u64().unwrap() > seq);
 }
+
+#[tokio::test]
+async fn freebusy_shows_times_and_details_only_when_shared() {
+    let (app, user) = App::test();
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    let start = 1_800_000_000i64;
+    let event = serde_json::json!({ "uid": "a1", "subject": "Dentist", "start": start, "end": start + 3600, "tz": "UTC" });
+    calendar_api::save(&app, &anna, &body(serde_json::json!({ "event": event }))).await.unwrap();
+
+    let q = format!("from={}&to={}&emails=anna%40example.com,nobody%40else.org", start - 3600, start + 7200);
+    let r = calendar_api::freebusy(&app, &user, &q).unwrap();
+    let people = r["people"].as_array().unwrap();
+    let a = &people[0];
+    assert_eq!(a["known"], true);
+    assert_eq!(a["busy"][0]["start"], start);
+    // Free/busy only: no subject.
+    assert!(a["busy"][0]["subject"].is_null());
+    assert_eq!(people[1]["known"], false);
+
+    // Once Anna shares her calendar for reading, the subject shows.
+    app.store.set_calendar_share(anna.id, user.id, Some("read")).unwrap();
+    let r = calendar_api::freebusy(&app, &user, &q).unwrap();
+    assert_eq!(r["people"][0]["busy"][0]["subject"], "Dentist");
+}

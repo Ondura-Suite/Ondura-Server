@@ -55,6 +55,12 @@ CREATE TABLE IF NOT EXISTS permissions (
     send_as INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (owner_id, grantee_id)
 );
+CREATE TABLE IF NOT EXISTS calendar_shares (
+    owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    grantee_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    level TEXT NOT NULL,
+    PRIMARY KEY (owner_id, grantee_id)
+);
 CREATE TABLE IF NOT EXISTS folders (
     id INTEGER PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -1238,6 +1244,54 @@ impl Store {
         let st = db.prepare("SELECT owner_id, grantee_id, full_access, send_as FROM permissions")?;
         let rows = st.query_map(params![], |r| Ok((r.get(0)?, r.get(1)?, r.get::<_, i64>(2)? != 0, r.get::<_, i64>(3)? != 0)))?;
         Ok(rows)
+    }
+
+    /// Share `owner`'s calendar with `grantee` at `level` (`freebusy`, `read` or
+    /// `write`), or stop sharing it with `None`.
+    pub fn set_calendar_share(&self, owner: i64, grantee: i64, level: Option<&str>) -> Result<()> {
+        match level {
+            Some(l) => {
+                if !matches!(l, "freebusy" | "read" | "write") {
+                    bail!("invalid level {l}");
+                }
+                self.db().execute(
+                    "INSERT INTO calendar_shares (owner_id, grantee_id, level) VALUES (?1, ?2, ?3) ON CONFLICT(owner_id, grantee_id) DO UPDATE SET level = excluded.level",
+                    params![owner, grantee, l],
+                )?;
+            }
+            None => {
+                self.db().execute("DELETE FROM calendar_shares WHERE owner_id = ?1 AND grantee_id = ?2", params![owner, grantee])?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The level at which `owner` shares their calendar with `grantee`, if any.
+    pub fn calendar_share_level(&self, owner: i64, grantee: i64) -> Result<Option<String>> {
+        self.db()
+            .query_row("SELECT level FROM calendar_shares WHERE owner_id = ?1 AND grantee_id = ?2", params![owner, grantee], |r| r.get(0))
+            .optional()
+    }
+
+    /// Who `owner` shares their calendar with: (grantee id, level).
+    pub fn calendar_shares_of(&self, owner: i64) -> Result<Vec<(i64, String)>> {
+        let db = self.db();
+        let st = db.prepare("SELECT grantee_id, level FROM calendar_shares WHERE owner_id = ?1")?;
+        st.query_map([owner], |r| Ok((r.get(0)?, r.get(1)?)))
+    }
+
+    /// Whose calendars are shared with `grantee`: (owner id, level).
+    pub fn calendars_shared_with(&self, grantee: i64) -> Result<Vec<(i64, String)>> {
+        let db = self.db();
+        let st = db.prepare("SELECT owner_id, level FROM calendar_shares WHERE grantee_id = ?1")?;
+        st.query_map([grantee], |r| Ok((r.get(0)?, r.get(1)?)))
+    }
+
+    /// The mailboxes `user` has full access to (their owners' ids).
+    pub fn full_access_owners(&self, user: i64) -> Result<Vec<i64>> {
+        let db = self.db();
+        let st = db.prepare("SELECT owner_id FROM permissions WHERE grantee_id = ?1 AND full_access = 1")?;
+        st.query_map([user], |r| r.get(0))
     }
 
     /// Whether `user` may open the mailbox of `owner`.

@@ -303,7 +303,7 @@ pub fn availability(ctx: &Ctx, op: &Node) -> EwsResult<String> {
             continue;
         };
         let busy = calendar::busy_times(&ctx.app, user.id, from, to)?;
-        let details_allowed = ctx.app.store.can_access(ctx.user.id, user.id) || user.kind == "room";
+        let details_allowed = crate::calendar::can_see_details(&ctx.app, ctx.user.id, user.id) || user.kind == "room";
         let mut fb = format!("<m:FreeBusyView><t:FreeBusyViewType>{}</t:FreeBusyViewType>", if detailed { if merged { "DetailedMerged" } else { "Detailed" } } else if merged { "FreeBusyMerged" } else { "FreeBusy" });
         if merged {
             push(&mut fb, "MergedFreeBusy", &calendar::merged_free_busy(&busy, from, to, interval));

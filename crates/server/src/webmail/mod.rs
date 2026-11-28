@@ -256,6 +256,7 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/event") => calendar_api::save(app, user, body).await,
         (&Method::POST, "/event/delete") => calendar_api::delete(app, user, body).await,
         (&Method::GET, "/event") => calendar_api::get(app, user, query),
+        (&Method::GET, "/calendar/freebusy") => calendar_api::freebusy(app, user, query),
         (&Method::POST, "/event/occurrence") => calendar_api::occurrence(app, user, body).await,
         (&Method::POST, "/event/respond") => calendar_api::respond(app, user, body).await,
         (&Method::POST, "/contact") => contacts_api::save(app, user, body),

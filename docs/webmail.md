@@ -135,7 +135,12 @@ saving it sends an iCalendar invitation (iMIP `METHOD:REQUEST`) to each
 attendee, an update raises the meeting's sequence so clients accept it, an
 attendee taken off the list gets a cancellation, and deleting the meeting — or a
 single occurrence of it — sends a cancellation, matching Outlook and ActiveSync.
-The editor lists each attendee's response.
+The editor lists each attendee's response. Below the attendees an availability view
+shows everyone's busy times for the meeting day next to the chosen slot, and
+**Next free time** moves the meeting to the first weekday slot within working
+hours (07:00–20:00) when everybody with known availability is free. Accounts on
+the same server always share their free/busy times; event titles appear only
+for calendars shared at least for reading.
 Attendees accept, decline or tentatively accept from the invitation, which
 sends a reply back to the organizer; incoming invitations and replies update
 the calendar automatically on delivery.

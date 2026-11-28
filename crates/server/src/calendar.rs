@@ -19,6 +19,42 @@ fn calendar_folders(app: &Shared, user_id: i64) -> Result<Vec<Folder>> {
     Ok(app.store.folders(user_id)?.into_iter().filter(|f| f.class == FolderClass::Calendar).collect())
 }
 
+/// How much of another account's calendar a viewer may see or change. Every
+/// account sees everyone's free/busy times; a calendar share raises that to
+/// reading the details or editing, and full access to the mailbox means editing.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum CalendarAccess {
+    FreeBusy,
+    Read,
+    Write,
+}
+
+impl CalendarAccess {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            CalendarAccess::FreeBusy => "freebusy",
+            CalendarAccess::Read => "read",
+            CalendarAccess::Write => "write",
+        }
+    }
+}
+
+pub fn calendar_access(app: &Shared, viewer: i64, owner: i64) -> CalendarAccess {
+    if viewer == owner || app.store.can_access(viewer, owner) {
+        return CalendarAccess::Write;
+    }
+    match app.store.calendar_share_level(owner, viewer).ok().flatten().as_deref() {
+        Some("write") => CalendarAccess::Write,
+        Some("read") => CalendarAccess::Read,
+        _ => CalendarAccess::FreeBusy,
+    }
+}
+
+/// Whether `viewer` may see the subjects and details of `owner`'s events.
+pub fn can_see_details(app: &Shared, viewer: i64, owner: i64) -> bool {
+    calendar_access(app, viewer, owner) >= CalendarAccess::Read
+}
+
 /// The calendar item with this UID, if any.
 pub fn find_by_uid(app: &Shared, user_id: i64, uid: &str) -> Result<Option<Item>> {
     Ok(app.store.items_by_uid(user_id, uid)?.into_iter().find(|i| i.kind == ItemKind::Event))
