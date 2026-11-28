@@ -232,11 +232,11 @@ impl Store {
         let order = "ORDER BY CASE kind WHEN 'folder' THEN 0 ELSE 1 END, LOWER(name), id";
         match parent {
             None => {
-                let st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND parent_id IS NULL {order}"))?;
+                let st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND parent_id IS NULL AND trashed = 0 {order}"))?;
                 st.query_map([drive_id], item_from_row)
             }
             Some(p) => {
-                let st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND parent_id = ?2 {order}"))?;
+                let st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND parent_id = ?2 AND trashed = 0 {order}"))?;
                 st.query_map(params![drive_id, p], item_from_row)
             }
         }
@@ -268,10 +268,10 @@ impl Store {
         let db = self.db();
         match parent {
             None => db
-                .query_row(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND parent_id IS NULL AND name = ?2"), params![drive_id, name], item_from_row)
+                .query_row(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND parent_id IS NULL AND trashed = 0 AND name = ?2"), params![drive_id, name], item_from_row)
                 .optional(),
             Some(p) => db
-                .query_row(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND parent_id = ?3 AND name = ?2"), params![drive_id, name, p], item_from_row)
+                .query_row(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND parent_id = ?3 AND trashed = 0 AND name = ?2"), params![drive_id, name, p], item_from_row)
                 .optional(),
         }
     }
@@ -460,6 +460,51 @@ impl Store {
         Ok(files)
     }
 
+    /// Move an item (and, implicitly, its subtree) to the recycle bin.
+    pub fn trash_item(&self, id: i64, by: i64) -> Result<()> {
+        self.db().execute("UPDATE drive_items SET trashed = 1, trashed_at = ?1, updated_by = ?2 WHERE id = ?3", params![now(), by, id])?;
+        Ok(())
+    }
+
+    /// Restore a trashed item. If its parent is gone or still trashed, it is
+    /// restored to the drive root.
+    pub fn restore_item(&self, id: i64) -> Result<()> {
+        let db = self.db();
+        let parent: Option<i64> = db.query_row("SELECT parent_id FROM drive_items WHERE id = ?1", [id], |r| r.get(0)).optional()?.flatten();
+        let parent_ok = match parent {
+            None => true,
+            Some(p) => db.query_row("SELECT 1 FROM drive_items WHERE id = ?1 AND trashed = 0", [p], |r| r.get::<_, i64>(0)).optional()?.is_some(),
+        };
+        if parent_ok {
+            db.execute("UPDATE drive_items SET trashed = 0, trashed_at = NULL WHERE id = ?1", [id])?;
+        } else {
+            db.execute("UPDATE drive_items SET trashed = 0, trashed_at = NULL, parent_id = NULL WHERE id = ?1", [id])?;
+        }
+        Ok(())
+    }
+
+    /// The items currently in a drive's recycle bin, most recent first.
+    pub fn trashed_items(&self, drive_id: i64) -> Result<Vec<Item>> {
+        let db = self.db();
+        let st = db.prepare(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND trashed = 1 ORDER BY trashed_at DESC, id DESC"))?;
+        st.query_map([drive_id], item_from_row)
+    }
+
+    /// Permanently delete every trashed item in a drive (and their subtrees).
+    /// Returns the file ids whose on-disk contents the caller must remove.
+    pub fn empty_trash(&self, drive_id: i64) -> Result<Vec<i64>> {
+        let roots: Vec<i64> = {
+            let db = self.db();
+            let st = db.prepare("SELECT id FROM drive_items WHERE drive_id = ?1 AND trashed = 1")?;
+            st.query_map([drive_id], |r| r.get::<_, i64>(0))?
+        };
+        let mut files = Vec::new();
+        for id in roots {
+            files.extend(self.delete_drive_item(id)?);
+        }
+        Ok(files)
+    }
+
     /// Breadcrumb trail from the drive root down to `id` (inclusive), each a
     /// `(id, name)` pair.
     pub fn drive_item_path(&self, id: i64) -> Result<Vec<(i64, String)>> {
@@ -574,5 +619,55 @@ mod tests {
         assert!(s.relocate_item(a, Some(b), "A", user.id).is_err());
         // Moving a child up to the root is fine.
         assert!(s.move_drive_item(b, None, user.id).is_ok());
+    }
+
+    #[test]
+    fn recycle_bin_trash_restore_and_empty() {
+        let (app, user) = App::test();
+        let s = &app.store;
+        let d = s.ensure_personal_drive(user.id).unwrap();
+        let folder = s.create_drive_folder(d, None, "Docs", user.id).unwrap();
+        let file = s.create_drive_file(d, Some(folder), "a.txt", 3, "text/plain", user.id).unwrap();
+
+        // Trashing the folder hides it (and its subtree) from navigation but
+        // keeps it findable by id and listed in the recycle bin.
+        s.trash_item(folder, user.id).unwrap();
+        assert!(s.drive_items(d, None).unwrap().is_empty());
+        assert_eq!(s.trashed_items(d).unwrap().len(), 1);
+        assert!(s.drive_item(folder).unwrap().is_some());
+        // A new folder may reuse the freed name while the old one is trashed.
+        let fresh = s.create_drive_folder(d, None, "Docs", user.id).unwrap();
+        assert_ne!(fresh, folder);
+
+        // Restoring brings the whole subtree back into view.
+        s.restore_item(folder).unwrap();
+        assert_eq!(s.drive_items(d, None).unwrap().len(), 2);
+        assert_eq!(s.drive_items(d, Some(folder)).unwrap().len(), 1);
+        assert!(s.trashed_items(d).unwrap().is_empty());
+
+        // Emptying the bin hard-deletes trashed subtrees and returns file ids.
+        s.trash_item(folder, user.id).unwrap();
+        let files = s.empty_trash(d).unwrap();
+        assert_eq!(files, vec![file]);
+        assert!(s.drive_item(folder).unwrap().is_none());
+        assert!(s.trashed_items(d).unwrap().is_empty());
+    }
+
+    #[test]
+    fn restoring_into_a_trashed_parent_lands_at_the_root() {
+        let (app, user) = App::test();
+        let s = &app.store;
+        let d = s.ensure_personal_drive(user.id).unwrap();
+        let folder = s.create_drive_folder(d, None, "Docs", user.id).unwrap();
+        let child = s.create_drive_folder(d, Some(folder), "Sub", user.id).unwrap();
+        // Trash the child on its own, then trash its parent too.
+        s.trash_item(child, user.id).unwrap();
+        s.trash_item(folder, user.id).unwrap();
+        // Restoring only the child, whose parent is still in the bin, falls back
+        // to the drive root rather than staying hidden under a trashed folder.
+        s.restore_item(child).unwrap();
+        let roots = s.drive_items(d, None).unwrap();
+        assert!(roots.iter().any(|x| x.id == child));
+        assert!(!roots.iter().any(|x| x.id == folder));
     }
 }

@@ -219,9 +219,52 @@ pub fn delete_item(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     if !role(app, user, it.drive_id)?.can_write() {
         return Err(forbidden());
     }
+    // Soft delete: the item (and its subtree) moves to the drive's recycle bin
+    // and keeps counting toward quota until the bin is emptied, matching O365.
+    app.store.trash_item(b.item, user.id).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+// ------------------------------------------------------------------- recycle bin
+
+pub fn trash(app: &Shared, user: &User, query: &str) -> ApiResult {
+    let drive_id: i64 = query_param(query, "drive").and_then(|v| v.parse().ok()).ok_or_else(|| bad("drive required"))?;
+    role(app, user, drive_id)?;
+    let items = app.store.trashed_items(drive_id).map_err(internal)?;
+    Ok(json!({ "items": items.iter().map(item_json).collect::<Vec<_>>() }))
+}
+
+pub fn restore_item(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: ItemRef = parse(body)?;
+    let it = app.store.drive_item(b.item).map_err(internal)?.ok_or_else(not_found)?;
+    if !role(app, user, it.drive_id)?.can_write() {
+        return Err(forbidden());
+    }
+    app.store.restore_item(b.item).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+pub fn trash_delete(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: ItemRef = parse(body)?;
+    let it = app.store.drive_item(b.item).map_err(internal)?.ok_or_else(not_found)?;
+    if !role(app, user, it.drive_id)?.can_write() {
+        return Err(forbidden());
+    }
     let files = app.store.delete_drive_item(b.item).map_err(internal)?;
     for id in files {
         let _ = std::fs::remove_file(file_path(app, it.drive_id, id));
+    }
+    Ok(json!({ "ok": true }))
+}
+
+pub fn trash_empty(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: DriveRef = parse(body)?;
+    if !role(app, user, b.drive)?.can_write() {
+        return Err(forbidden());
+    }
+    let files = app.store.empty_trash(b.drive).map_err(internal)?;
+    for id in files {
+        let _ = std::fs::remove_file(file_path(app, b.drive, id));
     }
     Ok(json!({ "ok": true }))
 }

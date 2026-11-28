@@ -227,7 +227,9 @@ CREATE TABLE IF NOT EXISTS drive_items (
     created INTEGER NOT NULL,
     created_by INTEGER NOT NULL,
     updated INTEGER NOT NULL,
-    updated_by INTEGER NOT NULL
+    updated_by INTEGER NOT NULL,
+    trashed INTEGER NOT NULL DEFAULT 0,
+    trashed_at INTEGER
 );
 CREATE INDEX IF NOT EXISTS drive_items_loc ON drive_items(drive_id, parent_id);
 CREATE INDEX IF NOT EXISTS drive_items_doc ON drive_items(doc_id);
