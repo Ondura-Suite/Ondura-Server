@@ -519,7 +519,11 @@ async function capi(method, path, body) {
 }
 
 // ------------------------------------------------------------ state
-let me = null, view = "mail", folders = [], curFolder = null, curMsg = null, messages = [];
+let me = null, view = "home", folders = [], curFolder = null, curMsg = null, messages = [];
+// The Mail app bundles mail, calendar and contacts (like Outlook). Tasks, Notes
+// and Files are separate apps.
+const MAIL_VIEWS = ["mail", "calendar", "contacts"];
+function inMailApp(v) { return MAIL_VIEWS.includes(v); }
 let selected = new Set();
 let categories = [], catFilter = null, msgFilter = "all";
 let threaded = false; try { threaded = localStorage.getItem("ondura-mail-threads") === "1"; } catch (e) {}
@@ -703,12 +707,17 @@ function mailFolders() {
 // from the home dashboard or the app launcher.
 function renderRail() {
   let html = "";
-  if (view === "mail") {
-    html += `<div class="folder" id="addFolder" style="color:var(--muted)">${icon("plus")}<span class="nm">${esc(t("newFolder"))}</span></div>`;
-    html += mailFolders().map((f) => {
-      const custom = !f.role;
-      return `<div class="folder ${curFolder && f.id === curFolder.id ? "active" : ""}" data-folder="${f.id}">${icon(f.role || "folder")}<span class="nm">${esc(folderLabel(f))}</span>${custom ? `<button class="iconbtn fmenu" data-fid="${f.id}" data-fname="${esc(f.name)}" style="width:22px;height:22px">${icon("dots")}</button>` : ""}${f.unread ? `<span class="ct">${f.unread}</span>` : ""}</div>`;
-    }).join("");
+  if (inMailApp(view)) {
+    // Inner navigation of the Mail app (Outlook-style): mail, calendar, contacts.
+    const inner = [["mail", "mail"], ["calendar", "calendar"], ["contacts", "contacts"]];
+    html += inner.map(([k, ic]) => `<div class="navitem ${view === k ? "active" : ""}" data-view="${k}">${icon(ic)}<span>${esc(t(k))}</span></div>`).join("");
+    if (view === "mail") {
+      html += `<div class="railsep"></div><div class="folder" id="addFolder" style="color:var(--muted)">${icon("plus")}<span class="nm">${esc(t("newFolder"))}</span></div>`;
+      html += mailFolders().map((f) => {
+        const custom = !f.role;
+        return `<div class="folder ${curFolder && f.id === curFolder.id ? "active" : ""}" data-folder="${f.id}">${icon(f.role || "folder")}<span class="nm">${esc(folderLabel(f))}</span>${custom ? `<button class="iconbtn fmenu" data-fid="${f.id}" data-fname="${esc(f.name)}" style="width:22px;height:22px">${icon("dots")}</button>` : ""}${f.unread ? `<span class="ct">${f.unread}</span>` : ""}</div>`;
+      }).join("");
+    }
   } else if (view === "files") {
     const drives = (typeof fs !== "undefined" && fs.drives) ? fs.drives : [];
     html += drives.map((d) => `<div class="navitem ${fs.driveId === d.id ? "active" : ""}" data-drive="${d.id}">${icon(d.kind === "personal" ? "folder" : "share")}<span>${esc(d.kind === "personal" ? t("myFiles") : d.name)}</span></div>`).join("");
@@ -728,13 +737,13 @@ function renderRail() {
   const rnl = $("#railNewLib"); if (rnl) rnl.onclick = guard(async () => { const name = prompt(t("libraryName")); if (!name) return; const r = await api("POST", "/cloud/library", { name: name.trim() }); fs.drives = []; fs.driveId = r.id; fs.parent = null; renderFiles(); });
 }
 
-// The apps shown on the home dashboard and in the app launcher.
+// Top-level apps shown on the home dashboard and in the app launcher. Mail is
+// one app (mail, calendar and contacts inside it); Files, Tasks and Notes are
+// their own apps.
 function appList() {
   return [
     { k: "mail", ic: "mail", c: "#4f6ef7" },
     (me && me.cloud) ? { k: "files", ic: "folder", c: "#16a34a" } : null,
-    { k: "calendar", ic: "calendar", c: "#db2777" },
-    { k: "contacts", ic: "contacts", c: "#f59e0b" },
     { k: "tasks", ic: "tasks", c: "#0ea5e9" },
     { k: "notes", ic: "note", c: "#8b5cf6" },
   ].filter(Boolean);
@@ -758,8 +767,12 @@ function openApps() {
 }
 function render() {
   applyTexts();
-  const hasRail = view === "mail" || view === "files";
+  const mailApp = inMailApp(view);
+  const hasRail = mailApp || view === "files";
   document.getElementById("app").classList.toggle("norail", !hasRail);
+  // Compose and mail search belong to the Mail app only.
+  $("#composeBtn").style.display = mailApp ? "" : "none";
+  const sb = document.querySelector(".search"); if (sb) sb.style.display = mailApp ? "" : "none";
   renderRail();
   if (view === "home") renderHome();
   else if (view === "mail") renderMail();
