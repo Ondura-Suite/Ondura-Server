@@ -70,6 +70,16 @@ pub struct Item {
     pub updated: i64,
 }
 
+/// A recently updated item together with the drive it lives in.
+#[derive(Debug, Clone, Serialize)]
+pub struct RecentItem {
+    #[serde(flatten)]
+    pub item: Item,
+    pub drive_id: i64,
+    pub drive_name: String,
+    pub drive_kind: String,
+}
+
 /// A member of a shared library.
 #[derive(Debug, Clone, Serialize)]
 pub struct Member {
@@ -503,6 +513,31 @@ impl Store {
             files.extend(self.delete_drive_item(id)?);
         }
         Ok(files)
+    }
+
+    /// Recently updated files and documents across every drive the user can see
+    /// (personal drive plus libraries they belong to), newest first. Each entry
+    /// carries the drive it lives in so the UI can show its location.
+    pub fn recent_items(&self, user_id: i64, limit: i64) -> Result<Vec<RecentItem>> {
+        self.ensure_personal_drive(user_id)?;
+        let cols: String = ITEM_COLUMNS.split(", ").map(|c| format!("i.{c}")).collect::<Vec<_>>().join(", ");
+        let db = self.db();
+        let st = db.prepare(&format!(
+            "SELECT {cols}, d.id, d.name, d.kind FROM drive_items i \
+             JOIN drives d ON d.id = i.drive_id \
+             WHERE i.trashed = 0 AND i.kind != 'folder' \
+               AND ((d.kind = 'personal' AND d.owner_id = ?1) \
+                    OR d.id IN (SELECT drive_id FROM drive_members WHERE user_id = ?1)) \
+             ORDER BY i.updated DESC LIMIT ?2"
+        ))?;
+        st.query_map(params![user_id, limit], |r| {
+            Ok(RecentItem {
+                item: item_from_row(r)?,
+                drive_id: r.get(9)?,
+                drive_name: r.get(10)?,
+                drive_kind: r.get(11)?,
+            })
+        })
     }
 
     // ------------------------------------------------------------ share links

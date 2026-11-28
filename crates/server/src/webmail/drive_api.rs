@@ -388,6 +388,21 @@ fn serve_file(app: &Shared, it: &crate::cloud::Item, inline: bool) -> Response {
     r
 }
 
+/// Recently updated files and documents across the user's drives.
+pub fn recent(app: &Shared, user: &User, query: &str) -> ApiResult {
+    let limit: i64 = query_param(query, "limit").and_then(|v| v.parse().ok()).unwrap_or(50).clamp(1, 200);
+    let items = app.store.recent_items(user.id, limit).map_err(internal)?;
+    Ok(json!({
+        "items": items.iter().map(|r| {
+            let mut v = item_json(&r.item);
+            v["driveId"] = json!(r.drive_id);
+            v["driveName"] = json!(r.drive_name);
+            v["driveKind"] = json!(r.drive_kind);
+            v
+        }).collect::<Vec<_>>(),
+    }))
+}
+
 // ------------------------------------------------------------- item share links
 
 #[derive(Deserialize)]
