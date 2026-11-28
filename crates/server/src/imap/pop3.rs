@@ -84,7 +84,7 @@ async fn session(app: Shared, tcp: TcpStream, implicit_tls: bool, ip: std::net::
                 };
                 let store = app.store.clone();
                 let (l, p) = (login, arg.clone());
-                let res = tokio::task::spawn_blocking(move || auth::login(&store, &l, &p, Some(ip))).await;
+                let res = tokio::task::spawn_blocking(move || auth::login_app(&store, &l, &p, Some(ip))).await;
                 match res {
                     // A valid account with no mailbox cannot use POP3.
                     Ok(Ok(u)) if u.mailbox => {

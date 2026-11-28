@@ -636,6 +636,15 @@ async fn serve(cfg: Config) -> Result<()> {
         }
     }
     smtp::outbound::spawn(app.clone());
+    let later = app.clone();
+    tokio::spawn(async move {
+        // Messages scheduled with "send later".
+        let mut tick = tokio::time::interval(std::time::Duration::from_secs(30));
+        loop {
+            tick.tick().await;
+            webmail::mail_api::send_due(&later).await;
+        }
+    });
     let maintenance = app.clone();
     tokio::spawn(async move {
         let mut tick = tokio::time::interval(std::time::Duration::from_secs(6 * 3600));

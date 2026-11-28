@@ -302,8 +302,13 @@ Admin Center and the Nextcloud client's login page needs a six-digit code as
 well as the password. Ten one-time recovery codes are shown when it is turned
 on. After five wrong codes, codes are refused for 15 minutes.
 
-Mail apps (IMAP, POP3, SMTP, ActiveSync, EWS) keep signing in with the
-password, as they have no way to ask for a code.
+Mail apps (IMAP, POP3, SMTP, ActiveSync, EWS) have no way to ask for a code.
+They sign in with the account password or with an **app password**: each
+person creates app passwords in the web app's settings (one per device, shown
+once, sixteen letters) and can delete them again. The setting *Mail apps only
+with app passwords* stops mail and sync apps — including the Nextcloud client
+— from using the account password at all; together with two-step sign-in that
+leaves no way in with the password alone.
 
 If someone loses their phone, turn it off for them in the Admin Center (the
 account's *Password* tab shows a reset button when two-step sign-in is on) or

@@ -136,6 +136,45 @@ pub fn login(store: &Store, login: &str, password: &str, ip: Option<IpAddr>) -> 
     }
 }
 
+/// Bring an app password to its stored form: they are shown in groups
+/// (`abcd efgh ijkl mnop`), and apps may keep the spaces or dashes.
+pub fn normalize_app_password(p: &str) -> String {
+    p.chars().filter(|c| !c.is_whitespace() && *c != '-').collect::<String>().to_ascii_lowercase()
+}
+
+/// Sign-in for mail and sync apps (IMAP, POP3, SMTP, ActiveSync, EWS, the
+/// Nextcloud and Ondura clients): an app password of the account, or the
+/// account password unless the account allows only app passwords there.
+/// Browser sign-ins use [`login`] (and a second step where it is turned on).
+pub fn login_app(store: &Store, login_name: &str, password: &str, ip: Option<IpAddr>) -> std::result::Result<User, LoginError> {
+    let key = (login_name.trim().to_ascii_lowercase(), ip);
+    {
+        let st = state().lock().unwrap_or_else(|e| e.into_inner());
+        if st.failures.get(&key).is_some_and(|(n, first)| *n >= MAX_FAILURES && first.elapsed() < FAILURE_WINDOW) {
+            return Err(LoginError::Locked);
+        }
+    }
+    let user = store.user_for_login(login_name)?;
+    let app_pw = normalize_app_password(password);
+    if let Some(u) = &user
+        && app_pw.len() >= 16
+        && store.app_password_user(&app_pw).ok().flatten() == Some(u.id)
+    {
+        if !u.enabled {
+            return Err(LoginError::Disabled);
+        }
+        if u.kind == "user" {
+            store.touch_app_password(&app_pw);
+            return Ok(u.clone());
+        }
+    }
+    if user.as_ref().is_some_and(|u| store.settings(u.id).map(|s| s.app_passwords_only).unwrap_or(false)) {
+        fail(key);
+        return Err(LoginError::Invalid);
+    }
+    login(store, login_name, password, ip)
+}
+
 fn fail(key: (String, Option<IpAddr>)) {
     let mut st = state().lock().unwrap_or_else(|e| e.into_inner());
     let ip = key.1;

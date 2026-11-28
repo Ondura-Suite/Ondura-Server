@@ -83,6 +83,12 @@ svg { width: 18px; height: 18px; display: block; }
   background: var(--surface-solid); outline: none; border-bottom: 2px solid transparent; width: 100%;
 }
 .field input, .field select { height: 34px; }
+/* Inputs placed directly in panel rows (not in a .field) look the same. */
+.panel .cont input:not([type=checkbox]):not([type=file]):not([type=radio]), .panel .cont select, .panel .cont textarea {
+  padding: 8px 10px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface-solid); color: var(--text); outline: none; font: inherit; font-size: 14px; box-sizing: border-box;
+}
+.panel .cont input:not([type=checkbox]):not([type=file]):not([type=radio]), .panel .cont select { height: 34px; }
+.panel .cont input:focus, .panel .cont select:focus, .panel .cont textarea:focus { border-color: var(--tint); }
 .field select { padding-top: 0; padding-bottom: 0; }
 .raillabel { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 4px 10px; }
 .calrow { cursor: default; }
@@ -377,6 +383,10 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 .tg-ev { position: absolute; background: var(--tint-soft); color: var(--tint); border-left: 3px solid var(--tint); border-radius: 5px; padding: 2px 6px; font-size: 12px; overflow: hidden; cursor: pointer; box-sizing: border-box; display: flex; flex-direction: column; }
 .tg-ev b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .tg-ev span { opacity: .8; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tg-ev.tg-short { flex-direction: row; gap: 6px; align-items: center; padding-top: 0; padding-bottom: 0; }
+.tg-rs { position: absolute; left: 0; right: 0; bottom: 0; height: 6px; cursor: ns-resize; }
+.tg-ev.dragging { opacity: .85; box-shadow: var(--shadow); z-index: 5; }
+.tg-ev[data-evi] { touch-action: none; }
+.cell.drop { background: var(--tint-soft); }
 .tg-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--danger); pointer-events: none; }
 .ev { background: var(--tint-soft); color: var(--tint); border-radius: 5px; padding: 2px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 
@@ -447,6 +457,13 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 <script>
 const T = {
   en: {
+    sendLater: "Send later", laterToday: "Later today", tomorrowMorning: "Tomorrow morning", mondayMorning: "Monday morning", pickTime: "Choose a time…", sendAtLabel: "Send at", pickFuture: "Choose a time in the future.",
+    scheduledFor: "Will be sent {t}", scheduledMail: "Scheduled", scheduledHint: "These messages go out at the time shown. Editing one stops it and opens it as a draft.", act_send_failed: "A scheduled message “{s}” could not be sent and is back in Drafts",
+    cantMove: "Only the organizer can move this event.",
+    makeTask: "Task", openMail: "Open the e-mail", noSubject: "(no subject)",
+    appPasswords: "App passwords", appPasswordsHint: "Mail and calendar apps (Outlook, Apple Mail, Thunderbird, phones) can sign in with an app password instead of your account password. Give each device its own and delete it when the device is gone.",
+    appPasswordName: "Name, e.g. iPhone", createAppPassword: "Create", appPasswordShown: "Enter this password in the app now. It is shown only once:", created: "Created", lastUsed: "last used", neverUsed: "not used yet",
+    appPasswordsOnly: "Mail apps only with app passwords", appPasswordsOnlyHint: "Recommended with two-step sign-in: mail and sync apps can no longer sign in with your account password.", confirmDeleteAppPassword: "Delete this app password? Apps using it will be signed out.",
     editGroup: "Edit",
     room: "Room", noRoom: "No room", roomFree: "free", roomBusy: "booked",
     importance: "Importance", impLow: "Low", impNormal: "Normal", impHigh: "High", steps: "Steps", addStep: "Add a step", assignTo: "Assign to", assignHint: "E-mail address of a person on this server", assignedBy: "Assigned by",
@@ -454,7 +471,7 @@ const T = {
     more: "More", newGroup: "New group", contactGroups: "Groups", groupMembers: "{n} members", groupName: "Group name", groupMembersLabel: "Members", groupMembersHint: "One per line: an address, or Name <address>. Typing the group's name as a recipient adds all members.", addFromContacts: "Add from contacts",
     importVcf: "Import vCard file", exportVcf: "Export as vCard (.vcf)", contactsImported: "{n} added, {m} already there",
     signInCode: "Code from your authenticator app", signInCodeHint: "Or one of your recovery codes.", twoStep: "Two-step sign-in",
-    twoStepHint: "Signing in to the web app and the Admin Center then also needs a code from an authenticator app on your phone. Mail apps keep using your password or an app password.",
+    twoStepHint: "Signing in to the web app and the Admin Center then also needs a code from an authenticator app on your phone. Mail apps keep using your password or an app password (see below).",
     twoStepSetup: "Set up", twoStepOn: "Two-step sign-in is on.", recoveryLeft: "{n} recovery codes left.", twoStepOff: "Turn off",
     twoStepScan: "Scan the QR code with your authenticator app (or enter the key), then enter the code it shows.", twoStepKey: "Key", twoStepOpenApp: "Open in an authenticator app on this device",
     twoStepConfirm: "Turn on", twoStepDone: "Two-step sign-in is on. Keep these recovery codes somewhere safe; each works once if your phone is not at hand:", twoStepSaved: "I've saved them",
@@ -496,6 +513,13 @@ const T = {
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
   de: {
+    sendLater: "Später senden", laterToday: "Heute später", tomorrowMorning: "Morgen früh", mondayMorning: "Montag früh", pickTime: "Zeitpunkt wählen…", sendAtLabel: "Senden am", pickFuture: "Wähle einen Zeitpunkt in der Zukunft.",
+    scheduledFor: "Wird gesendet: {t}", scheduledMail: "Geplant", scheduledHint: "Diese Nachrichten gehen zum angezeigten Zeitpunkt raus. Bearbeiten stoppt den Versand und öffnet sie als Entwurf.", act_send_failed: "Die geplante Nachricht „{s}“ konnte nicht gesendet werden und liegt wieder in den Entwürfen",
+    cantMove: "Nur der Organisator kann diesen Termin verschieben.",
+    makeTask: "Aufgabe", openMail: "E-Mail öffnen", noSubject: "(kein Betreff)",
+    appPasswords: "App-Passwörter", appPasswordsHint: "Mail- und Kalender-Apps (Outlook, Apple Mail, Thunderbird, Handys) können sich mit einem App-Passwort statt deinem Kontopasswort anmelden. Gib jedem Gerät ein eigenes und lösche es, wenn das Gerät weg ist.",
+    appPasswordName: "Name, z. B. iPhone", createAppPassword: "Erstellen", appPasswordShown: "Gib dieses Passwort jetzt in der App ein. Es wird nur einmal angezeigt:", created: "Erstellt", lastUsed: "zuletzt verwendet", neverUsed: "noch nicht verwendet",
+    appPasswordsOnly: "Mail-Apps nur mit App-Passwort", appPasswordsOnlyHint: "Empfohlen mit Zwei-Faktor-Anmeldung: Mail- und Sync-Apps können sich nicht mehr mit deinem Kontopasswort anmelden.", confirmDeleteAppPassword: "Dieses App-Passwort löschen? Apps, die es verwenden, werden abgemeldet.",
     editGroup: "Bearbeiten",
     room: "Raum", noRoom: "Kein Raum", roomFree: "frei", roomBusy: "belegt",
     importance: "Wichtigkeit", impLow: "Niedrig", impNormal: "Normal", impHigh: "Hoch", steps: "Schritte", addStep: "Schritt hinzufügen", assignTo: "Zuweisen an", assignHint: "E-Mail-Adresse einer Person auf diesem Server", assignedBy: "Zugewiesen von",
@@ -503,7 +527,7 @@ const T = {
     more: "Mehr", newGroup: "Neue Gruppe", contactGroups: "Gruppen", groupMembers: "{n} Mitglieder", groupName: "Gruppenname", groupMembersLabel: "Mitglieder", groupMembersHint: "Eine pro Zeile: eine Adresse oder Name <Adresse>. Wer den Gruppennamen als Empfänger eingibt, fügt alle Mitglieder ein.", addFromContacts: "Aus Kontakten hinzufügen",
     importVcf: "vCard-Datei importieren", exportVcf: "Als vCard exportieren (.vcf)", contactsImported: "{n} hinzugefügt, {m} schon vorhanden",
     signInCode: "Code aus deiner Authenticator-App", signInCodeHint: "Oder einer deiner Wiederherstellungscodes.", twoStep: "Zwei-Faktor-Anmeldung",
-    twoStepHint: "Die Anmeldung an der Web-App und am Admin Center braucht dann zusätzlich einen Code aus einer Authenticator-App auf deinem Handy. Mail-Apps verwenden weiter dein Passwort oder ein App-Passwort.",
+    twoStepHint: "Die Anmeldung an der Web-App und am Admin Center braucht dann zusätzlich einen Code aus einer Authenticator-App auf deinem Handy. Mail-Apps verwenden weiter dein Passwort oder ein App-Passwort (siehe unten).",
     twoStepSetup: "Einrichten", twoStepOn: "Die Zwei-Faktor-Anmeldung ist aktiv.", recoveryLeft: "Noch {n} Wiederherstellungscodes.", twoStepOff: "Ausschalten",
     twoStepScan: "Scanne den QR-Code mit deiner Authenticator-App (oder gib den Schlüssel ein) und trage dann den angezeigten Code ein.", twoStepKey: "Schlüssel", twoStepOpenApp: "In einer Authenticator-App auf diesem Gerät öffnen",
     twoStepConfirm: "Einschalten", twoStepDone: "Die Zwei-Faktor-Anmeldung ist aktiv. Bewahre diese Wiederherstellungscodes sicher auf; jeder funktioniert einmal, falls dein Handy nicht zur Hand ist:", twoStepSaved: "Gespeichert",
@@ -957,6 +981,28 @@ function mailFolders() {
 // Each app is its own system: the rail shows that app's own navigation only
 // (mail folders, or cloud drives), not a cross-app switcher. Apps are switched
 // from the home dashboard or the app launcher.
+// Messages waiting to be sent later; shown in the mail rail.
+let scheduledMail = [];
+async function loadScheduled() {
+  if (!me || me.mail === false) return;
+  const before = scheduledMail.length;
+  try { scheduledMail = (await api("GET", "/scheduled")).items || []; } catch (e) { return; }
+  if (view === "mail" && (before || scheduledMail.length)) renderRail();
+}
+function openScheduled() {
+  const draw = () => {
+    const rows = scheduledMail.map((m) => `<div class="taskrow"><div class="tt" style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(m.subject || t("noSubject"))}</div><div style="font-size:11.5px;color:var(--muted)">${esc(fmtDate(m.sendAt))} · ${esc(m.to)}</div></div><button class="btn" data-schedit="${m.id}">${esc(t("editGroup"))}</button></div>`).join("") || `<p style="color:var(--muted)">—</p>`;
+    panel(t("scheduledMail"), `<p style="margin:0 0 8px;color:var(--muted);font-size:12.5px">${esc(t("scheduledHint"))}</p>${rows}`, `<div style="flex:1"></div><button class="btn" id="schClose">${esc(t("close"))}</button>`);
+    $("#schClose").onclick = closePanel;
+    document.querySelectorAll("[data-schedit]").forEach((b) => b.onclick = guard(async () => {
+      const r = await api("POST", "/scheduled/cancel", { id: +b.dataset.schedit });
+      closePanel(); await loadScheduled(); refreshFolders();
+      const m = await api("GET", "/message/" + r.draft);
+      openCompose({ mode: "draft", msg: m, draftId: r.draft });
+    }));
+  };
+  loadScheduled().then(draw);
+}
 function renderRail() {
   let html = "";
   if (inMailApp(view)) {
@@ -969,6 +1015,7 @@ function renderRail() {
         const custom = !f.role;
         return `<div class="folder ${curFolder && f.id === curFolder.id ? "active" : ""}" data-folder="${f.id}">${icon(f.role || "folder")}<span class="nm">${esc(folderLabel(f))}</span>${custom ? `<button class="iconbtn fmenu" data-fid="${f.id}" data-fname="${esc(f.name)}" style="width:22px;height:22px">${icon("dots")}</button>` : ""}${f.unread ? `<span class="ct">${f.unread}</span>` : ""}</div>`;
       }).join("");
+      if (scheduledMail.length) html += `<div class="folder" id="railScheduled">${icon("clock")}<span class="nm">${esc(t("scheduledMail"))}</span><span class="ct">${scheduledMail.length}</span></div>`;
     }
     if (view === "calendar") {
       html += `<div class="railsep"></div><div class="raillabel">${esc(t("calendars"))}</div>`;
@@ -1001,6 +1048,7 @@ function renderRail() {
     if (!res.ok) throw new Error((d && d.error) || res.statusText);
     toast(t("imported").replace("{n}", d.added).replace("{m}", d.updated)); renderCalendar();
   }); }
+  const rsch = $("#railScheduled"); if (rsch) rsch.onclick = openScheduled;
   $("#rail").querySelectorAll("[data-folder]").forEach((e) => e.onclick = (ev) => { if (ev.target.closest(".fmenu")) return; curFolder = folders.find((f) => f.id == e.dataset.folder); curMsg = null; selected.clear(); catFilter = null; msgFilter = "all"; $("#q").value = ""; render(); });
   const af = $("#addFolder"); if (af) af.onclick = guard(async () => { const name = prompt(t("folderName")); if (!name || !name.trim()) return; await api("POST", "/folder", { name: name.trim() }); await refreshFolders(); renderRail(); toast(t("saved")); });
   $("#rail").querySelectorAll(".fmenu").forEach((b) => b.onclick = guard(async (ev) => {
@@ -1191,6 +1239,18 @@ function actPrint(m) {
     `${m.cc && m.cc.length ? "<br>" + esc(t("cc")) + ": " + esc(m.cc.map(personStr).join(", ")) : ""}</div>${body}`);
   w.document.close(); w.focus(); setTimeout(() => { try { w.print(); } catch (e) {} }, 300);
 }
+// Turn an e-mail into a task: the subject becomes the title, the sender and
+// the start of the text the notes, and the task links back to the message.
+// The message is flagged, as in Outlook.
+function mailToTask(id, m) {
+  const head = `${t("from")}: ${personStr(m.from)}${m.from && m.from.email ? " <" + m.from.email + ">" : ""}\n${fmtDate(m.date)}`;
+  const text = (m.text || "").trim();
+  const body = `${head}\n\n${text.length > 2000 ? text.slice(0, 2000) + "…" : text}`;
+  const due = new Date(); due.setHours(0, 0, 0, 0); due.setDate(due.getDate() + 1);
+  openTask(null, { subject: m.subject || t("noSubject"), body, due: Math.floor(due / 1000), source_message: id }, async () => {
+    if (!(m.flags && m.flags.flagged)) { try { await actFlag(id, true); } catch (e) {} }
+  });
+}
 // Right-click context menu on a list row.
 function openMsgContext(ev, id) {
   closeMenu();
@@ -1204,6 +1264,7 @@ function openMsgContext(ev, id) {
     { sep: true },
     { ic: "mail", label: read ? t("markUnread") : t("markRead"), fn: () => actRead(id, !read) },
     { ic: "flag", label: flagged ? t("unflag") : t("flag"), fn: () => actFlag(id, !flagged) },
+    { ic: "check", label: t("makeTask"), fn: async () => mailToTask(id, await api("GET", "/message/" + id)) },
     { ic: "tag", label: t("categorize"), keepOpen: true, fn: () => openCategoryPicker(anchor, (it.categories || []), (cats) => assignCategories(id, cats)) },
     (it.from && it.from.email) ? { ic: "clock", label: t("sweep"), fn: () => openSweep(it.from.email, it.from.name) } : null,
     (archiveFolder() && !inArchive()) ? { ic: "archive", label: t("archive"), fn: () => actArchive(id) } : null,
@@ -1542,6 +1603,7 @@ async function openMessage(id) {
       <span class="sep"></span>
       <button class="btn" data-a="unread">${icon("mail")}<span>${esc(t("markUnread"))}</span></button>
       <button class="btn" data-a="flag">${icon("flag")}<span>${esc(m.flags && m.flags.flagged ? t("unflag") : t("flag"))}</span></button>
+      <button class="btn" data-a="task">${icon("check")}<span>${esc(t("makeTask"))}</span></button>
       <button class="btn" data-a="print">${icon("print")}<span>${esc(t("print"))}</span></button>
     </div>
     <div class="bodywrap">${bodyHtml}</div>
@@ -1573,6 +1635,7 @@ async function openMessage(id) {
   act("delete").onclick = guard(() => actDelete(id));
   act("unread").onclick = guard(() => actRead(id, false));
   act("flag").onclick = guard(() => actFlag(id, !(m.flags && m.flags.flagged)));
+  act("task").onclick = () => mailToTask(id, m);
   act("print").onclick = () => actPrint(m);
   act("categorize").onclick = (e) => openCategoryPicker(e.target.closest("button"), m.categories || [], async (cats) => {
     await api("POST", "/categorize", { id, categories: cats });
@@ -1670,6 +1733,7 @@ function openCompose(opt) {
         `<div style="flex:1"></div>` +
         `<button class="btn" id="cdiscard">${esc(t("discard"))}</button>` +
         `<button class="btn" id="cdraft">${esc(t("saveDraft"))}</button>` +
+        `<button class="btn" id="clater" title="${esc(t("sendLater"))}">${icon("clock")}<span>${esc(t("sendLater"))}</span></button>` +
         `<button class="btn primary" id="csend">${esc(t("send"))}</button></div>` +
     `</div>`;
   // Rich-text body: start from the draft's HTML, or the plain text turned into HTML.
@@ -1718,15 +1782,33 @@ function openCompose(opt) {
   });
   $("#cto").focus();
   $("#cfiles").onchange = async (e) => { for (const f of e.target.files) { const b64 = await fileB64(f); pendingFiles.push({ name: f.name, contentType: f.type || "application/octet-stream", data: b64 }); } renderFileList(); scheduleSave(); };
-  $("#csend").onclick = guard(async () => {
+  const doSend = async (sendAt) => {
     clearTimeout(saveTimer);
     if (!$("#cto").value.trim() && !$("#ccc").value.trim() && !$("#cbcc").value.trim()) { toast(t("recipientRequired"), true); $("#cto").focus(); return; }
     const body = { to: $("#cto").value, cc: $("#ccc").value, bcc: $("#cbcc").value, subject: $("#csub").value, text: $("#cbody").innerText, html: $("#cbody").innerHTML, attachments: pendingFiles };
     if ($("#cfrom")) body.from = $("#cfrom").value;
     if (answering) body.answering = answering;
     if (draftId) body.draftId = draftId;
-    await api("POST", "/send", body); closeCompose(); toast(t("sent")); if (view === "mail") loadMessages(); refreshFolders();
-  });
+    if (sendAt) body.sendAt = sendAt;
+    await api("POST", "/send", body); closeCompose();
+    toast(sendAt ? t("scheduledFor").replace("{t}", fmtDate(sendAt)) : t("sent"));
+    if (view === "mail") loadMessages(); refreshFolders(); loadScheduled();
+  };
+  $("#csend").onclick = guard(() => doSend(null));
+  // Send later: a few common times, or any time.
+  $("#clater").onclick = (ev) => {
+    ev.stopPropagation();
+    const at = (days, h, weekday) => { const d = new Date(); d.setSeconds(0, 0); if (weekday != null) { const add = ((weekday - d.getDay()) + 7) % 7 || 7; d.setDate(d.getDate() + add); } else d.setDate(d.getDate() + days); d.setHours(h, 0); return Math.floor(d / 1000); };
+    const opts = [];
+    const now = new Date();
+    if (now.getHours() < 16) opts.push([t("laterToday"), at(0, 17)]);
+    opts.push([t("tomorrowMorning"), at(1, 8)], [t("mondayMorning"), at(0, 8, 1)]);
+    openMenu(ev, opts.map(([l, ts]) => ({ ic: "clock", label: `${l} · ${fmtDate(ts)}`, fn: guard(() => doSend(ts)) })).concat([{ sep: true }, { ic: "calendar", label: t("pickTime"), fn: () => {
+      panel(t("sendLater"), `<div class="field"><label>${esc(t("sendAtLabel"))}</label><input id="slAt" type="datetime-local" value="${toLocalInput(at(1, 8))}"></div>`,
+        `<div style="flex:1"></div><button class="btn primary" id="slOk">${esc(t("sendLater"))}</button>`);
+      $("#slOk").onclick = guard(async () => { const ts = fromLocalInput($("#slAt").value); if (!(ts > Date.now() / 1000 + 60)) { toast(t("pickFuture"), true); return; } closePanel(); await doSend(ts); });
+    } }]));
+  };
   $("#cdraft").onclick = guard(async () => { clearTimeout(saveTimer); await autosave(); closeCompose(); toast(t("saved")); if (view === "mail") loadMessages(); refreshFolders(); });
 }
 function textToHtml(s) { return esc(s || "").replace(/\n/g, "<br>"); }
@@ -1870,15 +1952,80 @@ function renderMonthGrid(events, from, month) {
     const evs = (byDay[d.toDateString()] || []).sort((a, b) => a.start - b.start);
     cells += `<div class="cell ${other ? "other" : ""} ${today ? "today" : ""}" data-day="${Math.floor(d.getTime() / 1000)}">
       <span class="n" data-goday="${Math.floor(d.getTime() / 1000)}">${d.getDate()}</span>
-      ${evs.map((e) => { const l = evLook(e); return `<div class="ev${e.blocksOnly ? " evblock" : ""}" data-evi="${events.indexOf(e)}" title="${esc(l.label)}" style="${l.style}">${e.allDay ? "" : hhmm(e.start) + " "}${esc(l.label)}</div>`; }).join("")}</div>`;
+      ${evs.map((e) => { const l = evLook(e); return `<div class="ev${e.blocksOnly ? " evblock" : ""}" data-evi="${events.indexOf(e)}" ${canDrag(e) ? 'draggable="true"' : ""} title="${esc(l.label)}" style="${l.style}">${e.allDay ? "" : hhmm(e.start) + " "}${esc(l.label)}</div>`; }).join("")}</div>`;
   }
   $("#calGrid").innerHTML = cells;
   $("#calGrid").querySelectorAll(".cell").forEach((c) => c.onclick = () => openEvent(null, +c.dataset.day));
+  // Drag an event to another day; its time of day stays.
+  $("#calGrid").querySelectorAll(".ev[draggable]").forEach((el) => el.ondragstart = (e) => { e.dataTransfer.setData("text/plain", el.dataset.evi); e.dataTransfer.effectAllowed = "move"; });
+  $("#calGrid").querySelectorAll(".cell").forEach((c) => {
+    c.ondragover = (e) => { e.preventDefault(); c.classList.add("drop"); };
+    c.ondragleave = () => c.classList.remove("drop");
+    c.ondrop = (e) => {
+      e.preventDefault(); c.classList.remove("drop");
+      const ev = events[+e.dataTransfer.getData("text/plain")]; if (!ev) return;
+      const from = new Date(ev.start * 1000); from.setHours(0, 0, 0, 0);
+      const days = Math.round((+c.dataset.day * 1000 - from.getTime()) / 86400000);
+      if (days) moveEvent(ev, addDays(ev.start, days), addDays(ev.end, days));
+    };
+  });
   // The day number opens that day.
   $("#calGrid").querySelectorAll("[data-goday]").forEach((n) => n.onclick = (e) => { e.stopPropagation(); calRef = new Date(+n.dataset.goday * 1000); cal.mode = "day"; renderCalendar(); });
 }
 
 const HOUR_PX = 48;
+// Own events (not free/busy blocks of others) can be moved by dragging.
+function canDrag(e) { return !e.blocksOnly && (!e.owner || !me || e.owner === me.id); }
+// Save a dragged event: the whole event, or just this occurrence of a series.
+// Only the organizer (or the owner of a personal event) can move it.
+async function moveEvent(ev, start, end) {
+  try {
+    const full = await api("GET", "/event?id=" + ev.id);
+    if (full.canEdit === false || full.isOrganizer === false) { toast(t("cantMove"), true); return renderCalendar(); }
+    if (full.event.recurrence) await api("POST", "/event/occurrence", { id: ev.id, occurrence: ev.occurrenceStart, start, end });
+    else await api("POST", "/event", { id: ev.id, event: Object.assign({}, full.event, { start, end }) });
+    toast(t("saved"));
+  } catch (e) { toast(e.message, true); }
+  renderCalendar();
+}
+// Move an event in the week/day grid by dragging it (also to another day),
+// or change its end with the handle at the bottom; snaps to 15 minutes.
+function wireTimeGridDrag(events) {
+  const snap = HOUR_PX / 4;
+  $("#calGrid").querySelectorAll(".tg-ev[data-evi]").forEach((el) => {
+    const ev = events[+el.dataset.evi];
+    if (!ev || !canDrag(ev)) return;
+    el.onpointerdown = (pd) => {
+      if (pd.button !== 0) return;
+      const resize = !!pd.target.closest(".tg-rs");
+      const col0 = el.closest(".tg-day");
+      const top0 = parseFloat(el.style.top), h0 = parseFloat(el.style.height);
+      let moved = false, col = col0, dy = 0;
+      el.setPointerCapture(pd.pointerId);
+      el.onpointermove = (pm) => {
+        dy = Math.round((pm.clientY - pd.clientY) / snap) * snap;
+        if (!moved && Math.abs(pm.clientY - pd.clientY) < 4 && Math.abs(pm.clientX - pd.clientX) < 4) return;
+        moved = true; el.classList.add("dragging");
+        if (resize) { el.style.height = Math.max(snap - 2, h0 + dy) + "px"; return; }
+        const under = document.elementsFromPoint(pm.clientX, pm.clientY).find((x) => x.classList && x.classList.contains("tg-day"));
+        if (under && under !== col) { col = under; col.appendChild(el); }
+        el.style.top = Math.max(0, Math.min(24 * HOUR_PX - snap, top0 + dy)) + "px";
+      };
+      el.onpointerup = () => {
+        el.onpointermove = el.onpointerup = null;
+        if (!moved) return;
+        el.dataset.dragged = "1";
+        const secs = Math.round(dy / HOUR_PX * 3600);
+        if (resize) { if (ev.end + secs > ev.start) moveEvent(ev, ev.start, ev.end + secs); else renderCalendar(); return; }
+        const dayShift = Math.round((+col.dataset.ds - +col0.dataset.ds) / 86400);
+        const s2 = addDays(ev.start, dayShift) + secs, e2 = addDays(ev.end, dayShift) + secs;
+        if (s2 !== ev.start) moveEvent(ev, s2, e2); else renderCalendar();
+      };
+    };
+    // A drag ends with a click on the element; don't open the editor then.
+    el.addEventListener("click", (c) => { if (el.dataset.dragged) { c.stopImmediatePropagation(); delete el.dataset.dragged; } }, true);
+  });
+}
 function renderTimeGrid(events, from, days) {
   const loc = lang === "de" ? "de-DE" : "en-GB";
   const cols = `56px repeat(${days}, 1fr)`;
@@ -1907,7 +2054,7 @@ function renderTimeGrid(events, from, days) {
       const lk = evLook(x.e);
       const top = (x.s - ds) / 3600 * HOUR_PX, h = Math.max((x.en - x.s) / 3600 * HOUR_PX - 2, 18);
       const w = 100 / x.n;
-      return `<div class="tg-ev${x.e.blocksOnly ? " evblock" : ""}${h < 36 ? " tg-short" : ""}" data-evi="${events.indexOf(x.e)}" title="${esc(lk.label)}" style="top:${top}px;height:${h}px;left:calc(${x.lane * w}% + 2px);width:calc(${w}% - 4px);${lk.style}"><b>${esc(lk.label)}</b><span>${hhmm(x.e.start)} – ${hhmm(x.e.end)}${x.e.location ? " · " + esc(x.e.location) : ""}</span></div>`;
+      return `<div class="tg-ev${x.e.blocksOnly ? " evblock" : ""}${h < 36 ? " tg-short" : ""}" data-evi="${events.indexOf(x.e)}" title="${esc(lk.label)}" style="top:${top}px;height:${h}px;left:calc(${x.lane * w}% + 2px);width:calc(${w}% - 4px);${lk.style}"><b>${esc(lk.label)}</b><span>${hhmm(x.e.start)} – ${hhmm(x.e.end)}${x.e.location ? " · " + esc(x.e.location) : ""}</span>${canDrag(x.e) && x.en === Math.min(x.e.end, de) && x.e.end <= de ? '<div class="tg-rs"></div>' : ""}</div>`;
     }).join("");
     const now = Math.floor(Date.now() / 1000);
     const nowLine = now >= ds && now < de ? `<div class="tg-now" style="top:${(now - ds) / 3600 * HOUR_PX}px"></div>` : "";
@@ -1922,6 +2069,7 @@ function renderTimeGrid(events, from, days) {
     openEvent(null, +c.dataset.ds, at);
   });
   $("#calGrid").querySelectorAll("[data-goday]").forEach((n) => n.onclick = () => { calRef = new Date(+n.dataset.goday * 1000); cal.mode = "day"; renderCalendar(); });
+  wireTimeGridDrag(events);
   // Start scrolled to the working day (or the first event before it).
   const firstTimed = events.filter((e) => !e.allDay && e.start >= from).map((e) => new Date(e.start * 1000).getHours()).sort((a, b) => a - b)[0];
   $("#tgBody").scrollTop = Math.min(firstTimed ?? 8, 8) * HOUR_PX - 8;
@@ -2315,8 +2463,8 @@ async function renderTasks() {
   }));
   box.querySelectorAll("[data-edit]").forEach((e) => e.onclick = () => { const tk = tasks.find((x) => x.id == e.dataset.edit); openTask(tk); });
 }
-function openTask(tk) {
-  const task = tk ? Object.assign({}, tk.task) : {};
+function openTask(tk, prefill, afterSave) {
+  const task = tk ? Object.assign({}, tk.task) : Object.assign({}, prefill || {});
   const copy = !!task.assigned_by;
   const ro = copy ? "disabled" : "";
   let steps = (task.steps || []).map((x) => Object.assign({}, x));
@@ -2332,6 +2480,7 @@ function openTask(tk) {
      <div class="field"><label>${esc(t("steps"))}</label><div id="tkSteps"></div><div style="display:flex;gap:6px;margin-top:6px"><input id="tkStepNew" placeholder="${esc(t("addStep"))}" style="flex:1" ${ro}><button class="btn" id="tkStepAdd" ${ro}>${esc(t("add"))}</button></div></div>
      ${copy ? "" : `<div class="field acfield" style="position:relative"><label>${esc(t("assignTo"))}</label><input id="tkAssign" autocomplete="off" placeholder="${esc(t("assignHint"))}" value="${esc(task.assigned_to || "")}"></div>`}
      <div class="field"><label>${esc(t("content"))}</label><textarea id="tkBody" style="min-height:100px" ${ro}>${esc(task.body || "")}</textarea></div>
+     ${task.source_message ? `<div class="field"><button class="btn" id="tkMail">${icon("mail")}<span>${esc(t("openMail"))}</span></button></div>` : ""}
      <div class="field"><label><input type="checkbox" id="tkDone" ${task.complete ? "checked" : ""}> ${esc(t("complete"))}</label></div>`,
     `${tk && !copy ? `<button class="btn danger" id="tkDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div><button class="btn primary" id="tkSave">${esc(t("save"))}</button>`);
   const drawSteps = () => {
@@ -2344,6 +2493,7 @@ function openTask(tk) {
   $("#tkStepAdd").onclick = addStep;
   $("#tkStepNew").onkeydown = (e) => { if (e.key === "Enter") { e.preventDefault(); addStep(); } };
   if ($("#tkAssign")) attachAutocomplete($("#tkAssign"));
+  if ($("#tkMail")) $("#tkMail").onclick = () => { closePanel(); history.pushState({}, "", "/mail"); view = "mail"; curMsg = null; render(); setTimeout(() => guard(openMessage)(task.source_message), 200); };
   $("#tkSave").onclick = guard(async () => {
     const done = $("#tkDone").checked;
     const due = $("#tkDue").value ? fromLocalInput($("#tkDue").value + "T00:00") : null;
@@ -2356,7 +2506,8 @@ function openTask(tk) {
     });
     if ($("#tkAssign")) t2.assigned_to = $("#tkAssign").value.replace(/[,\s]+$/, "").trim() || null;
     const b = { task: t2 }; if (tk) b.id = tk.id;
-    await api("POST", "/task", b); closePanel(); toast(t("saved")); renderTasks();
+    await api("POST", "/task", b); closePanel(); toast(t("saved"));
+    if (afterSave) await afterSave(); else renderTasks();
   });
   if ($("#tkDel")) $("#tkDel").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("POST", "/task/delete", { id: tk.id }); closePanel(); toast(t("deleted")); renderTasks(); });
 }
@@ -2406,7 +2557,9 @@ async function openSettings() {
      <div class="field"><label>&nbsp;</label><input id="stPwNew2" type="password" autocomplete="new-password" placeholder="${esc(t("newPassword"))}"></div></div>
      <button class="btn" id="stPwBtn">${esc(t("changePassword"))}</button>
      <h3 style="margin:22px 0 10px">${esc(t("twoStep"))}</h3>
-     <div id="st2fa"></div>`,
+     <div id="st2fa"></div>
+     <h3 style="margin:22px 0 10px">${esc(t("appPasswords"))}</h3>
+     <div id="stApp"></div>`,
     `<div style="flex:1"></div><button class="btn primary" id="stSave">${esc(t("save"))}</button>`);
   $("#stSave").onclick = guard(async () => {
     await api("POST", "/settings", {
@@ -2417,13 +2570,35 @@ async function openSettings() {
     me = await api("GET", "/me"); renderAcct();
     closePanel(); toast(t("saved"));
   });
-  draw2fa();
+  draw2fa(); drawAppPasswords();
   $("#stPwBtn").onclick = guard(async () => {
     if ($("#stPwNew").value !== $("#stPwNew2").value) { toast(t("pwMismatch"), true); return; }
     await api("POST", "/password", { current: $("#stPwCur").value, new: $("#stPwNew").value });
     $("#stPwCur").value = $("#stPwNew").value = $("#stPwNew2").value = "";
     toast(t("passwordChanged"));
   });
+}
+
+// App passwords for mail and sync apps, and the switch that makes them the
+// only way those apps can sign in.
+async function drawAppPasswords() {
+  const box = $("#stApp"); if (!box) return;
+  let r = { items: [], appPasswordsOnly: false };
+  try { r = await api("GET", "/security/app-passwords"); } catch (e) {}
+  const rows = r.items.map((a) => `<div class="taskrow"><div class="tt" style="flex:1;min-width:0"><div>${esc(a.name)}</div><div style="font-size:11.5px;color:var(--muted)">${esc(t("created"))} ${esc(fmtDate(a.created))} · ${esc(a.lastUsed ? t("lastUsed") + " " + fmtDate(a.lastUsed) : t("neverUsed"))}</div></div><button class="iconbtn danger" data-apdel="${esc(a.id)}" title="${esc(t("delete"))}">${icon("trash")}</button></div>`).join("");
+  box.innerHTML = `<p style="margin:0 0 8px;color:var(--muted);font-size:12.5px">${esc(t("appPasswordsHint"))}</p>
+    <div>${rows}</div>
+    <div style="display:flex;gap:8px;margin-top:8px"><input id="apName" placeholder="${esc(t("appPasswordName"))}" style="flex:1"><button class="btn" id="apNew">${esc(t("createAppPassword"))}</button></div>
+    <div id="apOut"></div>
+    <label style="display:flex;gap:8px;align-items:flex-start;margin-top:12px;cursor:pointer"><input type="checkbox" id="apOnly" style="width:auto;margin-top:3px" ${r.appPasswordsOnly ? "checked" : ""}><span>${esc(t("appPasswordsOnly"))}<br><span style="font-size:12px;color:var(--muted)">${esc(t("appPasswordsOnlyHint"))}</span></span></label>`;
+  box.querySelectorAll("[data-apdel]").forEach((b) => b.onclick = guard(async () => { if (!confirm(t("confirmDeleteAppPassword"))) return; await api("POST", "/security/app-password/delete", { id: b.dataset.apdel }); drawAppPasswords(); }));
+  $("#apNew").onclick = guard(async () => {
+    const res = await api("POST", "/security/app-password", { name: $("#apName").value });
+    await drawAppPasswords();
+    $("#apOut").innerHTML = `<div style="margin-top:10px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--surface)"><div style="font-size:12.5px;margin-bottom:6px">${esc(t("appPasswordShown"))}</div><code style="font-size:17px;letter-spacing:.06em">${esc(res.password)}</code> <button class="iconbtn" id="apCopy" title="${esc(t("copyLink"))}" style="display:inline-grid;vertical-align:middle">${icon("copy")}</button></div>`;
+    $("#apCopy").onclick = () => { if (navigator.clipboard) navigator.clipboard.writeText(res.password.replace(/ /g, "")); toast(t("copied")); };
+  });
+  $("#apOnly").onchange = guard(async () => { await api("POST", "/security/app-passwords-only", { on: $("#apOnly").checked }); toast(t("saved")); });
 }
 
 // Two-step sign-in in the settings panel: set up with a QR code and a first
@@ -3350,6 +3525,7 @@ async function checkReminders() {
 }
 function startReminders() {
   startActivity();
+  loadScheduled();
   if (reminders.timer) return;
   checkReminders();
   reminders.timer = setInterval(checkReminders, 60000);

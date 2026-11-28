@@ -354,6 +354,16 @@ CREATE TABLE IF NOT EXISTS contact_groups (
     members TEXT NOT NULL DEFAULT '[]'
 );
 CREATE INDEX IF NOT EXISTS contact_groups_user ON contact_groups(user_id);
+CREATE TABLE IF NOT EXISTS scheduled_mail (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    send_at INTEGER NOT NULL,
+    subject TEXT NOT NULL DEFAULT '',
+    recipients TEXT NOT NULL DEFAULT '',
+    body TEXT NOT NULL,
+    created INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS scheduled_mail_due ON scheduled_mail(send_at);
 CREATE TABLE IF NOT EXISTS app_passwords (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -448,6 +458,9 @@ pub struct UserSettings {
     /// Whether the Nextcloud-compatible interface (WebDAV, app passwords) is
     /// enabled for this mailbox. Off by default.
     pub nextcloud: bool,
+    /// Mail and sync apps (IMAP, POP3, SMTP, ActiveSync, EWS, Nextcloud) may
+    /// only sign in with an app password, not with the account password.
+    pub app_passwords_only: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]

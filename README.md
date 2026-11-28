@@ -65,7 +65,8 @@ Everything runs as one program with one database: no separate mail transfer agen
 - **Webmail** in the browser at `/mail`: sign in with any account and read, write and organise mail, calendar and contacts – no extra client needed, in German and English, light and dark
 - A home dashboard with an app for each area — Mail (with calendar and contacts), Files, SharePoint, Tasks and Notes — each at its own URL
 - Compose with attachments, reply and forward, flag, move and delete; month, week and day calendar views with invitations and room booking; a notification bell for mentions, shares, approvals and assigned tasks; contacts with groups and vCard import/export; tasks with steps, reminders, repeats and assignment
-- Two-step sign-in with an authenticator app for the web app, the Admin Center and the Nextcloud login
+- Two-step sign-in with an authenticator app for the web app, the Admin Center and the Nextcloud login, and app passwords for mail apps
+- Send later, e-mail to task, and drag-and-drop in the calendar
 - Shares the same storage as ActiveSync and EWS, so changes appear everywhere at once
 
 ![Webmail](docs/screenshots/webmail.png)

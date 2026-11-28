@@ -58,6 +58,18 @@ newest first, that expand and collapse; the choice is remembered. ActiveSync
 derives its conversation id from the same thread root, so phones group the same
 conversations.
 
+**Send later** — the composer's **Send later** button sends the message at a
+chosen time (later today, tomorrow morning, Monday morning, or any time up to a
+year ahead). Waiting messages are listed under **Scheduled** in the folder list;
+editing one stops it and opens it as a draft. The server sends them when due,
+even with the browser closed; a message that can't be sent goes back to Drafts
+with a notice. Endpoints: `POST /mail/api/send` with `"sendAt"`, `GET
+/mail/api/scheduled`, `POST /mail/api/scheduled/cancel`.
+
+**E-mail to task** — **Task** in the reading pane (or the message's context
+menu) opens a new task with the subject, the sender and the start of the text,
+due tomorrow; the message is flagged, and the task links back to it.
+
 **Keyboard shortcuts** — the mail view is fully keyboard-drivable: arrow keys or
 `j`/`k` move through the list, `Enter` opens, `c`/`n` compose, `r` reply,
 `Shift+R` reply all, `f` forward, `e` archive, `Delete` delete, `u` toggle
@@ -88,7 +100,11 @@ or move them all to another folder.
 **Calendar** — month, week and day views (the choice is remembered); week and
 day show a time grid with overlapping events side by side, all-day events in a
 strip above it and a line at the current time. Click a day number to open that
-day, or an empty slot to create an event there. Series are expanded by the
+day, or an empty slot to create an event there. Drag an event to move it (in
+the week view also to another day), drag its bottom edge to change its end
+(both in 15-minute steps), or drag it to another day in the month view; for a
+recurring event this moves only that occurrence. Only the organizer can move a
+meeting. Series are expanded by the
 server. Create and edit events with a description, attendees, a reminder, a
 free/busy status, a private flag and a repeat pattern (daily, weekdays, weekly,
 monthly, yearly, with an optional end date). Opening an occurrence of a series
@@ -166,8 +182,8 @@ the original; both sides get a notice. Deleting the original removes the copy.
 
 **Settings** (gear icon) — change your display name and signature, set an
 out-of-office auto-reply (with separate texts for internal and external
-senders), change your password, and turn on two-step sign-in with an
-authenticator app (see `admin.md`). With it on, the sign-in page asks for the
+senders), change your password, turn on two-step sign-in with an
+authenticator app, and manage app passwords for mail apps (see `admin.md`). With it on, the sign-in page asks for the
 code after the password.
 
 **Multiple addresses** — a mailbox can have several e-mail addresses

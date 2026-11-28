@@ -873,3 +873,65 @@ async fn rooms_show_whether_they_are_free() {
     let r = calendar_api::rooms(&app, &user, &format!("{q}&uid=m-1")).unwrap();
     assert!(r["rooms"].as_array().unwrap().iter().all(|x| x["free"] == true));
 }
+
+#[test]
+fn app_passwords_for_mail_apps() {
+    use super::settings_api as st;
+    let (app, user) = App::test();
+    let login = |pw: &str| crate::auth::login_app(&app.store, &user.email, pw, None).is_ok();
+    let pw = st::create_app_password(&app, &user, &body(serde_json::json!({ "name": "iPhone" }))).unwrap()["password"].as_str().unwrap().to_string();
+    assert_eq!(pw.len(), 19);
+    assert!(login(&pw) && login(&pw.replace(' ', "")) && login(&pw.to_uppercase().replace(' ', "-")));
+    assert!(login("secret"));
+    // The browser sign-in doesn't take app passwords.
+    assert!(crate::auth::login(&app.store, &user.email, &pw, None).is_err());
+
+    st::set_app_passwords_only(&app, &user, &body(serde_json::json!({ "on": true }))).unwrap();
+    assert!(!login("secret"));
+    assert!(login(&pw));
+    let list = st::app_passwords(&app, &user).unwrap();
+    assert_eq!(list["appPasswordsOnly"], true);
+    assert_eq!(list["items"][0]["name"], "iPhone");
+    assert!(list["items"][0]["lastUsed"].as_i64().unwrap() > 0);
+    let id = list["items"][0]["id"].as_str().unwrap().to_string();
+    // Another account can't use or remove it.
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    assert!(crate::auth::login_app(&app.store, &anna.email, &pw, None).is_err());
+    assert!(st::delete_app_password(&app, &anna, &body(serde_json::json!({ "id": id }))).is_err());
+    st::delete_app_password(&app, &user, &body(serde_json::json!({ "id": id }))).unwrap();
+    assert!(!login(&pw));
+}
+
+#[tokio::test]
+async fn send_later_waits_can_be_cancelled_and_goes_out_when_due() {
+    let (app, user) = App::test();
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    let later = crate::store::now() + 3600;
+    let mail = |subject: &str| body(serde_json::json!({ "to": "anna@example.com", "subject": subject, "text": "Hallo", "sendAt": later }));
+    let r = mail_api::send(&app, &user, &mail("Later")).await.unwrap();
+    let id = r["scheduled"].as_i64().unwrap();
+    assert!(mail_api::send(&app, &user, &body(serde_json::json!({ "subject": "no one", "sendAt": later }))).await.is_err());
+    let list = mail_api::scheduled(&app, &user).unwrap();
+    assert_eq!(list["items"][0]["to"], "anna@example.com");
+    // Someone else can't cancel it; cancelling makes it a draft.
+    assert!(mail_api::cancel_scheduled(&app, &anna, &body(serde_json::json!({ "id": id }))).is_err());
+    let c = mail_api::cancel_scheduled(&app, &user, &body(serde_json::json!({ "id": id }))).unwrap();
+    assert!(c["draft"].as_i64().is_some());
+    assert!(mail_api::scheduled(&app, &user).unwrap()["items"].as_array().unwrap().is_empty());
+
+    // Due ones are sent by the background job.
+    mail_api::send(&app, &user, &mail("Due")).await.unwrap();
+    app.store.db().execute("UPDATE scheduled_mail SET send_at = 0", crate::db::params![]).unwrap();
+    mail_api::send_due(&app).await;
+    assert!(mail_api::scheduled(&app, &user).unwrap()["items"].as_array().unwrap().is_empty());
+    let inbox = app.store.folder_by_role(anna.id, "inbox").unwrap().unwrap();
+    let mut got = false;
+    for _ in 0..50 {
+        got = app.store.items(inbox.id, 0, 10).unwrap().iter().any(|i| i.subject == "Due");
+        if got {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    }
+    assert!(got);
+}

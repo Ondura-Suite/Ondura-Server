@@ -50,6 +50,13 @@ pub fn save_task(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     };
     // Fields the server keeps track of can't be set from outside.
     let old = prev.as_ref().map(|(_, t)| t.clone()).unwrap_or_default();
+    // A linked e-mail must be one of the account's own messages.
+    if let Some(mid) = task.source_message
+        && old.source_message != Some(mid)
+        && own_item(app, user, mid).is_err()
+    {
+        task.source_message = None;
+    }
     task.assigned_copy = old.assigned_copy;
     task.assigned_by = old.assigned_by.clone();
     task.assigned_origin = old.assigned_origin;

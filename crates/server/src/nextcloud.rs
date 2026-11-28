@@ -31,6 +31,12 @@ fn token() -> String {
     hex::encode(bytes)
 }
 
+/// A stable, non-secret id for an app password.
+fn app_password_id(token: &str) -> String {
+    use sha2::Digest;
+    hex::encode(&sha2::Sha256::digest(token.as_bytes())[..6])
+}
+
 // ---------------------------------------------------------------- storage
 
 impl Store {
@@ -43,6 +49,45 @@ impl Store {
             params![&t, user_id, name, now()],
         )?;
         Ok(t)
+    }
+
+    /// An app password for mail and sync apps, named by the person (e.g. the
+    /// device). Sixteen letters, shown once in four groups; stored without the
+    /// spaces.
+    pub fn create_mail_app_password(&self, user_id: i64, name: &str) -> anyhow::Result<String> {
+        const LETTERS: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+        let mut raw = [0u8; 16];
+        rand::fill(&mut raw);
+        let pw: String = raw.iter().map(|b| LETTERS[*b as usize % LETTERS.len()] as char).collect();
+        let name = name.trim();
+        let name = if name.is_empty() { "App" } else { name };
+        self.db().execute(
+            "INSERT INTO app_passwords (token, user_id, name, created, last_used) VALUES (?1, ?2, ?3, ?4, 0)",
+            params![&pw, user_id, name.chars().take(80).collect::<String>(), now()],
+        )?;
+        Ok(format!("{} {} {} {}", &pw[..4], &pw[4..8], &pw[8..12], &pw[12..]))
+    }
+
+    /// The account's app passwords: `(id, name, created, last_used)`. The id
+    /// is derived from the password, which itself isn't shown again.
+    pub fn app_passwords(&self, user_id: i64) -> anyhow::Result<Vec<(String, String, i64, i64)>> {
+        let db = self.db();
+        let st = db.prepare("SELECT token, name, created, last_used FROM app_passwords WHERE user_id = ?1 ORDER BY created")?;
+        st.query_map([user_id], |r| {
+            let t: String = r.get(0)?;
+            Ok((app_password_id(&t), r.get(1)?, r.get(2)?, r.get(3)?))
+        })
+    }
+
+    pub fn delete_app_password(&self, user_id: i64, id: &str) -> anyhow::Result<bool> {
+        let tokens: Vec<String> = {
+            let db = self.db();
+            let st = db.prepare("SELECT token FROM app_passwords WHERE user_id = ?1")?;
+            st.query_map([user_id], |r| r.get(0))?
+        };
+        let Some(t) = tokens.iter().find(|t| app_password_id(t) == id) else { return Ok(false) };
+        self.db().execute("DELETE FROM app_passwords WHERE token = ?1 AND user_id = ?2", params![t, user_id])?;
+        Ok(true)
     }
 
     pub fn app_password_user(&self, token: &str) -> anyhow::Result<Option<i64>> {
@@ -131,11 +176,13 @@ fn authenticate(app: &Shared, headers: &HeaderMap) -> Result<User, Box<Response>
     if user.kind != "user" || !user.enabled || !nextcloud_on(app, user.id) {
         return Err(fail());
     }
-    if crate::auth::verify_hash(&secret, &user.password) {
+    let app_pw = crate::auth::normalize_app_password(&secret);
+    if app.store.app_password_user(&app_pw).ok().flatten() == Some(user.id) {
+        app.store.touch_app_password(&app_pw);
         return Ok(user);
     }
-    if app.store.app_password_user(&secret).ok().flatten() == Some(user.id) {
-        app.store.touch_app_password(&secret);
+    let only_app = app.store.settings(user.id).map(|s| s.app_passwords_only).unwrap_or(false);
+    if !only_app && crate::auth::verify_hash(&secret, &user.password) {
         return Ok(user);
     }
     Err(fail())

@@ -23,7 +23,7 @@ use crate::store::User;
 mod calendar_api;
 mod contacts_api;
 pub(crate) mod drive_api;
-mod mail_api;
+pub(crate) mod mail_api;
 mod pim_api;
 mod settings_api;
 #[cfg(test)]
@@ -257,6 +257,10 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::GET, "/activity") => activity_list(app, user),
         (&Method::POST, "/activity/read") => activity_read(app, user, body),
         (&Method::GET, "/calendar/rooms") => calendar_api::rooms(app, user, query),
+        (&Method::GET, "/security/app-passwords") => settings_api::app_passwords(app, user),
+        (&Method::POST, "/security/app-password") => settings_api::create_app_password(app, user, body),
+        (&Method::POST, "/security/app-password/delete") => settings_api::delete_app_password(app, user, body),
+        (&Method::POST, "/security/app-passwords-only") => settings_api::set_app_passwords_only(app, user, body),
         (&Method::GET, "/security/2fa") => settings_api::two_step_status(app, user),
         (&Method::POST, "/security/2fa/begin") => settings_api::two_step_begin(app, user, body),
         (&Method::POST, "/security/2fa/enable") => settings_api::two_step_enable(app, user, body),
@@ -266,6 +270,8 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::GET, "/calendar") => calendar_api::list(app, user, query),
         (&Method::GET, "/contacts") => contacts_api::list(app, user),
         (&Method::POST, "/send") => mail_api::send(app, user, body).await,
+        (&Method::GET, "/scheduled") => mail_api::scheduled(app, user),
+        (&Method::POST, "/scheduled/cancel") => mail_api::cancel_scheduled(app, user, body),
         (&Method::POST, "/draft") => mail_api::draft(app, user, body),
         (&Method::POST, "/flag") => mail_api::flag(app, user, body),
         (&Method::GET, "/categories") => mail_api::categories(app, user),

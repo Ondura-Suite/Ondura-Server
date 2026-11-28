@@ -385,7 +385,7 @@ impl Session {
     async fn authed(&mut self, conn: &mut Conn, login: &str, password: &str) -> io::Result<bool> {
         let store = self.app.store.clone();
         let (l, p, ip) = (login.to_string(), password.to_string(), self.ip);
-        let res = tokio::task::spawn_blocking(move || auth::login(&store, &l, &p, Some(ip))).await;
+        let res = tokio::task::spawn_blocking(move || auth::login_app(&store, &l, &p, Some(ip))).await;
         match res {
             // A valid account with no mailbox cannot use IMAP.
             Ok(Ok(user)) if user.mailbox => {

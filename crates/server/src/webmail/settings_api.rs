@@ -183,3 +183,58 @@ pub fn two_step_disable(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     app.store.audit(&user.email, "2fa.disable", "");
     Ok(json!({ "ok": true }))
 }
+
+// ----------------------------------------------------------- app passwords
+
+/// GET /security/app-passwords — the account's app passwords (not the
+/// passwords themselves) and whether mail apps may only use them.
+pub fn app_passwords(app: &Shared, user: &User) -> ApiResult {
+    let items = app.store.app_passwords(user.id).map_err(internal)?;
+    let only = app.store.settings(user.id).map_err(internal)?.app_passwords_only;
+    Ok(json!({
+        "items": items.iter().map(|(id, name, created, used)| json!({ "id": id, "name": name, "created": created, "lastUsed": used })).collect::<Vec<_>>(),
+        "appPasswordsOnly": only,
+    }))
+}
+
+/// POST /security/app-password { name } — a new app password, shown once.
+pub fn create_app_password(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        #[serde(default)]
+        name: String,
+    }
+    let b: B = parse(body)?;
+    let pw = app.store.create_mail_app_password(user.id, &b.name).map_err(internal)?;
+    app.store.audit(&user.email, "app-password.create", b.name.trim());
+    Ok(json!({ "password": pw }))
+}
+
+/// POST /security/app-password/delete { id }
+pub fn delete_app_password(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        id: String,
+    }
+    let b: B = parse(body)?;
+    if !app.store.delete_app_password(user.id, &b.id).map_err(internal)? {
+        return Err(super::not_found());
+    }
+    crate::auth::forget(user.id);
+    Ok(json!({ "ok": true }))
+}
+
+/// POST /security/app-passwords-only { on } — whether mail and sync apps may
+/// sign in only with an app password.
+pub fn set_app_passwords_only(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        on: bool,
+    }
+    let b: B = parse(body)?;
+    let mut s = app.store.settings(user.id).map_err(internal)?;
+    s.app_passwords_only = b.on;
+    app.store.set_settings(user.id, &s).map_err(internal)?;
+    crate::auth::forget(user.id);
+    Ok(json!({ "ok": true }))
+}

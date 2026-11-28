@@ -134,7 +134,7 @@ pub async fn basic_auth(app: &Shared, headers: &HeaderMap, ip: IpAddr) -> std::r
         return Err(Box::new(unauthorized()));
     };
     let store = app.store.clone();
-    let res = tokio::task::spawn_blocking(move || auth::login(&store, &login, &password, Some(ip))).await;
+    let res = tokio::task::spawn_blocking(move || auth::login_app(&store, &login, &password, Some(ip))).await;
     match res {
         // EWS, ActiveSync and Autodiscover are mail/PIM protocols, so an account
         // without a mailbox cannot use them even though its credentials are valid.

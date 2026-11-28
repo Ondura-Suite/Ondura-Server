@@ -359,7 +359,7 @@ impl Session {
         };
         let store = self.app.store.clone();
         let ip = self.ip();
-        let res = tokio::task::spawn_blocking(move || auth::login(&store, &login, &password, Some(ip))).await;
+        let res = tokio::task::spawn_blocking(move || auth::login_app(&store, &login, &password, Some(ip))).await;
         // Submission is a mail function, so an account without a mailbox can't use it.
         Ok(res.ok().and_then(|r| r.ok()).filter(|u| u.mailbox))
     }

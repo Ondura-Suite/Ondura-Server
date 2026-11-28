@@ -858,6 +858,9 @@ pub struct Task {
     pub assigned_by: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub assigned_origin: Option<i64>,
+    /// The e-mail the task was made from (an item id of the same account).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source_message: Option<i64>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

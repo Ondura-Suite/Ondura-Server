@@ -103,7 +103,7 @@ fn collab_user(app: &Shared, headers: &HeaderMap) -> Option<User> {
     }
     let auth_header = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok())?;
     let (email, pass) = auth::parse_basic(auth_header)?;
-    auth::login(&app.store, &email, &pass, None).ok()
+    auth::login_app(&app.store, &email, &pass, None).ok()
 }
 
 // -------------------------------------------------------------- WebSocket

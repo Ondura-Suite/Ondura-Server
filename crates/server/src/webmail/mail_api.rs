@@ -213,6 +213,9 @@ struct Compose {
     draft_id: Option<i64>,
     #[serde(default)]
     attachments: Vec<Attachment>,
+    /// Send later, at this time (Unix seconds), instead of now.
+    #[serde(default)]
+    send_at: Option<i64>,
 }
 
 fn build_outgoing(app: &Shared, user: &User, c: &Compose) -> Result<Outgoing, (StatusCode, String)> {
@@ -267,6 +270,29 @@ fn build_outgoing(app: &Shared, user: &User, c: &Compose) -> Result<Outgoing, (S
 pub async fn send(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     let c: Compose = parse(body)?;
     let out = build_outgoing(app, user, &c)?;
+    // Send later: keep the request and send it when it is due. The draft it
+    // came from is no longer needed; cancelling turns it back into a draft.
+    if let Some(at) = c.send_at.filter(|t| *t > crate::store::now() + 30) {
+        if at > crate::store::now() + 366 * 86_400 {
+            return Err(bad("That is too far ahead."));
+        }
+        let mut v: serde_json::Value = serde_json::from_slice(body).map_err(|e| internal(e.into()))?;
+        v["sendAt"] = serde_json::Value::Null;
+        v["draftId"] = serde_json::Value::Null;
+        let recipients = out.to.iter().chain(&out.cc).map(|p| p.email.clone()).collect::<Vec<_>>().join(", ");
+        let id = app.store.schedule_mail(user.id, at, &c.subject, &recipients, &v.to_string()).map_err(internal)?;
+        if let Some(did) = c.draft_id
+            && let Ok(item) = own_item(app, user, did)
+        {
+            let _ = app.store.delete_item(item.id, WRITER);
+        }
+        return Ok(json!({ "ok": true, "scheduled": id }));
+    }
+    send_now(app, user, &c, out).await
+}
+
+/// Send a composed message now.
+async fn send_now(app: &Shared, user: &User, c: &Compose, out: Outgoing) -> ApiResult {
     crate::smtp::submit::send_generated(app, user, &out, true).await.map_err(internal)?;
     if let Some(aid) = c.answering
         && let Ok(item) = own_item(app, user, aid)
@@ -551,5 +577,89 @@ pub fn delete(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     } else {
         app.store.move_item(item.id, trash.id, WRITER).map_err(internal)?;
         Ok(json!({ "ok": true, "deleted": false }))
+    }
+}
+
+// ------------------------------------------------------------ send later
+
+/// GET /scheduled — messages waiting to be sent later.
+pub fn scheduled(app: &Shared, user: &User) -> ApiResult {
+    let list = app.store.scheduled_mail(user.id).map_err(internal)?;
+    Ok(json!({ "items": list.iter().map(|(id, at, subject, to)| json!({ "id": id, "sendAt": at, "subject": subject, "to": to })).collect::<Vec<_>>() }))
+}
+
+/// POST /scheduled/cancel { id } — don't send it; it becomes a draft again.
+pub fn cancel_scheduled(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct B {
+        id: i64,
+    }
+    let b: B = parse(body)?;
+    let stored = app.store.take_scheduled_mail(user.id, b.id).map_err(internal)?.ok_or_else(not_found)?;
+    let draft = draft(app, user, &Bytes::from(stored))?;
+    Ok(json!({ "ok": true, "draft": draft["id"] }))
+}
+
+/// Send every scheduled message that is due. Run once a minute. A message
+/// that can't be sent goes back to the sender's Drafts with a notice.
+pub async fn send_due(app: &Shared) {
+    let due = match app.store.due_scheduled_mail(crate::store::now()) {
+        Ok(d) => d,
+        Err(e) => {
+            tracing::warn!("scheduled mail: {e:#}");
+            return;
+        }
+    };
+    for (id, user_id) in due {
+        let Ok(Some(body)) = app.store.take_scheduled_mail(user_id, id) else { continue };
+        let Ok(Some(user)) = app.store.user(user_id) else { continue };
+        let result = async {
+            let c: Compose = serde_json::from_str(&body).map_err(|e| bad(e.to_string()))?;
+            let out = build_outgoing(app, &user, &c)?;
+            send_now(app, &user, &c, out).await
+        }
+        .await;
+        if let Err((_, msg)) = result {
+            tracing::warn!(user = %user.email, "scheduled mail not sent: {msg}");
+            let subject = serde_json::from_str::<serde_json::Value>(&body).ok().and_then(|v| v["subject"].as_str().map(str::to_string)).unwrap_or_default();
+            let _ = draft(app, &user, &Bytes::from(body));
+            let _ = app.store.add_activity(user.id, (0, "Ondura"), "send_failed", &subject, &msg, "/mail");
+        }
+    }
+}
+
+impl crate::store::Store {
+    pub fn schedule_mail(&self, user_id: i64, send_at: i64, subject: &str, recipients: &str, body: &str) -> anyhow::Result<i64> {
+        self.db().query_row(
+            "INSERT INTO scheduled_mail (user_id, send_at, subject, recipients, body, created) VALUES (?1, ?2, ?3, ?4, ?5, ?6) RETURNING id",
+            crate::db::params![user_id, send_at, subject, recipients, body, crate::store::now()],
+            |r| r.get(0),
+        )
+    }
+
+    /// An account's scheduled messages: `(id, send_at, subject, recipients)`.
+    pub fn scheduled_mail(&self, user_id: i64) -> anyhow::Result<Vec<(i64, i64, String, String)>> {
+        let db = self.db();
+        let st = db.prepare("SELECT id, send_at, subject, recipients FROM scheduled_mail WHERE user_id = ?1 ORDER BY send_at, id")?;
+        st.query_map([user_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+    }
+
+    /// Scheduled messages due at `now`: `(id, user_id)`.
+    pub fn due_scheduled_mail(&self, now: i64) -> anyhow::Result<Vec<(i64, i64)>> {
+        let db = self.db();
+        let st = db.prepare("SELECT id, user_id FROM scheduled_mail WHERE send_at <= ?1 ORDER BY send_at, id LIMIT 200")?;
+        st.query_map([now], |r| Ok((r.get(0)?, r.get(1)?)))
+    }
+
+    /// Remove a scheduled message and return its stored request, so that only
+    /// one caller (the sender or a cancel) ever gets it.
+    pub fn take_scheduled_mail(&self, user_id: i64, id: i64) -> anyhow::Result<Option<String>> {
+        use crate::db::OptionalExtension;
+        let db = self.db();
+        let body: Option<String> = db.query_row("SELECT body FROM scheduled_mail WHERE id = ?1 AND user_id = ?2", crate::db::params![id, user_id], |r| r.get(0)).optional()?;
+        if body.is_some() && db.execute("DELETE FROM scheduled_mail WHERE id = ?1 AND user_id = ?2", crate::db::params![id, user_id])? == 0 {
+            return Ok(None);
+        }
+        Ok(body)
     }
 }
