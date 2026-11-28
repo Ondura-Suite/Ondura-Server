@@ -192,6 +192,9 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
             return security_headers(drive_api::download_version(&app, &user, query));
         }
     }
+    if method == Method::GET && api == "/calendar/export.ics" {
+        return security_headers(calendar_api::export(&app, &user, query));
+    }
     let result = route(&app, &user, &method, api, query, &body).await;
     security_headers(json_response(result))
 }
@@ -258,6 +261,7 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::GET, "/event") => calendar_api::get(app, user, query),
         (&Method::GET, "/calendar/freebusy") => calendar_api::freebusy(app, user, query),
         (&Method::GET, "/calendar/shares") => calendar_api::shares(app, user),
+        (&Method::POST, "/calendar/import") => calendar_api::import(app, user, body),
         (&Method::POST, "/calendar/share") => calendar_api::share(app, user, body),
         (&Method::POST, "/event/occurrence") => calendar_api::occurrence(app, user, body).await,
         (&Method::POST, "/event/respond") => calendar_api::respond(app, user, body).await,

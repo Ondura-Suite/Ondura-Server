@@ -597,6 +597,43 @@ pub fn write(e: &Event, opts: &WriteOptions<'_>) -> String {
 }
 
 /// Text body for invitation mails.
+/// Several events as one iCalendar file (`METHOD:PUBLISH`), for export. Each
+/// event is written as for an invitation; the time zone definitions they need
+/// are included once.
+pub fn write_many(events: &[Event], name: &str) -> String {
+    fn blocks<'a>(text: &'a str, begin: &str, end: &str) -> Vec<&'a str> {
+        let mut out = Vec::new();
+        let mut rest = text;
+        while let Some(i) = rest.find(begin) {
+            let j = rest[i..].find(end).map(|j| i + j + end.len()).unwrap_or(rest.len());
+            out.push(&rest[i..j]);
+            rest = &rest[j..];
+        }
+        out
+    }
+    let mut zones: Vec<String> = Vec::new();
+    let mut body = String::new();
+    for e in events {
+        let one = write(e, &WriteOptions { method: "PUBLISH", reply_from: None, occurrence: None });
+        for z in blocks(&one, "BEGIN:VTIMEZONE\r\n", "END:VTIMEZONE\r\n") {
+            if !zones.iter().any(|x| x == z) {
+                zones.push(z.to_string());
+            }
+        }
+        for v in blocks(&one, "BEGIN:VEVENT\r\n", "END:VEVENT\r\n") {
+            body.push_str(v);
+        }
+    }
+    let mut s = String::from("BEGIN:VCALENDAR\r\nPRODID:-//MirraNET//Ondura Server//EN\r\nVERSION:2.0\r\nMETHOD:PUBLISH\r\n");
+    s.push_str(&fold(&format!("X-WR-CALNAME:{}", escape(name))));
+    for z in zones {
+        s.push_str(&z);
+    }
+    s.push_str(&body);
+    s.push_str("END:VCALENDAR\r\n");
+    s
+}
+
 pub fn summary_text(e: &Event) -> String {
     let tz = e.zone();
     let start = DateTime::from_timestamp(e.start, 0).unwrap_or_default().with_timezone(&tz);

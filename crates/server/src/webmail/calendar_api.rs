@@ -269,6 +269,74 @@ pub fn freebusy(app: &Shared, user: &User, query: &str) -> ApiResult {
     Ok(json!({ "people": out }))
 }
 
+/// GET /calendar/export.ics[?owner=<id>] — the whole calendar as an iCalendar
+/// file. Another person's calendar needs read access, and their private events
+/// are left out unless the caller may edit.
+pub fn export(app: &Shared, user: &User, query: &str) -> axum::response::Response {
+    use axum::http::{header, HeaderValue, StatusCode};
+    use axum::response::IntoResponse;
+    let owner = query.split('&').filter_map(|p| p.split_once('=')).find(|(k, _)| *k == "owner").and_then(|(_, v)| v.parse::<i64>().ok());
+    let Ok((owner, access)) = calendar_owner(app, user, owner) else { return StatusCode::NOT_FOUND.into_response() };
+    if access < CalendarAccess::Read {
+        return StatusCode::NOT_FOUND.into_response();
+    }
+    let mut events = Vec::new();
+    let Ok(folders) = calendar_folders(app, owner) else { return StatusCode::INTERNAL_SERVER_ERROR.into_response() };
+    for folder in folders {
+        let Ok(items) = app.store.events_in_range(folder, i64::MIN / 2, i64::MAX / 2) else { continue };
+        for e in items.iter().filter_map(|i| i.event()) {
+            let private = matches!(e.sensitivity, crate::model::Sensitivity::Private | crate::model::Sensitivity::Confidential);
+            if private && access < CalendarAccess::Write {
+                continue;
+            }
+            events.push(e);
+        }
+    }
+    let name = app.store.user(owner).ok().flatten().map(|u| if u.name.is_empty() { u.email } else { u.name }).unwrap_or_default();
+    let mut r = crate::ical::write_many(&events, &name).into_response();
+    let h = r.headers_mut();
+    h.insert(header::CONTENT_TYPE, HeaderValue::from_static("text/calendar; charset=utf-8"));
+    h.insert(header::CONTENT_DISPOSITION, HeaderValue::from_static("attachment; filename=\"calendar.ics\""));
+    r
+}
+
+/// POST /calendar/import — add the events of an iCalendar file (the request
+/// body) to the caller's calendar. An event whose UID is already there replaces
+/// it, so importing the same file twice does not duplicate anything. No
+/// invitations are sent.
+pub fn import(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let text = std::str::from_utf8(body).map_err(|_| bad("The file is not text."))?;
+    if !text.contains("BEGIN:VCALENDAR") {
+        return Err(bad("That is not an iCalendar (.ics) file."));
+    }
+    let cal = crate::ical::parse(text);
+    if cal.events.len() > 10_000 {
+        return Err(bad("Too many events in one file."));
+    }
+    let folder = app.store.folder_by_role(user.id, "calendar").map_err(internal)?.ok_or_else(not_found)?;
+    let (mut added, mut updated) = (0, 0);
+    for mut e in cal.events {
+        if e.uid.is_empty() {
+            e.uid = uuid::Uuid::new_v4().simple().to_string();
+        }
+        if e.tz.is_empty() {
+            e.tz = "UTC".into();
+        }
+        let data = serde_json::to_string(&e).map_err(|x| internal(x.into()))?;
+        match crate::calendar::find_by_uid(app, user.id, &e.uid).map_err(internal)? {
+            Some(item) => {
+                app.store.update_pim(item.id, &data, WRITER).map_err(internal)?;
+                updated += 1;
+            }
+            None => {
+                app.store.insert_pim(user.id, folder.id, ItemKind::Event, &data, Some(&e.uid), WRITER).map_err(internal)?;
+                added += 1;
+            }
+        }
+    }
+    Ok(json!({ "added": added, "updated": updated }))
+}
+
 /// GET /calendar/shares — who the caller shares their calendar with, and the
 /// calendars the caller can open (shared with them, or mailboxes they have full
 /// access to).

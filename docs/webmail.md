@@ -105,6 +105,15 @@ it as a target — but meetings with attendees stay read-only there, so no
 invitation goes out in someone else's name. Calendar and contacts have their own
 addresses (`/mail/calendar`, `/mail/contacts`).
 
+**Import and export** — **Export (.ics)** downloads the whole calendar as an
+iCalendar file that other calendar programs open; **Import .ics file** adds the
+events of such a file to your calendar, including recurring series and changed
+occurrences. Events already there (same UID) are replaced, so importing a file
+twice does not duplicate them, and no invitations are sent on import. Another
+person's calendar shared with you for reading can be exported with
+`/mail/api/calendar/export.ics?owner=<id>`; their private events are left out
+unless you may edit it.
+
 **Contacts** — list, create, edit and delete contacts with the common fields.
 
 **Tasks and notes** — keep a task list (with due dates and completion) and

@@ -549,3 +549,42 @@ async fn shared_calendar_levels_control_what_is_seen_and_changed() {
     calendar_api::share(&app, &anna, &body(serde_json::json!({ "email": "niklas@example.com", "level": "none" }))).unwrap();
     assert!(calendar_api::shares(&app, &user).unwrap()["received"].as_array().unwrap().is_empty());
 }
+
+#[tokio::test]
+async fn calendar_export_and_import_round_trip() {
+    let (app, user) = App::test();
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    let start = 1_800_000_000i64;
+    let series = serde_json::json!({
+        "uid": "ser-1", "subject": "Weekly", "start": start, "end": start + 3600, "tz": "Europe/Berlin",
+        // 1_800_000_000 falls on a Friday (day mask 32).
+        "recurrence": { "freq": "weekly", "interval": 1, "days": 32, "count": 4 }
+    });
+    let id = calendar_api::save(&app, &user, &body(serde_json::json!({ "event": series }))).await.unwrap()["id"].as_i64().unwrap();
+    calendar_api::occurrence(&app, &user, &body(serde_json::json!({ "id": id, "occurrence": start + 7 * 86_400, "subject": "Weekly (moved)", "start": start + 7 * 86_400 + 7200, "end": start + 7 * 86_400 + 10_800 }))).await.unwrap();
+    calendar_api::save(&app, &user, &body(serde_json::json!({ "event": { "uid": "one-1", "subject": "Once", "start": start + 3600, "end": start + 5400, "tz": "UTC" } }))).await.unwrap();
+
+    let r = calendar_api::export(&app, &user, "");
+    let bytes = axum::body::to_bytes(r.into_body(), usize::MAX).await.unwrap();
+    let ics = String::from_utf8(bytes.to_vec()).unwrap();
+    assert!(ics.starts_with("BEGIN:VCALENDAR") && ics.contains("METHOD:PUBLISH"));
+    // Each time zone definition is included once, however many events use it.
+    let zones: Vec<&str> = ics.split("BEGIN:VTIMEZONE").skip(1).map(|b| b.split("END:VTIMEZONE").next().unwrap()).collect();
+    assert!(!zones.is_empty());
+    assert!(zones.iter().enumerate().all(|(i, z)| !zones[..i].contains(z)));
+
+    let r = calendar_api::import(&app, &anna, &Bytes::from(ics.clone())).unwrap();
+    assert_eq!(r["added"], 2);
+    let range = format!("from={}&to={}", start - 1, start + 30 * 86_400);
+    let events = calendar_api::list(&app, &anna, &range).unwrap()["events"].as_array().unwrap().clone();
+    // Four weekly occurrences plus the single event, with the moved one intact.
+    assert_eq!(events.len(), 5);
+    assert!(events.iter().any(|e| e["subject"] == "Weekly (moved)" && e["start"] == start + 7 * 86_400 + 7200));
+
+    // Importing the same file again replaces rather than duplicates.
+    let r = calendar_api::import(&app, &anna, &Bytes::from(ics)).unwrap();
+    assert_eq!(r["added"], 0);
+    assert_eq!(r["updated"], 2);
+    assert_eq!(calendar_api::list(&app, &anna, &range).unwrap()["events"].as_array().unwrap().len(), 5);
+    assert!(calendar_api::import(&app, &anna, &Bytes::from_static(b"hello")).is_err());
+}
