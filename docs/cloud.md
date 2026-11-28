@@ -70,9 +70,23 @@ Items:
 | POST | `/mail/api/cloud/doc` | Create a document (`{ "drive", "parent", "name" }`); returns the item id and the collab `doc` id. |
 | POST | `/mail/api/cloud/rename` | Rename an item (`{ "item", "name" }`). |
 | POST | `/mail/api/cloud/move` | Move an item to another folder in the same drive (`{ "item", "parent" }`). |
-| POST | `/mail/api/cloud/delete` | Delete an item, recursively for folders (`{ "item" }`). |
+| POST | `/mail/api/cloud/delete` | Move an item (and its subtree) to the recycle bin (`{ "item" }`). |
 | POST | `/mail/api/cloud/upload?drive=&parent=&name=` | Upload a file; the body is the raw file content and `Content-Type` its type. |
 | GET | `/mail/api/cloud/download/{item}` | Download a file. |
+
+Recycle bin (per drive):
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/mail/api/cloud/trash?drive=` | List the drive's trashed items, most recent first. |
+| POST | `/mail/api/cloud/trash/restore` | Restore an item (`{ "item" }`); orphaned items return to the drive root. |
+| POST | `/mail/api/cloud/trash/delete` | Permanently delete a trashed item and its subtree (`{ "item" }`). |
+| POST | `/mail/api/cloud/trash/empty` | Permanently delete everything in the drive's bin (`{ "drive" }`). |
+
+Deleting an item is a soft delete: it moves to the drive's recycle bin and stays
+out of the normal listings, but still counts toward the storage quota until the
+bin is emptied, matching OneDrive and SharePoint. Overwriting a file on upload
+and deleting a library remain hard deletes.
 
 Members (libraries only):
 
@@ -87,8 +101,10 @@ Members (libraries only):
 A **Files** entry appears in the webmail navigation when the module is enabled.
 It shows the personal drive and any libraries as tabs, with folder browsing,
 drag-free breadcrumb navigation, file upload and download, new folders and new
-documents, rename and delete, and — for libraries — a member manager. Opening a
-document hands over to the collaborative editor described in `collab.md`.
+documents, rename and delete, a **Recycle bin** view that restores or
+permanently removes deleted items, and — for libraries — a member manager.
+Opening a document hands over to the collaborative editor described in
+`collab.md`.
 
 Collaborative documents live **only** inside the cloud now: they are created as
 items in a drive and opened from Files, and there is no separate documents
