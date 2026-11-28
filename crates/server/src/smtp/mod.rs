@@ -237,9 +237,20 @@ pub async fn session(app: Shared, tcp: tokio::net::TcpStream, peer: SocketAddr, 
                     }
                     _ => {}
                 }
-                if user_id.is_some_and(|id| s.app.store.user(id).ok().flatten().is_some_and(|u| !u.enabled)) {
-                    conn.reply("550 5.2.1 Mailbox disabled").await?;
-                    continue;
+                if let Some(id) = user_id {
+                    match s.app.store.user(id).ok().flatten() {
+                        Some(u) if !u.enabled => {
+                            conn.reply("550 5.2.1 Mailbox disabled").await?;
+                            continue;
+                        }
+                        // The account exists but has no mailbox, so there is
+                        // nowhere to deliver.
+                        Some(u) if !u.mailbox => {
+                            conn.reply("550 5.1.1 Mailbox unavailable").await?;
+                            continue;
+                        }
+                        _ => {}
+                    }
                 }
                 s.rcpts.push(Rcpt { address: addr, user_id });
                 conn.reply("250 2.1.5 OK").await?;
@@ -349,7 +360,8 @@ impl Session {
         let store = self.app.store.clone();
         let ip = self.ip();
         let res = tokio::task::spawn_blocking(move || auth::login(&store, &login, &password, Some(ip))).await;
-        Ok(res.ok().and_then(|r| r.ok()))
+        // Submission is a mail function, so an account without a mailbox can't use it.
+        Ok(res.ok().and_then(|r| r.ok()).filter(|u| u.mailbox))
     }
 
     fn received_header(&self, tls: bool, rcpt: Option<&str>) -> (String, String) {

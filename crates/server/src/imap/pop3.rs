@@ -86,7 +86,8 @@ async fn session(app: Shared, tcp: TcpStream, implicit_tls: bool, ip: std::net::
                 let (l, p) = (login, arg.clone());
                 let res = tokio::task::spawn_blocking(move || auth::login(&store, &l, &p, Some(ip))).await;
                 match res {
-                    Ok(Ok(u)) => {
+                    // A valid account with no mailbox cannot use POP3.
+                    Ok(Ok(u)) if u.mailbox => {
                         if let Some(inbox) = app.store.folder_by_role(u.id, "inbox").ok().flatten() {
                             let items = app.store.mailbox_items(inbox.id).unwrap_or_default();
                             msgs = items.iter().enumerate().map(|(i, it)| (i + 1, it.id, it.size.max(0))).collect();

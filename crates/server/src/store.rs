@@ -35,7 +35,8 @@ CREATE TABLE IF NOT EXISTS users (
     kind TEXT NOT NULL DEFAULT 'user',
     modseq INTEGER NOT NULL DEFAULT 0,
     settings TEXT NOT NULL DEFAULT '{}',
-    created INTEGER NOT NULL
+    created INTEGER NOT NULL,
+    mailbox INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS aliases (
     address TEXT PRIMARY KEY,
@@ -302,6 +303,11 @@ pub struct User {
     /// `user`, `shared` or `room`.
     pub kind: String,
     pub created: i64,
+    /// Whether this account has a mailbox: receives mail and can use the mail
+    /// protocols (SMTP/IMAP/POP3/EWS/ActiveSync) and the Mail app. An account
+    /// without a mailbox is still a full account for Files, SharePoint, Tasks
+    /// and Notes.
+    pub mailbox: bool,
 }
 
 impl User {
@@ -551,10 +557,11 @@ fn user_from_row(r: &Row) -> Result<User> {
         quota: r.get(6)?,
         kind: r.get(7)?,
         created: r.get(8)?,
+        mailbox: r.get::<_, i64>(9)? != 0,
     })
 }
 
-const USER_COLUMNS: &str = "id, email, name, password, is_admin, enabled, quota, kind, created";
+const USER_COLUMNS: &str = "id, email, name, password, is_admin, enabled, quota, kind, created, mailbox";
 
 /// A change in a folder since some modseq.
 #[derive(Debug, Clone)]
@@ -808,6 +815,15 @@ impl Store {
     pub fn set_password(&self, id: i64, password: &str) -> Result<()> {
         let hash = crate::auth::hash_password(password)?;
         self.db().execute("UPDATE users SET password = ?1 WHERE id = ?2", params![hash, id])?;
+        crate::auth::forget(id);
+        Ok(())
+    }
+
+    /// Turn an account's mailbox on or off. With it off the account keeps its
+    /// identity and non-mail apps but no longer receives mail or signs in to the
+    /// mail protocols.
+    pub fn set_mailbox(&self, id: i64, on: bool) -> Result<()> {
+        self.db().execute("UPDATE users SET mailbox = ?1 WHERE id = ?2", params![on as i64, id])?;
         crate::auth::forget(id);
         Ok(())
     }
@@ -2202,6 +2218,23 @@ mod tests {
         assert!(s.create_user("x@other.org", "", "pw", "user").is_err());
         assert_eq!(s.user_for_login("niklas").unwrap().unwrap().id, u.id);
         assert_eq!(s.user_for_login("CORP\\niklas@example.com").unwrap().unwrap().id, u.id);
+    }
+
+    #[test]
+    fn accounts_can_exist_without_a_mailbox() {
+        let (s, u) = test_store();
+        // New accounts come with a mailbox by default.
+        assert!(u.mailbox);
+        // Turning it off keeps the account and its login, just no mail.
+        s.set_mailbox(u.id, false).unwrap();
+        let u = s.user(u.id).unwrap().unwrap();
+        assert!(!u.mailbox);
+        assert_eq!(s.user_for_login("niklas").unwrap().unwrap().id, u.id);
+        // The address still resolves to the account (so it isn't reusable).
+        assert_eq!(s.resolve_address("niklas@example.com").unwrap(), Some((u.id, true)));
+        // And it can be given a mailbox again.
+        s.set_mailbox(u.id, true).unwrap();
+        assert!(s.user(u.id).unwrap().unwrap().mailbox);
     }
 
     #[test]

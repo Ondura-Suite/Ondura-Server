@@ -303,7 +303,7 @@ const T = {
     search: "Suchen", all: "Alle", typeUser: "Benutzer", typeShared: "Freigegeben", typeRoom: "Raum", name: "Anzeigename", type: "Typ", used: "Belegt", status: "Status",
     enabled: "Aktiv", disabled: "Deaktiviert", admin: "Administrator", none: "Keine Einträge.", general: "Allgemein", passwordTab: "Kennwort", forwarding: "Weiterleitung",
     permissions: "Berechtigungen", folders: "Ordner", save: "Speichern", cancel: "Abbrechen", close: "Schließen", delete: "Löschen", deleteMailbox: "Postfach löschen",
-    quotaMb: "Kontingent (MB, 0 = unbegrenzt)", isAdmin: "Darf das Admin Center verwenden", mailboxEnabled: "Postfach aktiv (Anmeldung und Empfang)",
+    quotaMb: "Kontingent (MB, 0 = unbegrenzt)", isAdmin: "Darf das Admin Center verwenden", mailboxEnabled: "Postfach aktiv (Anmeldung und Empfang)", hasMailbox: "Dieses Konto hat ein Postfach (Mail)", hasMailboxHint: "Aus: ein vollwertiges Konto für Dateien, SharePoint, Aufgaben und Notizen, aber ohne Mail.", noMailboxBadge: "kein Postfach",
     emailAddresses: "E-Mail-Adressen", primary: "primär", addAlias: "Adresse hinzufügen", makePrimary: "Als primär festlegen", aliasHint: "Weitere Adresse, z. B. info@domain.de oder @domain.de für alle übrigen Adressen.",
     newPassword: "Neues Kennwort", setPassword: "Kennwort festlegen", generatePassword: "Kennwort erzeugen", passwordShown: "Das Kennwort wird nur jetzt angezeigt:",
     forwardTo: "Weiterleiten an", keepCopy: "Kopie im Postfach behalten", fullAccess: "Vollzugriff", sendAs: "Senden als", grant: "Berechtigung erteilen",
@@ -343,7 +343,7 @@ const T = {
     search: "Search", all: "All", typeUser: "User", typeShared: "Shared", typeRoom: "Room", name: "Display name", type: "Type", used: "Used", status: "Status",
     enabled: "Enabled", disabled: "Disabled", admin: "Administrator", none: "Nothing here yet.", general: "General", passwordTab: "Password", forwarding: "Forwarding",
     permissions: "Permissions", folders: "Folders", save: "Save", cancel: "Cancel", close: "Close", delete: "Delete", deleteMailbox: "Delete mailbox",
-    quotaMb: "Quota (MB, 0 = unlimited)", isAdmin: "May use the Admin Center", mailboxEnabled: "Mailbox enabled (sign-in and delivery)",
+    quotaMb: "Quota (MB, 0 = unlimited)", isAdmin: "May use the Admin Center", mailboxEnabled: "Mailbox enabled (sign-in and delivery)", hasMailbox: "This account has a mailbox (mail)", hasMailboxHint: "Off: a full account for Files, SharePoint, Tasks and Notes, but without mail.", noMailboxBadge: "no mailbox",
     emailAddresses: "E-mail addresses", primary: "primary", addAlias: "Add address", makePrimary: "Make primary", aliasHint: "Another address, e.g. info@example.com, or @example.com to catch all other addresses.",
     newPassword: "New password", setPassword: "Set password", generatePassword: "Generate password", passwordShown: "The password is only shown now:",
     forwardTo: "Forward to", keepCopy: "Keep a copy in the mailbox", fullAccess: "Full access", sendAs: "Send as", grant: "Grant permission",
@@ -541,7 +541,7 @@ function renderMailboxRows() {
   $("#mbRows").innerHTML = rows.length ? rows.map((m) => {
     const pct = m.quota ? Math.min(100, Math.round(m.used / m.quota * 100)) : 0;
     return '<tr class="click" data-id="' + m.id + '"><td><div class="name">' + esc(m.name || m.email) + '</div><div class="sub">' + esc(m.email) + "</div></td>" +
-      '<td class="hide-sm">' + esc(kindLabel(m.kind)) + (m.isAdmin ? ' <span class="badge tint">' + esc(t("admin")) + "</span>" : "") + "</td>" +
+      '<td class="hide-sm">' + esc(kindLabel(m.kind)) + (m.isAdmin ? ' <span class="badge tint">' + esc(t("admin")) + "</span>" : "") + (m.kind === "user" && m.mailbox === false ? ' <span class="badge warn">' + esc(t("noMailboxBadge")) + "</span>" : "") + "</td>" +
       "<td>" + esc(fmtBytes(m.used)) + (m.quota ? " / " + esc(fmtBytes(m.quota)) + '<div class="bar' + (pct > 90 ? " full" : "") + '"><div style="width:' + pct + '%"></div></div>' : "") + "</td>" +
       "<td>" + (m.enabled ? '<span class="badge ok">' + esc(t("enabled")) + "</span>" : '<span class="badge bad">' + esc(t("disabled")) + "</span>") + "</td></tr>";
   }).join("") : '<tr><td colspan="4" class="empty">' + esc(t("none")) + "</td></tr>";
@@ -568,8 +568,10 @@ function openNewMailbox() {
     '<div class="field"><label>' + esc(t("email")) + '</label><input id="nmEmail" type="email" placeholder="name@domain"></div>' +
     '<div class="field" id="nmPwRow"><label>' + esc(t("passwordOptional")) + '</label><input id="nmPw" type="password" autocomplete="new-password"></div>' +
     '<div class="field"><label>' + esc(t("quotaMb")) + '</label><input id="nmQuota" type="number" min="0" value="0"></div>' +
-    '<label class="check" id="nmAdminRow"><input type="checkbox" id="nmAdmin">' + esc(t("isAdmin")) + "</label><div id=\"nmResult\"></div>";
-  $("#nmKind").onchange = () => { const u = $("#nmKind").value === "user"; $("#nmPwRow").classList.toggle("hidden", !u); $("#nmAdminRow").classList.toggle("hidden", !u); };
+    '<label class="check" id="nmAdminRow"><input type="checkbox" id="nmAdmin">' + esc(t("isAdmin")) + "</label>" +
+    '<label class="check" id="nmMailboxRow"><input type="checkbox" id="nmMailbox" checked>' + esc(t("hasMailbox")) + "</label>" +
+    '<p class="muted" id="nmMailboxHint" style="margin:-4px 0 8px;font-size:12px">' + esc(t("hasMailboxHint")) + "</p><div id=\"nmResult\"></div>";
+  $("#nmKind").onchange = () => { const u = $("#nmKind").value === "user"; $("#nmPwRow").classList.toggle("hidden", !u); $("#nmAdminRow").classList.toggle("hidden", !u); $("#nmMailboxRow").classList.toggle("hidden", !u); $("#nmMailboxHint").classList.toggle("hidden", !u); };
   $("#nmName").oninput = () => {
     const em = $("#nmEmail");
     if (!em.dataset.touched && me && me.email.includes("@")) {
@@ -580,7 +582,7 @@ function openNewMailbox() {
   $("#nmEmail").oninput = (e) => { e.target.dataset.touched = "1"; };
   $("#cancelMb").onclick = closePanel;
   $("#createMb").onclick = guard(async () => {
-    const r = await api("POST", "/mailboxes", { email: $("#nmEmail").value, name: $("#nmName").value, password: $("#nmPw").value || null, kind: $("#nmKind").value, quota: (+$("#nmQuota").value || 0) * 1048576, isAdmin: $("#nmAdmin").checked });
+    const r = await api("POST", "/mailboxes", { email: $("#nmEmail").value, name: $("#nmName").value, password: $("#nmPw").value || null, kind: $("#nmKind").value, quota: (+$("#nmQuota").value || 0) * 1048576, isAdmin: $("#nmAdmin").checked, mailbox: $("#nmKind").value !== "user" ? true : $("#nmMailbox").checked });
     toast(t("mailboxCreated"));
     if (r.password) {
       $("#panelContent").innerHTML = "<p>" + esc(t("mailboxCreated")) + ": <b>" + esc(r.email) + "</b></p><div class=\"secret\">" + esc(t("passwordShown")) + "<br>" + copyable(r.password) + "</div>";
@@ -616,12 +618,13 @@ function tabGeneral(c, m, foot) {
     '<div class="field"><label>' + esc(t("quotaMb")) + '</label><input id="mbQuota" type="number" min="0" value="' + Math.round(m.quota / 1048576) + '"></div>' +
     '<div class="field"><label>' + esc(t("timeZone")) + '</label><input id="mbTz" placeholder="Europe/Berlin" value="' + esc(m.timeZone || "") + '"></div>' +
     '<label class="check"><input type="checkbox" id="mbEnabled"' + (m.enabled ? " checked" : "") + ">" + esc(t("mailboxEnabled")) + "</label>" +
+    (m.kind === "user" ? '<label class="check"><input type="checkbox" id="mbMailbox"' + (m.mailbox ? " checked" : "") + ">" + esc(t("hasMailbox")) + "</label>" : "") +
     (m.kind === "user" ? '<label class="check"><input type="checkbox" id="mbAdmin"' + (m.isAdmin ? " checked" : "") + ">" + esc(t("isAdmin")) + "</label>" : "") +
     '<div class="section"><h3>' + esc(t("outOfOffice")) + '</h3><div class="muted">' + esc(m.oof && m.oof.state && m.oof.state !== "Disabled" ? t("oofOn") + " (" + m.oof.state + ")" : t("oofOff")) + "</div></div>" +
     '<div class="section"><h3>' + esc(t("used")) + "</h3><div>" + esc(fmtBytes(m.used)) + " · " + esc(m.items) + " " + esc(t("items")) + "</div></div>";
   foot.innerHTML = '<button class="btn primary" id="saveGen">' + esc(t("save")) + '</button><span style="flex:1"></span><button class="btn danger" id="delMb">' + esc(t("deleteMailbox")) + "</button>";
   $("#saveGen").onclick = guard(async () => {
-    await api("PATCH", "/mailboxes/" + m.id, { name: $("#mbName").value, quota: (+$("#mbQuota").value || 0) * 1048576, enabled: $("#mbEnabled").checked, isAdmin: m.kind === "user" ? $("#mbAdmin").checked : undefined, timeZone: $("#mbTz").value.trim() });
+    await api("PATCH", "/mailboxes/" + m.id, { name: $("#mbName").value, quota: (+$("#mbQuota").value || 0) * 1048576, enabled: $("#mbEnabled").checked, isAdmin: m.kind === "user" ? $("#mbAdmin").checked : undefined, mailbox: m.kind === "user" ? $("#mbMailbox").checked : undefined, timeZone: $("#mbTz").value.trim() });
     toast(t("saved")); pageMailboxes();
   });
   $("#delMb").onclick = guard(async () => { if (!confirm(t("confirmDelete"))) return; await api("DELETE", "/mailboxes/" + m.id); toast(t("deleted")); closePanel(); pageMailboxes(); });

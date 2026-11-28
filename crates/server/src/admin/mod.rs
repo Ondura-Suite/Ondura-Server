@@ -166,6 +166,7 @@ fn user_json(app: &Shared, u: &User, stats: Option<(i64, i64)>) -> Value {
     let (items, bytes) = stats.unwrap_or_else(|| (0, app.store.used_bytes(u.id).unwrap_or(0)));
     json!({
         "id": u.id, "email": u.email, "name": u.name, "kind": u.kind, "isAdmin": u.is_admin, "enabled": u.enabled,
+        "mailbox": u.mailbox,
         "quota": u.quota, "items": items, "used": bytes, "created": u.created,
         "aliases": app.store.aliases_of(u.id).unwrap_or_default(),
     })
@@ -189,6 +190,9 @@ struct NewMailbox {
     quota: i64,
     #[serde(default)]
     is_admin: bool,
+    /// Provision a mailbox with the account. Defaults to true.
+    #[serde(default = "crate::serde_true")]
+    mailbox: bool,
 }
 
 fn default_kind() -> String {
@@ -202,6 +206,7 @@ struct MailboxUpdate {
     quota: Option<i64>,
     is_admin: Option<bool>,
     enabled: Option<bool>,
+    mailbox: Option<bool>,
     forward_to: Option<String>,
     keep_forwarded_copy: Option<bool>,
     time_zone: Option<String>,
@@ -298,6 +303,9 @@ async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &By
             let password = req.password.filter(|p| !p.is_empty()).unwrap_or_else(auth::random_password);
             let u = store.create_user(&req.email, &req.name, &password, &req.kind).map_err(|e| bad(e.to_string()))?;
             store.update_user(u.id, None, Some(req.quota), Some(req.is_admin && req.kind == "user"), None).map_err(internal)?;
+            if !req.mailbox {
+                store.set_mailbox(u.id, false).map_err(internal)?;
+            }
             audit("mailbox.create", &u.email);
             let u = store.user(u.id).map_err(internal)?.ok_or_else(not_found)?;
             let mut v = user_json(app, &u, None);
@@ -347,6 +355,9 @@ async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &By
                 return Err(bad("You cannot remove your own administrator rights or disable your own mailbox."));
             }
             store.update_user(u.id, req.name.as_deref(), req.quota, req.is_admin.filter(|_| u.kind == "user"), req.enabled).map_err(internal)?;
+            if let Some(m) = req.mailbox {
+                store.set_mailbox(u.id, m).map_err(internal)?;
+            }
             if req.forward_to.is_some() || req.keep_forwarded_copy.is_some() || req.time_zone.is_some() {
                 let mut s = store.settings(u.id).map_err(internal)?;
                 if let Some(f) = req.forward_to {

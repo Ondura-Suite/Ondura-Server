@@ -327,6 +327,7 @@ fn me(app: &Shared, user: &User) -> ApiResult {
         "addresses": addresses,
         "collab": app.collab_enabled(),
         "cloud": app.cfg.cloud.enabled,
+        "mail": user.mailbox,
         "admin": user.is_admin && app.cfg.http.admin_center,
         "avatar": app.store.avatar_updated(user.id).ok().flatten(),
         "id": user.id,

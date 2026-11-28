@@ -152,6 +152,10 @@ enum UserCmd {
         /// user, shared or room
         #[arg(long, default_value = "user")]
         kind: String,
+        /// Create the account without a mailbox (no mail; Files, SharePoint,
+        /// Tasks and Notes still work). A mailbox can be added later.
+        #[arg(long)]
+        no_mailbox: bool,
     },
     Passwd {
         email: String,
@@ -159,6 +163,12 @@ enum UserCmd {
         password: Option<String>,
     },
     Admin {
+        email: String,
+        #[arg(value_parser = ["on", "off"])]
+        state: String,
+    },
+    /// Turn an account's mailbox on or off.
+    Mailbox {
         email: String,
         #[arg(value_parser = ["on", "off"])]
         state: String,
@@ -402,7 +412,7 @@ fn run_command(cfg: &Config, command: Command) -> Result<()> {
             let s = open_store(&cfg)?;
             let find = |email: &str| s.user_by_email(email)?.ok_or_else(|| anyhow!("no mailbox {email}"));
             match cmd {
-                UserCmd::Add { email, name, password, admin, kind } => {
+                UserCmd::Add { email, name, password, admin, kind, no_mailbox } => {
                     if !matches!(kind.as_str(), "user" | "shared" | "room") {
                         bail!("kind must be user, shared or room");
                     }
@@ -412,7 +422,10 @@ fn run_command(cfg: &Config, command: Command) -> Result<()> {
                     if admin {
                         s.update_user(u.id, None, None, Some(true), None)?;
                     }
-                    println!("Mailbox {} created.", u.email);
+                    if no_mailbox {
+                        s.set_mailbox(u.id, false)?;
+                    }
+                    println!("{} {} created.", if no_mailbox { "Account" } else { "Mailbox" }, u.email);
                     if generated && kind == "user" {
                         println!("Password: {password}");
                     }
@@ -429,6 +442,11 @@ fn run_command(cfg: &Config, command: Command) -> Result<()> {
                 UserCmd::Admin { email, state } => {
                     let u = find(&email)?;
                     s.update_user(u.id, None, None, Some(state == "on"), None)?;
+                }
+                UserCmd::Mailbox { email, state } => {
+                    let u = find(&email)?;
+                    s.set_mailbox(u.id, state == "on")?;
+                    println!("Mailbox for {} turned {}.", u.email, state);
                 }
                 UserCmd::Delete { email } => {
                     let u = find(&email)?;

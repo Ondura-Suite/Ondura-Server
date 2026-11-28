@@ -703,7 +703,11 @@ function routeFromPath() {
 }
 function routeAndRender() {
   const r = routeFromPath();
-  view = ((r.view === "files" || r.view === "sharepoint") && !(me && me.cloud)) ? "home" : r.view;
+  let v = r.view;
+  if ((v === "files" || v === "sharepoint") && !(me && me.cloud)) v = "home";
+  // Mail, calendar and contacts need a mailbox.
+  if ((v === "mail" || v === "calendar" || v === "contacts") && me && me.mail === false) v = "home";
+  view = v;
   render();
 }
 function appPath(v, o) {
@@ -853,7 +857,9 @@ function renderRail() {
 // OneDrive), SharePoint (shared libraries), Tasks and Notes are their own apps.
 // Admins also get a link to the Admin Center.
 function appList() {
-  const a = [{ k: "mail", ic: "mail", c: "#4f6ef7" }];
+  const a = [];
+  // Mail (with its calendar and contacts) only exists when the account has a mailbox.
+  if (!me || me.mail !== false) a.push({ k: "mail", ic: "mail", c: "#4f6ef7" });
   if (me && me.cloud) { a.push({ k: "files", ic: "cloud", c: "#16a34a" }); a.push({ k: "sharepoint", ic: "share", c: "#0d9488" }); }
   a.push({ k: "tasks", ic: "tasks", c: "#0ea5e9" });
   a.push({ k: "notes", ic: "note", c: "#8b5cf6" });

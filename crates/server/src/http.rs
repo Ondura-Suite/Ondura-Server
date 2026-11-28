@@ -136,6 +136,9 @@ pub async fn basic_auth(app: &Shared, headers: &HeaderMap, ip: IpAddr) -> std::r
     let store = app.store.clone();
     let res = tokio::task::spawn_blocking(move || auth::login(&store, &login, &password, Some(ip))).await;
     match res {
+        // EWS, ActiveSync and Autodiscover are mail/PIM protocols, so an account
+        // without a mailbox cannot use them even though its credentials are valid.
+        Ok(Ok(u)) if !u.mailbox => Err(Box::new(unauthorized())),
         Ok(Ok(u)) => Ok(u),
         Ok(Err(LoginError::Locked)) => Err(Box::new((StatusCode::TOO_MANY_REQUESTS, "Too many failed logins").into_response())),
         Ok(Err(LoginError::Internal(e))) => {

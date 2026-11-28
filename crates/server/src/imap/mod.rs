@@ -387,7 +387,8 @@ impl Session {
         let (l, p, ip) = (login.to_string(), password.to_string(), self.ip);
         let res = tokio::task::spawn_blocking(move || auth::login(&store, &l, &p, Some(ip))).await;
         match res {
-            Ok(Ok(user)) => {
+            // A valid account with no mailbox cannot use IMAP.
+            Ok(Ok(user)) if user.mailbox => {
                 self.user = Some(user);
                 Ok(true)
             }

@@ -278,6 +278,21 @@ Further addresses go to the same mailbox as **aliases**; `@example.com` as alias
 
 **Quota**: optional per mailbox in the Admin Center; 0 means unlimited.
 
+### Accounts without a mailbox
+
+An account does not have to be a mailbox. Every `user` account is first of all an
+account — it signs in and can use Files, SharePoint, Tasks and Notes — and a
+mailbox is an optional capability on top. With the mailbox turned off the account
+receives no mail and cannot use the mail protocols (SMTP, IMAP, POP3, EWS,
+ActiveSync) or the Mail app, but everything else works and the Nextcloud file
+client still connects. Turn the mailbox on later and the account becomes a full
+mailbox with no further setup.
+
+Create an account without a mailbox with `user add --no-mailbox`, or toggle it any
+time with `user mailbox you@example.com on|off`; in the Admin Center the mailbox
+is a checkbox on the account's *General* tab and on the create dialog. `shared`
+and `room` accounts are always mailboxes.
+
 ## Settings and avatars
 
 The Admin Center has a **Settings** page for operational settings that take
@@ -308,9 +323,10 @@ Run as root (or as `ondura`); files created by root are handed over to the servi
 
 ```sh
 ondura-server domain add|remove|list [example.com]
-ondura-server user add you@example.com --name "Your Name" [--password …] [--admin] [--kind user|shared|room]
+ondura-server user add you@example.com --name "Your Name" [--password …] [--admin] [--kind user|shared|room] [--no-mailbox]
 ondura-server user passwd you@example.com [--password …]     # without --password: random, printed
 ondura-server user admin you@example.com on|off
+ondura-server user mailbox you@example.com on|off            # give or remove the mailbox
 ondura-server user delete you@example.com
 ondura-server user list
 ondura-server alias add info@example.com you@example.com
