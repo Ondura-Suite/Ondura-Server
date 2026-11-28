@@ -312,6 +312,33 @@ CREATE TABLE IF NOT EXISTS library_links (
     expires INTEGER
 );
 CREATE INDEX IF NOT EXISTS library_links_drive ON library_links(drive_id);
+CREATE TABLE IF NOT EXISTS drive_settings (
+    drive_id INTEGER NOT NULL REFERENCES drives(id) ON DELETE CASCADE,
+    require_approval INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (drive_id)
+);
+CREATE TABLE IF NOT EXISTS drive_approvals (
+    item_id INTEGER NOT NULL REFERENCES drive_items(id) ON DELETE CASCADE,
+    status TEXT NOT NULL,
+    submitted_by INTEGER NOT NULL,
+    submitted_at INTEGER NOT NULL,
+    reviewed_by INTEGER,
+    reviewed_at INTEGER,
+    note TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (item_id)
+);
+CREATE TABLE IF NOT EXISTS activity (
+    id INTEGER PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    kind TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    detail TEXT NOT NULL DEFAULT '',
+    link TEXT NOT NULL DEFAULT '',
+    created INTEGER NOT NULL,
+    seen INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS activity_user ON activity(user_id, id);
 CREATE TABLE IF NOT EXISTS app_passwords (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

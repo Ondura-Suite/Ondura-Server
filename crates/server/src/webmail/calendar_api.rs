@@ -388,7 +388,13 @@ pub fn share(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         l @ ("freebusy" | "read" | "write") => Some(l),
         _ => return Err(bad("invalid level")),
     };
+    let before = app.store.calendar_share_level(user.id, grantee.id).map_err(internal)?;
     app.store.set_calendar_share(user.id, grantee.id, level).map_err(internal)?;
+    if let Some(l) = level
+        && before.as_deref() != Some(l)
+    {
+        let _ = app.store.add_activity(grantee.id, (user.id, &crate::activity::display_name(user)), "calendar_shared", l, "", "/mail/calendar");
+    }
     Ok(json!({ "ok": true }))
 }
 

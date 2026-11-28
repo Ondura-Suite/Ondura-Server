@@ -249,6 +249,10 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/cloud/column") => drive_api::add_column(app, user, body),
         (&Method::POST, "/cloud/column/delete") => drive_api::delete_column(app, user, body),
         (&Method::POST, "/cloud/field") => drive_api::set_field(app, user, body),
+        (&Method::POST, "/cloud/library/settings") => drive_api::library_settings(app, user, body),
+        (&Method::POST, "/cloud/review") => drive_api::review(app, user, body),
+        (&Method::GET, "/activity") => activity_list(app, user),
+        (&Method::POST, "/activity/read") => activity_read(app, user, body),
         (&Method::GET, "/me") => me(app, user),
         (&Method::GET, "/messages") => mail_api::messages(app, user, query),
         (&Method::GET, "/calendar") => calendar_api::list(app, user, query),
@@ -334,6 +338,24 @@ async fn login(app: &Shared, body: &Bytes, ip: IpAddr, headers: &HeaderMap) -> R
 }
 
 /// Identity plus the folder tree with unread counts.
+/// GET /activity — the account's newest notices and how many are unread.
+fn activity_list(app: &Shared, user: &User) -> ApiResult {
+    let items = app.store.activities(user.id, 50).map_err(internal)?;
+    let unread = app.store.unread_activities(user.id).map_err(internal)?;
+    Ok(serde_json::json!({ "items": items, "unread": unread }))
+}
+
+/// POST /activity/read { id? } — mark one notice, or all of them, as read.
+fn activity_read(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(serde::Deserialize)]
+    struct B {
+        id: Option<i64>,
+    }
+    let b: B = if body.is_empty() { B { id: None } } else { parse(body)? };
+    app.store.mark_activity_read(user.id, b.id).map_err(internal)?;
+    Ok(serde_json::json!({ "ok": true }))
+}
+
 fn me(app: &Shared, user: &User) -> ApiResult {
     let folders = app.store.folders(user.id).map_err(internal)?;
     let mut list = Vec::new();

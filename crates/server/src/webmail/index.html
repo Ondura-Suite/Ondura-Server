@@ -184,6 +184,12 @@ label.calrow { cursor: pointer; }
 .msg .msgchk { opacity: 0; transition: opacity .1s; }
 .msg:hover .msgchk, .msg.sel .msgchk { opacity: 1; }
 #ctxMenu .navitem { padding: 7px 10px; }
+.bellcount { position: absolute; top: 2px; right: 2px; min-width: 16px; height: 16px; padding: 0 4px; border-radius: 8px; background: var(--danger); color: #fff; font-size: 10px; font-weight: 600; line-height: 16px; text-align: center; }
+.actitem { display: flex; gap: 10px; padding: 9px 10px; border-radius: 8px; cursor: pointer; align-items: flex-start; }
+.actitem:hover { background: var(--hover, rgba(127,127,127,.12)); }
+.actitem .dot { width: 8px; height: 8px; border-radius: 4px; margin-top: 6px; flex: none; background: var(--accent); }
+.actitem.read .dot { background: transparent; }
+.actitem .at { font-size: 13px; line-height: 1.35; } .actitem .ad { font-size: 12px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
 #ctxMenu .navitem.danger { color: var(--danger); }
 .ctxsep { height: 1px; background: var(--border); margin: 4px 8px; }
 .cats { display: flex; flex-wrap: wrap; gap: 4px; }
@@ -350,6 +356,26 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 .cell .n { font-size: 12px; color: var(--muted); align-self: flex-end; }
 .cell.other { opacity: .4; }
 .cell.today .n { background: var(--tint); color: #fff; border-radius: 50%; width: 20px; height: 20px; display: grid; place-items: center; }
+.segs { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.segs button { border: 0; background: transparent; color: var(--text); padding: 0 12px; height: 32px; cursor: pointer; font: inherit; font-size: 13px; }
+.segs button + button { border-left: 1px solid var(--border); }
+.segs button.on { background: var(--tint-soft); color: var(--tint); font-weight: 600; }
+.tg { flex: 1; display: flex; flex-direction: column; min-height: 0; border-top: 1px solid var(--border); }
+.tg-head, .tg-all, .tg-cols { display: grid; }
+.tg-head { border-bottom: 1px solid var(--border); }
+.tg-dh { display: flex; gap: 6px; align-items: baseline; justify-content: center; padding: 8px 0; font-size: 12px; color: var(--muted); cursor: pointer; }
+.tg-dh b { font-size: 18px; color: var(--text); font-weight: 600; }
+.tg-dh.today b { color: var(--tint); }
+.tg-all { border-bottom: 1px solid var(--border); }
+.tg-all > div { padding: 4px; display: flex; flex-direction: column; gap: 3px; min-width: 0; border-left: 1px solid var(--border); }
+.tg-all > .tg-lbl { border-left: 0; font-size: 11px; color: var(--muted); align-items: flex-end; justify-content: center; }
+.tg-body { flex: 1; overflow: auto; min-height: 0; }
+.tg-h { font-size: 11px; color: var(--muted); text-align: right; padding-right: 8px; transform: translateY(-7px); box-sizing: border-box; }
+.tg-day { position: relative; border-left: 1px solid var(--border); background: repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px 48px); cursor: pointer; }
+.tg-ev { position: absolute; background: var(--tint-soft); color: var(--tint); border-left: 3px solid var(--tint); border-radius: 5px; padding: 2px 6px; font-size: 12px; overflow: hidden; cursor: pointer; box-sizing: border-box; display: flex; flex-direction: column; }
+.tg-ev b { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .tg-ev span { opacity: .8; font-size: 11px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tg-ev.tg-short { flex-direction: row; gap: 6px; align-items: center; padding-top: 0; padding-bottom: 0; }
+.tg-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--danger); pointer-events: none; }
 .ev { background: var(--tint-soft); color: var(--tint); border-radius: 5px; padding: 2px 6px; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
 
 /* ---------- contacts ---------- */
@@ -398,6 +424,7 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
     <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input id="q" placeholder=""></div>
     <div class="sp"></div>
     <button class="btn primary" id="composeBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span data-t="compose">Compose</span></button>
+    <button class="iconbtn" id="bellBtn" title="Notifications" style="position:relative"><svg viewBox="0 0 24 24"><path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 2h-15z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M10 20.5a2.2 2.2 0 0 0 4 0" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg><span id="bellCount" class="bellcount hidden"></span></button>
     <button class="iconbtn" id="settingsBtn" title="Settings"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.4 5.6l-1.4 1.4M7 17l-1.4 1.4M18.4 18.4 17 17M7 7 5.6 5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></button>
     <button class="iconbtn" id="langBtn" title="Language"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18" fill="none" stroke="currentColor" stroke-width="1.6"/></svg></button>
     <div class="acctwrap">
@@ -417,6 +444,13 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 <script>
 const T = {
   en: {
+    calDay: "Day", calWeek: "Week", calMonth: "Month",
+    sortBy: "Sort:", sortName: "Name", sortModified: "Modified", sortSize: "Size", filterAllItems: "All items",
+    librarySettings: "Settings", requireApproval: "Require approval", requireApprovalHint: "New and changed files from editors wait until an owner approves them; until then, people with view access don't see them.",
+    approvalPending: "Waiting for approval", approvalRejected: "Rejected", approve: "Approve", reject: "Reject", rejectReason: "Reason (optional)",
+    notifications: "Notifications", noNotifications: "Nothing new.", markAllReadN: "Mark all as read",
+    act_mention: "{a} mentioned you in “{s}”", act_doc_shared: "{a} shared “{s}” with you", act_folder_access: "{a} gave you access to the folder “{s}”", act_library_member: "{a} added you to the library “{s}”",
+    act_calendar_shared: "{a} shared their calendar with you", act_approval_requested: "{a} submitted “{s}” for approval", act_approved: "{a} approved “{s}”", act_rejected: "{a} rejected “{s}”",
     checkOut: "Check out", checkIn: "Check in", discardCheckout: "Discard check-out", checkedOutBy: "Checked out by", checkedOutByYou: "Checked out by you",
     manageAccess: "Manage access", ownPermissions: "This folder has its own permissions.", inheritsLibrary: "This folder uses the library's members.", inheritsFrom: "Permissions come from the folder",
     stopInheriting: "Give this folder its own permissions", inheritAgain: "Use the library's members again", confirmInherit: "Remove this folder's own permissions and use the library's members again?", restrictedFolder: "Own permissions",
@@ -448,6 +482,13 @@ const T = {
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
   de: {
+    calDay: "Tag", calWeek: "Woche", calMonth: "Monat",
+    sortBy: "Sortieren:", sortName: "Name", sortModified: "Geändert", sortSize: "Größe", filterAllItems: "Alle Elemente",
+    librarySettings: "Einstellungen", requireApproval: "Freigabe erforderlich", requireApprovalHint: "Neue und geänderte Dateien von Bearbeitern warten, bis ein Besitzer sie freigibt; bis dahin sehen Personen mit Lesezugriff sie nicht.",
+    approvalPending: "Wartet auf Freigabe", approvalRejected: "Abgelehnt", approve: "Freigeben", reject: "Ablehnen", rejectReason: "Begründung (optional)",
+    notifications: "Benachrichtigungen", noNotifications: "Nichts Neues.", markAllReadN: "Alle als gelesen markieren",
+    act_mention: "{a} hat dich in „{s}“ erwähnt", act_doc_shared: "{a} hat „{s}“ mit dir geteilt", act_folder_access: "{a} hat dir Zugriff auf den Ordner „{s}“ gegeben", act_library_member: "{a} hat dich zur Bibliothek „{s}“ hinzugefügt",
+    act_calendar_shared: "{a} hat den Kalender mit dir geteilt", act_approval_requested: "{a} hat „{s}“ zur Freigabe eingereicht", act_approved: "{a} hat „{s}“ freigegeben", act_rejected: "{a} hat „{s}“ abgelehnt",
     checkOut: "Auschecken", checkIn: "Einchecken", discardCheckout: "Auschecken verwerfen", checkedOutBy: "Ausgecheckt von", checkedOutByYou: "Von dir ausgecheckt",
     manageAccess: "Zugriff verwalten", ownPermissions: "Dieser Ordner hat eigene Berechtigungen.", inheritsLibrary: "Dieser Ordner verwendet die Mitglieder der Bibliothek.", inheritsFrom: "Berechtigungen kommen vom Ordner",
     stopInheriting: "Eigene Berechtigungen für diesen Ordner", inheritAgain: "Wieder die Mitglieder der Bibliothek verwenden", confirmInherit: "Eigene Berechtigungen dieses Ordners entfernen und wieder die Mitglieder der Bibliothek verwenden?", restrictedFolder: "Eigene Berechtigungen",
@@ -1700,32 +1741,57 @@ function fileB64(file) { return new Promise((res) => { const r = new FileReader(
 // ------------------------------------------------------------ CALENDAR
 let calRef = new Date();
 // Calendars shared with this account, and which of them are overlaid.
-const cal = { shared: null, loadedAt: 0, visible: new Set(), palette: ["#0ea5e9", "#16a34a", "#f59e0b", "#e11d48", "#8b5cf6", "#14b8a6", "#f97316"] };
+const cal = { mode: (() => { try { return localStorage.getItem("ondura.calMode") || "month"; } catch (e) { return "month"; } })(), shared: null, loadedAt: 0, visible: new Set(), palette: ["#0ea5e9", "#16a34a", "#f59e0b", "#e11d48", "#8b5cf6", "#14b8a6", "#f97316"] };
 try { JSON.parse(localStorage.getItem("ondura.cal.visible") || "[]").forEach((id) => cal.visible.add(id)); } catch (e) {}
 function saveCalVisible() { try { localStorage.setItem("ondura.cal.visible", JSON.stringify([...cal.visible])); } catch (e) {} }
 function calColor(owner) { return !me || owner === me.id ? "var(--tint)" : cal.palette[(owner * 7) % cal.palette.length]; }
 function calName(owner) { const c = (cal.shared || []).find((x) => x.id === owner); return c ? (c.name || c.email) : ""; }
+// The calendar in month, week or day view. Week and day show a time grid;
+// the chosen view is remembered in the browser.
 async function renderCalendar() {
-  calRef.setDate(1);
-  const y = calRef.getFullYear(), mo = calRef.getMonth();
-  const first = new Date(y, mo, 1), startDow = (first.getDay() + 6) % 7;
-  const gridStart = new Date(y, mo, 1 - startDow);
-  const from = Math.floor(gridStart.getTime() / 1000);
-  const to = from + 42 * 86400;
-  const title = calRef.toLocaleString(lang === "de" ? "de-DE" : "en-GB", { month: "long", year: "numeric" });
+  const mode = cal.mode;
+  const loc = lang === "de" ? "de-DE" : "en-GB";
+  let from, days, title;
+  if (mode === "month") {
+    calRef.setDate(1);
+    const startDow = (calRef.getDay() + 6) % 7;
+    const gridStart = new Date(calRef.getFullYear(), calRef.getMonth(), 1 - startDow);
+    from = Math.floor(gridStart.getTime() / 1000); days = 42;
+    title = calRef.toLocaleString(loc, { month: "long", year: "numeric" });
+  } else {
+    const d = new Date(calRef.getFullYear(), calRef.getMonth(), calRef.getDate());
+    if (mode === "week") d.setDate(d.getDate() - (d.getDay() + 6) % 7);
+    from = Math.floor(d.getTime() / 1000); days = mode === "week" ? 7 : 1;
+    const last = new Date(d.getFullYear(), d.getMonth(), d.getDate() + days - 1);
+    title = mode === "day"
+      ? d.toLocaleDateString(loc, { weekday: "long", day: "numeric", month: "long", year: "numeric" })
+      : `${d.toLocaleDateString(loc, { day: "numeric", month: "short" })} – ${last.toLocaleDateString(loc, { day: "numeric", month: "short", year: "numeric" })}`;
+  }
+  const to = addDays(from, days);
+  const modes = [["day", t("calDay")], ["week", t("calWeek")], ["month", t("calMonth")]];
   $("#view").innerHTML = `<div class="cal"><div class="bar"><h2>${esc(title)}</h2>
+    <div class="segs">${modes.map(([k, l]) => `<button class="${mode === k ? "on" : ""}" data-mode="${k}">${esc(l)}</button>`).join("")}</div>
     <button class="btn" id="calToday">${esc(t("today"))}</button>
     <button class="iconbtn" id="calPrev"><svg viewBox="0 0 24 24" style="transform:rotate(180deg)">${ICON.chev}</svg></button>
     <button class="iconbtn" id="calNext"><svg viewBox="0 0 24 24">${ICON.chev}</svg></button>
     ${"Notification" in window && Notification.permission === "default" ? `<button class="btn" id="calNotify">${icon("clock")}<span>${esc(t("enableReminders"))}</span></button>` : ""}
     <button class="btn primary" id="calNew">${icon("calendar")}<span>${esc(t("newEvent"))}</span></button></div>
-    <div class="grid" id="calGrid"></div></div>`;
-  $("#calPrev").onclick = () => { calRef.setMonth(mo - 1); renderCalendar(); };
-  $("#calNext").onclick = () => { calRef.setMonth(mo + 1); renderCalendar(); };
+    <div class="${mode === "month" ? "grid" : "tg"}" id="calGrid"></div></div>`;
+  const step = (n) => {
+    if (mode === "month") calRef.setMonth(calRef.getMonth() + n);
+    else calRef.setDate(calRef.getDate() + n * days);
+    renderCalendar();
+  };
+  $("#calPrev").onclick = () => step(-1);
+  $("#calNext").onclick = () => step(1);
   $("#calToday").onclick = () => { calRef = new Date(); renderCalendar(); };
   $("#calNew").onclick = () => openEvent();
+  $("#view").querySelectorAll("[data-mode]").forEach((b) => b.onclick = () => {
+    // Leaving the month view, stay on today when it's in the month shown.
+    const now = new Date();
+    if (mode === "month" && now.getMonth() === calRef.getMonth() && now.getFullYear() === calRef.getFullYear()) calRef = now;
+    cal.mode = b.dataset.mode; try { localStorage.setItem("ondura.calMode", cal.mode); } catch (e) {} renderCalendar(); });
   const cn = $("#calNotify"); if (cn) cn.onclick = async () => { try { await Notification.requestPermission(); } catch (e) {} renderCalendar(); };
-  const dows = lang === "de" ? ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   // Refresh the list of shared calendars now and then; it feeds the rail.
   if (!cal.shared || Date.now() - cal.loadedAt > 60000) {
     try { cal.shared = (await api("GET", "/calendar/shares")).received; } catch (e) { cal.shared = cal.shared || []; }
@@ -1738,25 +1804,87 @@ async function renderCalendar() {
     if (!cal.shared.some((c) => c.id === owner)) continue;
     try { events = events.concat((await api("GET", `/calendar?from=${from}&to=${to}&owner=${owner}`)).events); } catch (e) {}
   }
+  if (mode === "month") renderMonthGrid(events, from, calRef.getMonth());
+  else renderTimeGrid(events, from, days);
+  $("#calGrid").querySelectorAll("[data-evi]").forEach((el) => el.onclick = (e) => { e.stopPropagation(); const ev = events[+el.dataset.evi]; if (ev && !ev.blocksOnly) openEvent(ev); });
+}
+
+// How an event looks in the grid: label and, for other people's calendars,
+// their colour.
+function evLook(e) {
+  const shared = me && e.owner && e.owner !== me.id;
+  const label = (shared ? calName(e.owner) + ": " : "") + (e.blocksOnly ? t("busyBusy") : e.subject);
+  const col = calColor(e.owner);
+  return { label, style: shared ? `color:${col};background:color-mix(in srgb, ${col} 14%, transparent);border-left:3px solid ${col}` : "" };
+}
+const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString(lang === "de" ? "de-DE" : "en-GB", { hour: "2-digit", minute: "2-digit" });
+
+function renderMonthGrid(events, from, month) {
+  const dows = lang === "de" ? ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
   const byDay = {};
   events.forEach((ev) => { const k = new Date(ev.start * 1000).toDateString(); (byDay[k] = byDay[k] || []).push(ev); });
   let cells = dows.map((d) => `<div class="dow">${d}</div>`).join("");
   for (let i = 0; i < 42; i++) {
-    const d = new Date(gridStart.getFullYear(), gridStart.getMonth(), gridStart.getDate() + i);
-    const other = d.getMonth() !== mo, today = d.toDateString() === new Date().toDateString();
+    const d = new Date(addDays(from, i) * 1000);
+    const other = d.getMonth() !== month, today = d.toDateString() === new Date().toDateString();
     const evs = (byDay[d.toDateString()] || []).sort((a, b) => a.start - b.start);
     cells += `<div class="cell ${other ? "other" : ""} ${today ? "today" : ""}" data-day="${Math.floor(d.getTime() / 1000)}">
-      <span class="n">${d.getDate()}</span>
-      ${evs.map((e, i) => {
-        const shared = me && e.owner && e.owner !== me.id;
-        const label = (shared ? calName(e.owner) + ": " : "") + (e.blocksOnly ? t("busyBusy") : e.subject);
-        const col = calColor(e.owner);
-        return `<div class="ev${e.blocksOnly ? " evblock" : ""}" data-evi="${events.indexOf(e)}" title="${esc(label)}" style="${shared ? `color:${col};background:color-mix(in srgb, ${col} 14%, transparent);border-left:3px solid ${col}` : ""}">${e.allDay ? "" : new Date(e.start * 1000).toLocaleTimeString(lang === "de" ? "de-DE" : "en-GB", { hour: "2-digit", minute: "2-digit" }) + " "}${esc(label)}</div>`;
-      }).join("")}</div>`;
+      <span class="n" data-goday="${Math.floor(d.getTime() / 1000)}">${d.getDate()}</span>
+      ${evs.map((e) => { const l = evLook(e); return `<div class="ev${e.blocksOnly ? " evblock" : ""}" data-evi="${events.indexOf(e)}" title="${esc(l.label)}" style="${l.style}">${e.allDay ? "" : hhmm(e.start) + " "}${esc(l.label)}</div>`; }).join("")}</div>`;
   }
   $("#calGrid").innerHTML = cells;
-  $("#calGrid").querySelectorAll(".cell").forEach((c) => c.onclick = (e) => { if (e.target.closest(".ev")) return; openEvent(null, +c.dataset.day); });
-  $("#calGrid").querySelectorAll(".ev").forEach((el) => el.onclick = () => { const ev = events[+el.dataset.evi]; if (ev && !ev.blocksOnly) openEvent(ev); });
+  $("#calGrid").querySelectorAll(".cell").forEach((c) => c.onclick = () => openEvent(null, +c.dataset.day));
+  // The day number opens that day.
+  $("#calGrid").querySelectorAll("[data-goday]").forEach((n) => n.onclick = (e) => { e.stopPropagation(); calRef = new Date(+n.dataset.goday * 1000); cal.mode = "day"; renderCalendar(); });
+}
+
+const HOUR_PX = 48;
+function renderTimeGrid(events, from, days) {
+  const loc = lang === "de" ? "de-DE" : "en-GB";
+  const cols = `56px repeat(${days}, 1fr)`;
+  const dayStarts = Array.from({ length: days }, (_, i) => addDays(from, i));
+  const todayKey = new Date().toDateString();
+  const head = `<div class="tg-head" style="grid-template-columns:${cols}"><div></div>${dayStarts.map((ds) => { const d = new Date(ds * 1000); return `<div class="tg-dh ${d.toDateString() === todayKey ? "today" : ""}" data-goday="${ds}"><span>${esc(d.toLocaleDateString(loc, { weekday: "short" }))}</span><b>${d.getDate()}</b></div>`; }).join("")}</div>`;
+  // All-day events (and ones spanning whole days) sit in a strip above the hours.
+  const allDay = dayStarts.map((ds) => events.filter((e) => e.allDay && e.start < addDays(ds, 1) && e.end > ds));
+  const strip = allDay.some((l) => l.length) ? `<div class="tg-all" style="grid-template-columns:${cols}"><div class="tg-lbl">${esc(t("allDay"))}</div>${allDay.map((l) => `<div>${l.map((e) => { const lk = evLook(e); return `<div class="ev" data-evi="${events.indexOf(e)}" title="${esc(lk.label)}" style="${lk.style}">${esc(lk.label)}</div>`; }).join("")}</div>`).join("")}</div>` : "";
+  const hours = Array.from({ length: 24 }, (_, h) => `<div class="tg-h" style="height:${HOUR_PX}px">${h ? String(h).padStart(2, "0") + ":00" : ""}</div>`).join("");
+  const colsHtml = dayStarts.map((ds) => {
+    const de = addDays(ds, 1);
+    // Timed events of this day, clipped to it, laid out in side-by-side lanes
+    // where they overlap.
+    const evs = events.filter((e) => !e.allDay && e.start < de && e.end > ds).map((e) => ({ e, s: Math.max(e.start, ds), en: Math.min(Math.max(e.end, e.start + 900), de) })).sort((a, b) => a.s - b.s || b.en - a.en);
+    const lanesEnd = []; let group = []; let groupEnd = 0; const placed = [];
+    const flush = () => { const n = lanesEnd.length; group.forEach((g) => { g.n = n; placed.push(g); }); group = []; lanesEnd.length = 0; };
+    for (const x of evs) {
+      if (group.length && x.s >= groupEnd) flush();
+      let lane = lanesEnd.findIndex((end) => end <= x.s);
+      if (lane < 0) { lane = lanesEnd.length; lanesEnd.push(x.en); } else lanesEnd[lane] = x.en;
+      x.lane = lane; group.push(x); groupEnd = Math.max(groupEnd, x.en);
+    }
+    flush();
+    const blocks = placed.map((x) => {
+      const lk = evLook(x.e);
+      const top = (x.s - ds) / 3600 * HOUR_PX, h = Math.max((x.en - x.s) / 3600 * HOUR_PX - 2, 18);
+      const w = 100 / x.n;
+      return `<div class="tg-ev${x.e.blocksOnly ? " evblock" : ""}${h < 36 ? " tg-short" : ""}" data-evi="${events.indexOf(x.e)}" title="${esc(lk.label)}" style="top:${top}px;height:${h}px;left:calc(${x.lane * w}% + 2px);width:calc(${w}% - 4px);${lk.style}"><b>${esc(lk.label)}</b><span>${hhmm(x.e.start)} – ${hhmm(x.e.end)}${x.e.location ? " · " + esc(x.e.location) : ""}</span></div>`;
+    }).join("");
+    const now = Math.floor(Date.now() / 1000);
+    const nowLine = now >= ds && now < de ? `<div class="tg-now" style="top:${(now - ds) / 3600 * HOUR_PX}px"></div>` : "";
+    return `<div class="tg-day" data-ds="${ds}" style="height:${24 * HOUR_PX}px">${blocks}${nowLine}</div>`;
+  }).join("");
+  $("#calGrid").innerHTML = `${head}${strip}<div class="tg-body" id="tgBody"><div class="tg-cols" style="grid-template-columns:${cols}"><div>${hours}</div>${colsHtml}</div></div>`;
+  // Click an empty slot to create an event at that half hour.
+  $("#calGrid").querySelectorAll(".tg-day").forEach((c) => c.onclick = (e) => {
+    if (e.target.closest("[data-evi]")) return;
+    const y = e.clientY - c.getBoundingClientRect().top;
+    const at = +c.dataset.ds + Math.floor(y / (HOUR_PX / 2)) * 1800;
+    openEvent(null, +c.dataset.ds, at);
+  });
+  $("#calGrid").querySelectorAll("[data-goday]").forEach((n) => n.onclick = () => { calRef = new Date(+n.dataset.goday * 1000); cal.mode = "day"; renderCalendar(); });
+  // Start scrolled to the working day (or the first event before it).
+  const firstTimed = events.filter((e) => !e.allDay && e.start >= from).map((e) => new Date(e.start * 1000).getHours()).sort((a, b) => a - b)[0];
+  $("#tgBody").scrollTop = Math.min(firstTimed ?? 8, 8) * HOUR_PX - 8;
 }
 function toLocalInput(ts) { const d = new Date(ts * 1000); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
 function fromLocalInput(v) { return Math.floor(new Date(v).getTime() / 1000); }
@@ -1794,8 +1922,8 @@ function uiToRecur(v, start, untilStr, existing) {
 
 // Open an event. A recurring one first asks whether to work on this
 // occurrence or on the whole series.
-async function openEvent(ev, dayTs) {
-  if (!ev) return eventEditor(null, null, "single", dayTs);
+async function openEvent(ev, dayTs, atTs) {
+  if (!ev) return eventEditor(null, null, "single", dayTs, atTs);
   let full;
   try { full = await api("GET", "/event?id=" + ev.id); } catch (e) { toast(e.message, true); return; }
   if (!full.event.recurrence) return eventEditor(ev, full, "single");
@@ -1806,7 +1934,7 @@ async function openEvent(ev, dayTs) {
   $("#evSeries").onclick = () => eventEditor(ev, full, "series");
 }
 
-function eventEditor(ev, full, mode, dayTs) {
+function eventEditor(ev, full, mode, dayTs, atTs) {
   const e = full ? full.event : null;
   const occ = mode === "occurrence";
   const organizer = !full || full.isOrganizer;
@@ -1817,7 +1945,7 @@ function eventEditor(ev, full, mode, dayTs) {
   const writable = (cal.shared || []).filter((c) => c.access === "write");
   // In occurrence mode the list entry carries the occurrence's own values.
   const ex = occ ? (e.exceptions || []).find((x) => x.original_start === ev.occurrenceStart) || {} : {};
-  const start = occ ? ev.start : e ? e.start : (dayTs ? dayTs + 9 * 3600 : Math.floor(Date.now() / 1000));
+  const start = occ ? ev.start : e ? e.start : (atTs || (dayTs ? dayTs + 9 * 3600 : Math.floor(Date.now() / 1000)));
   const end = occ ? ev.end : e ? e.end : start + 3600;
   const allDay = occ ? !!ev.allDay : !!(e && e.all_day);
   const subject = occ ? ev.subject : e ? e.subject : "";
@@ -2408,7 +2536,7 @@ async function renderFiles() {
   let data = { items: [], path: [], role: "viewer", canWrite: false };
   if (fs.driveId) { try { data = await api("GET", `/cloud/items?drive=${fs.driveId}` + (fs.parent ? `&parent=${fs.parent}` : "")); } catch (e) {} }
   fs.items = data.items || []; fs.path = data.path || []; fs.role = data.role || "viewer"; fs.canWrite = !!data.canWrite;
-  fs.columns = data.columns || []; fs.canManage = !!data.canManage; fs.libOwner = !!data.libraryOwner;
+  fs.columns = data.columns || []; fs.canManage = !!data.canManage; fs.libOwner = !!data.libraryOwner; fs.requireApproval = !!data.requireApproval;
   const drive = fs.drives.find((d) => d.id === fs.driveId) || (fs.grant ? { id: fs.grant.drive, kind: "library", name: fs.grant.driveName, role: "" } : null);
   fs.isLibrary = !!drive && drive.kind === "library";
   // Keep the URL in step so the current library/folder can be linked.
@@ -2423,14 +2551,27 @@ async function renderFiles() {
   const memBtn = member ? `<button class="btn" id="fMembers">${icon("contacts")}<span>${esc(t("members"))}</span></button>` : "";
   const linkBtn = member ? `<button class="btn" id="fLink">${icon("link")}<span>${esc(t("copyLink"))}</span></button>` : "";
   const libShareBtn = member && fs.libOwner ? `<button class="btn" id="fShareLib">${icon("share")}<span>${esc(t("shareLibrary"))}</span></button>` : "";
-  const colBtn = member && fs.libOwner ? `<button class="btn" id="fColumns">${icon("settings")}<span>${esc(t("libColumns"))}</span></button>` : "";
+  const colBtn = member && fs.libOwner ? `<button class="btn" id="fColumns">${icon("settings")}<span>${esc(t("librarySettings"))}</span></button>` : "";
   const accessBtn = fs.isLibrary && fs.parent && fs.canManage ? `<button class="btn" id="fAccess">${icon("lock")}<span>${esc(t("manageAccess"))}</span></button>` : "";
   const delLibBtn = drive && drive.kind === "library" && fs.role === "owner" ? `<button class="btn" id="fDelLib">${icon("trash")}<span>${esc(t("deleteLibrary"))}</span></button>` : "";
   const trashBtn = fs.canWrite && !fs.grant ? `<button class="btn" id="fTrash">${icon("trash")}<span>${esc(t("recycleBin"))}</span></button>` : "";
   const crumbs = `<button style="background:none;border:0;color:var(--muted);cursor:pointer;padding:0;font-size:13px" data-crumb="${fs.grant ? fs.grant.item : ""}">${esc(rootName)}</button>`
     + fs.path.map((p) => `<span style="color:var(--muted)">/</span><button style="background:none;border:0;color:var(--muted);cursor:pointer;padding:0;font-size:13px" data-crumb="${p.id}">${esc(p.name)}</button>`).join("");
-  const rows = fs.items.length
-    ? fs.items.map((it) => fileRow(it, false)).join("")
+  // Sorting and, in libraries with columns, filtering by a column value.
+  const cols = fs.columns || [];
+  if (fs.filter && !cols.some((c) => String(c.id) === fs.filter.split(":")[0])) fs.filter = "";
+  const shown = sortFilterItems(fs.items);
+  const sortOpts = [["name", t("sortName")], ["modified", t("sortModified")], ["size", t("sortSize")]].concat(cols.map((c) => ["c" + c.id, c.name]));
+  const filterOpts = [];
+  for (const c of cols) {
+    const vals = [...new Set(fs.items.map((it) => it.fields && it.fields[c.id]).filter((v) => v != null && v !== ""))].sort();
+    for (const v of vals) filterOpts.push([`${c.id}:${v}`, `${c.name}: ${fieldText(c, v)}`]);
+  }
+  const viewCtl = `<span style="flex:1"></span>
+    ${filterOpts.length || fs.filter ? `<select id="fFilter" style="width:auto;height:28px;font-size:12.5px"><option value="">${esc(t("filterAllItems"))}</option>${filterOpts.map(([v, l]) => `<option value="${esc(v)}" ${fs.filter === v ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>` : ""}
+    <select id="fSort" style="width:auto;height:28px;font-size:12.5px">${sortOpts.map(([v, l]) => `<option value="${esc(v)}" ${(fs.sort || "name") === v ? "selected" : ""}>${esc(t("sortBy"))} ${esc(l)}</option>`).join("")}</select>`;
+  const rows = shown.length
+    ? shown.map((it) => fileRow(it, false)).join("")
     : `<div class="empty">${esc(t("emptyFolder"))}</div>`;
   $("#view").innerHTML = `<div style="display:flex;flex-direction:column;height:100%">
     <div class="glass" style="display:flex;gap:8px;align-items:center;padding:10px 16px;flex-wrap:wrap;border-radius:0">
@@ -2438,11 +2579,13 @@ async function renderFiles() {
       <input id="fSearch" placeholder="${esc(t("searchFiles"))}" style="flex:1;min-width:120px;height:32px;border:1px solid var(--border);border-radius:8px;background:var(--surface);color:var(--text);padding:0 10px">
       <div style="display:flex;gap:6px;flex-wrap:wrap">${tools}${accessBtn}${linkBtn}${libShareBtn}${colBtn}${memBtn}${trashBtn}${delLibBtn}</div>
     </div>
-    <div id="fCrumbs" style="display:flex;gap:4px;align-items:center;padding:8px 16px;font-size:13px;flex-wrap:wrap">${crumbs}</div>
+    <div id="fCrumbs" style="display:flex;gap:4px;align-items:center;padding:8px 16px;font-size:13px;flex-wrap:wrap">${crumbs}${viewCtl}</div>
     <div id="fRows" style="flex:1;overflow:auto;padding:0 10px 16px">${rows}</div></div>`;
   wireFileRows();
   const sb = $("#fSearch");
   if (sb) sb.oninput = () => { clearTimeout(fs.searchTimer); const q = sb.value.trim(); fs.searchTimer = setTimeout(() => doFileSearch(q), 220); };
+  const so = $("#fSort"); if (so) so.onchange = () => { fs.sort = so.value; renderFiles(); };
+  const fl = $("#fFilter"); if (fl) fl.onchange = () => { fs.filter = fl.value; renderFiles(); };
   $("#view").querySelectorAll("[data-crumb]").forEach((b) => b.onclick = () => { fs.parent = b.dataset.crumb ? +b.dataset.crumb : null; renderFiles(); });
   const nf = $("#fNewFolder"); if (nf) nf.onclick = guard(async () => { const name = prompt(t("folderName")); if (!name) return; await api("POST", "/cloud/folder", { drive: fs.driveId, parent: fs.parent, name: name.trim() }); renderFiles(); });
   const nd = $("#fNewDoc"); if (nd) nd.onclick = guard(async () => { const name = prompt(t("newDocument")); if (name === null) return; const r = await api("POST", "/cloud/doc", { drive: fs.driveId, parent: fs.parent, name: (name || "").trim() || t("newDocument") }); openDriveDoc(r.doc); });
@@ -2458,6 +2601,33 @@ async function renderFiles() {
   if (view === "sharepoint") renderRail();
 }
 
+// The current folder's items in the chosen order (folders first), narrowed to
+// the chosen column value.
+function sortFilterItems(items) {
+  let list = items.slice();
+  if (fs.filter) {
+    const i = fs.filter.indexOf(":"); const col = fs.filter.slice(0, i); const val = fs.filter.slice(i + 1);
+    list = list.filter((it) => it.fields && it.fields[col] === val);
+  }
+  const key = fs.sort || "name";
+  const col = key.startsWith("c") ? (fs.columns || []).find((c) => "c" + c.id === key) : null;
+  const byName = (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+  const cmp = (a, b) => {
+    if (key === "modified") return b.updated - a.updated || byName(a, b);
+    if (key === "size") return b.size - a.size || byName(a, b);
+    if (col) {
+      const va = a.fields && a.fields[col.id], vb = b.fields && b.fields[col.id];
+      if (va == null && vb == null) return byName(a, b);
+      if (va == null) return 1; if (vb == null) return -1;
+      const r = col.kind === "number" ? (+va - +vb) : col.kind === "choice" ? col.choices.indexOf(va) - col.choices.indexOf(vb) : String(va).localeCompare(String(vb));
+      return r || byName(a, b);
+    }
+    return byName(a, b);
+  };
+  const folders = list.filter((x) => x.kind === "folder").sort(cmp);
+  return folders.concat(list.filter((x) => x.kind !== "folder").sort(cmp));
+}
+
 // Attach open/menu handlers to the rows currently in #fRows against fs.items.
 function wireFileRows() {
   $("#fRows").querySelectorAll("[data-open]").forEach((el) => el.onclick = () => openItem(fs.items.find((x) => x.id === +el.dataset.open)));
@@ -2471,10 +2641,11 @@ function fileRow(it, showLoc) {
   const loc = showLoc ? `<div style="font-size:11px;color:var(--muted)">${esc(it.driveKind === "personal" ? t("myFiles") : (it.driveName || ""))}</div>` : "";
   const badges = [];
   if (it.restricted) badges.push(`<span title="${esc(t("restrictedFolder"))}" style="display:inline-flex;vertical-align:-3px;color:var(--muted)">${icon("lock")}</span>`);
+  const ap = it.approval && it.approval.status !== "approved" ? `<div style="font-size:11px;color:${it.approval.status === "rejected" ? "var(--danger)" : "var(--muted)"}">${esc(it.approval.status === "rejected" ? t("approvalRejected") + (it.approval.note ? ": " + it.approval.note : "") : t("approvalPending"))}</div>` : "";
   const co = it.checkedOut ? `<div style="font-size:11px;color:var(--accent)">${esc(it.checkedOut.mine ? t("checkedOutByYou") : `${t("checkedOutBy")} ${it.checkedOut.name || it.checkedOut.email}`)}</div>` : "";
   const fv = (fs.columns || []).filter((c) => it.fields && it.fields[c.id] != null).map((c) => `${esc(c.name)}: ${esc(fieldText(c, it.fields[c.id]))}`).join(" · ");
   const fields = fv && !showLoc ? `<div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${fv}</div>` : "";
-  return `<div class="taskrow" data-open="${it.id}" style="cursor:pointer"><div style="color:var(--muted);display:flex">${icon(ic)}</div><div class="tt" style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)} ${badges.join("")}</div>${loc}${co}${fields}</div><div style="font-size:11.5px;color:var(--muted)">${esc(meta)}</div><button class="iconbtn" data-menu="${it.id}">${icon("dots")}</button></div>`;
+  return `<div class="taskrow" data-open="${it.id}" style="cursor:pointer"><div style="color:var(--muted);display:flex">${icon(ic)}</div><div class="tt" style="flex:1;min-width:0"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(it.name)} ${badges.join("")}</div>${loc}${co}${ap}${fields}</div><div style="font-size:11.5px;color:var(--muted)">${esc(meta)}</div><button class="iconbtn" data-menu="${it.id}">${icon("dots")}</button></div>`;
 }
 
 // Search across the user's drives; results replace the file rows in place.
@@ -2742,6 +2913,10 @@ function itemMenu(ev, it) {
     if (co && co.mine) items.push({ ic: "check", label: t("checkIn"), fn: guard(async () => { await api("POST", "/cloud/checkin", { item: it.id }); renderFiles(); }) });
     if (co && !co.mine && fs.canManage) items.push({ ic: "reply", label: t("discardCheckout"), fn: guard(async () => { await api("POST", "/cloud/checkin", { item: it.id }); renderFiles(); }) });
   }
+  if (fs.isLibrary && fs.libOwner && it.approval && it.approval.status !== "approved") {
+    items.push({ ic: "check", label: t("approve"), fn: guard(async () => { await api("POST", "/cloud/review", { item: it.id, approve: true }); renderFiles(); }) });
+    if (it.approval.status === "pending") items.push({ ic: "reply", label: t("reject"), fn: guard(async () => { const note = prompt(t("rejectReason")); if (note === null) return; await api("POST", "/cloud/review", { item: it.id, approve: false, note }); renderFiles(); }) });
+  }
   if (fs.isLibrary && (fs.columns || []).length) items.push({ ic: "settings", label: t("properties"), fn: () => openProperties(it) });
   if (fs.isLibrary && it.kind === "folder" && fs.canManage) items.push({ ic: "lock", label: t("manageAccess"), fn: () => openAccess(it) });
   if (fs.canWrite) {
@@ -2796,12 +2971,14 @@ async function openColumns(driveId) {
     let cols = [];
     try { cols = (await api("GET", `/cloud/items?drive=${driveId}`)).columns || []; } catch (e) {}
     const rows = cols.length ? cols.map((c) => `<div class="taskrow"><div class="tt" style="flex:1;min-width:0"><div>${esc(c.name)}</div><div style="font-size:11px;color:var(--muted)">${esc(t("col" + c.kind[0].toUpperCase() + c.kind.slice(1)))}${c.choices.length ? " · " + esc(c.choices.join(", ")) : ""}</div></div><button class="iconbtn danger" data-rm="${c.id}">${icon("trash")}</button></div>`).join("") : `<p style="color:var(--muted)">${esc(t("noColumns"))}</p>`;
-    panel(t("libColumns"), `<div id="colList">${rows}</div>
+    panel(t("librarySettings"), `<label style="display:flex;gap:8px;align-items:flex-start;margin-bottom:14px;cursor:pointer"><input type="checkbox" id="setApproval" style="width:auto;margin-top:3px" ${fs.requireApproval ? "checked" : ""}><span>${esc(t("requireApproval"))}<br><span style="font-size:12px;color:var(--muted)">${esc(t("requireApprovalHint"))}</span></span></label>
+      <div class="field"><label>${esc(t("libColumns"))}</label></div><div id="colList">${rows}</div>
       <div class="field" style="margin-top:12px"><label>${esc(t("addColumn"))}</label>
         <div style="display:flex;gap:6px"><input id="colName" placeholder="${esc(t("columnName"))}" style="flex:1"><select id="colKind" style="width:auto">${kinds.map((k) => `<option value="${k}">${esc(t("col" + k[0].toUpperCase() + k.slice(1)))}</option>`).join("")}</select></div>
         <textarea id="colChoices" placeholder="${esc(t("choicesHint"))}" rows="3" style="margin-top:6px;display:none"></textarea>
         <button class="btn primary" id="colAdd" style="margin-top:8px">${esc(t("add"))}</button></div>`,
       `<div style="flex:1"></div><button class="btn" id="colClose">${esc(t("close"))}</button>`);
+    $("#setApproval").onchange = guard(async () => { const on = $("#setApproval").checked; await api("POST", "/cloud/library/settings", { drive: driveId, require_approval: on }); fs.requireApproval = on; });
     $("#colKind").onchange = () => { $("#colChoices").style.display = $("#colKind").value === "choice" ? "" : "none"; };
     $("#colClose").onclick = () => { closePanel(); renderFiles(); };
     $("#colAdd").onclick = guard(async () => { const name = $("#colName").value.trim(); if (!name) return; await api("POST", "/cloud/column", { drive: driveId, name, kind: $("#colKind").value, choices: $("#colChoices").value.split("\n") }); draw(); });
@@ -2873,6 +3050,55 @@ async function openMembers(driveId) {
   draw();
 }
 
+// ------------------------------------------------------------ notifications
+// The bell in the top bar: notices about what other people did that concerns
+// this account (mentions, shares, approvals), checked once a minute.
+const activity = { items: [], unread: 0, timer: null };
+async function loadActivity() {
+  if (!me || me.guest) return;
+  try { const r = await api("GET", "/activity"); activity.items = r.items || []; activity.unread = r.unread || 0; } catch (e) { return; }
+  const c = $("#bellCount");
+  if (c) { c.textContent = activity.unread > 99 ? "99+" : String(activity.unread); c.classList.toggle("hidden", !activity.unread); }
+}
+function activityText(a) {
+  const tpl = t("act_" + a.kind);
+  return esc(tpl).replace("{a}", `<b>${esc(a.actor)}</b>`).replace("{s}", esc(a.subject));
+}
+function openActivityLink(link) {
+  if (!link) return;
+  const doc = (link.match(/#doc=(\d+)/) || [])[1];
+  if (doc) { view = "files"; openCloudDoc(+doc); return; }
+  fs.grant = null; fs.trashView = false; fs.recentView = false; fs.sharedView = false; fs.search = false;
+  history.pushState({}, "", link);
+  routeAndRender();
+}
+async function openActivity(ev) {
+  ev.stopPropagation();
+  if ($("#ctxMenu")) { closeMenu(); return; }
+  await loadActivity();
+  const m = document.createElement("div"); m.id = "ctxMenu"; m.className = "glass";
+  m.style.cssText = "position:fixed;top:52px;right:10px;z-index:70;padding:8px;width:360px;max-height:70vh;overflow:auto";
+  const rows = activity.items.map((a, i) => `<div class="actitem ${a.read ? "read" : ""}" data-act="${i}"><span class="dot"></span><div style="flex:1;min-width:0"><div class="at">${activityText(a)}</div>${a.detail ? `<div class="ad">${esc(a.detail)}</div>` : ""}<div class="ad">${esc(fmtShort(a.created))}</div></div></div>`).join("");
+  m.innerHTML = `<div style="display:flex;align-items:center;padding:4px 8px 8px"><b style="flex:1;font-size:14px">${esc(t("notifications"))}</b>${activity.unread ? `<button class="btn" id="actAll" style="height:28px;font-size:12px">${esc(t("markAllReadN"))}</button>` : ""}</div>`
+    + (rows || `<div class="empty" style="padding:18px">${esc(t("noNotifications"))}</div>`);
+  document.body.appendChild(m);
+  m.onclick = (e) => e.stopPropagation();
+  const all = $("#actAll"); if (all) all.onclick = guard(async () => { await api("POST", "/activity/read", {}); closeMenu(); loadActivity(); });
+  m.querySelectorAll("[data-act]").forEach((el) => el.onclick = guard(async () => {
+    const a = activity.items[+el.dataset.act];
+    closeMenu();
+    if (!a.read) { try { await api("POST", "/activity/read", { id: a.id }); } catch (e) {} loadActivity(); }
+    openActivityLink(a.link);
+  }));
+  setTimeout(() => document.addEventListener("click", closeMenu, { once: true }), 0);
+}
+function startActivity() {
+  if (activity.timer) return;
+  const b = $("#bellBtn"); if (b) b.onclick = openActivity;
+  loadActivity();
+  activity.timer = setInterval(loadActivity, 60000);
+}
+
 // ------------------------------------------------------------ boot
 // Event reminders while webmail is open: once a minute, look at the next day
 // of the own calendar and announce each occurrence whose reminder time has
@@ -2902,6 +3128,7 @@ async function checkReminders() {
   try { localStorage.setItem("ondura.reminders", JSON.stringify([...reminders.seen].slice(-500))); } catch (e) {}
 }
 function startReminders() {
+  startActivity();
   if (reminders.timer) return;
   checkReminders();
   reminders.timer = setInterval(checkReminders, 60000);

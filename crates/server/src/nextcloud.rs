@@ -480,7 +480,7 @@ async fn webdav(app: &Shared, user: &User, method: &Method, path: &str, headers:
         ("PROPFIND", Loc::Drive(t)) => propfind(app, user, &t, headers, DAV_FILES),
         ("PROPPATCH", _) => multistatus_ok(&rel, DAV_FILES),
         ("COPY", _) => (StatusCode::NOT_IMPLEMENTED, "").into_response(),
-        ("GET" | "HEAD", Loc::Drive(t)) => dav_get(app, t.drive, &t.rel, m == "HEAD"),
+        ("GET" | "HEAD", Loc::Drive(t)) => dav_get(app, &t, m == "HEAD"),
         ("GET" | "HEAD", Loc::Libraries) => (StatusCode::NOT_FOUND, "").into_response(),
         // Nothing can be created in, or removed from, the virtual libraries folder.
         (_, Loc::Libraries) => (StatusCode::FORBIDDEN, "").into_response(),
@@ -594,6 +594,10 @@ fn propfind(app: &Shared, user: &User, t: &Target, headers: &HeaderMap, prefix: 
                     };
                     (collection_tag(app, t.drive, Some(it)), folder_perms(writable))
                 } else {
+                    // Files waiting for approval stay out of read-only listings.
+                    if !t.writable && app.store.hidden_until_approved(it, crate::cloud::Role::Viewer).unwrap_or(true) {
+                        continue;
+                    }
                     (etag(it), file_perms(t.writable))
                 };
                 body.push_str(&response_xml(&acct, prefix, &href, Some(it), &tag, perms, None));
@@ -682,9 +686,10 @@ fn multistatus_ok(rel: &str, prefix: &str) -> Response {
     (StatusCode::MULTI_STATUS, [(header::CONTENT_TYPE, "application/xml; charset=utf-8")], body).into_response()
 }
 
-fn dav_get(app: &Shared, drive: i64, rel: &str, head_only: bool) -> Response {
-    let it = match app.store.resolve_path(drive, rel) {
-        Ok(Some(it)) if it.kind == "file" => it,
+fn dav_get(app: &Shared, t: &Target, head_only: bool) -> Response {
+    let drive = t.drive;
+    let it = match app.store.resolve_path(drive, &t.rel) {
+        Ok(Some(it)) if it.kind == "file" && (t.writable || !app.store.hidden_until_approved(&it, crate::cloud::Role::Viewer).unwrap_or(true)) => it,
         Ok(_) => return (StatusCode::NOT_FOUND, "").into_response(),
         Err(_) => return StatusCode::INTERNAL_SERVER_ERROR.into_response(),
     };
@@ -751,6 +756,7 @@ fn dav_put(app: &Shared, user: &User, t: &Target, headers: &HeaderMap, body: &By
     if let Some(mt) = oc_mtime(headers) {
         let _ = app.store.set_item_mtime(id, mt);
     }
+    crate::webmail::drive_api::file_changed(app, id, Some(user));
     let it = app.store.drive_item(id).ok().flatten();
     let mut r = (if created { StatusCode::CREATED } else { StatusCode::NO_CONTENT }, "").into_response();
     let h = r.headers_mut();
@@ -1003,6 +1009,7 @@ fn assemble_upload(app: &Shared, user: &User, t: &Target, dir: &std::path::Path,
         let _ = app.store.set_item_mtime(id, mt);
     }
     let _ = std::fs::remove_dir_all(dir);
+    crate::webmail::drive_api::file_changed(app, id, Some(user));
     let it = app.store.drive_item(id).ok().flatten();
     let mut r = (if created { StatusCode::CREATED } else { StatusCode::NO_CONTENT }, "").into_response();
     if let Some(it) = &it {

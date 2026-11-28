@@ -37,6 +37,13 @@ below then returns `404` and the **Files** area disappears from webmail.
   properties); others get `423 Locked`, over the API and over WebDAV. A folder
   holding a checked-out file can't be moved or deleted by others either. The
   holder checks the file in; owners can discard someone else's check-out.
+- A library can **require approval**. New and changed files from editors then
+  wait for an owner: the owners get a notice, and people with view access (and
+  guests on share links) don't see the file — over the web app, WebDAV and
+  links — until it is approved. Owners approve or reject with an optional note;
+  the person who submitted the file is told. A rejected file stays visible to
+  editors with the note; changing it submits it again. Changes by owners count
+  as approved. Files that existed before approval was turned on stay visible.
 - A library can define **columns** — metadata fields of type text, number,
   date (`YYYY-MM-DD`), choice or yes/no. Every item in the library can carry a
   value per column; values are validated against the column type. Columns and
@@ -84,7 +91,7 @@ Items:
 
 | Method | Path | Purpose |
 | --- | --- | --- |
-| GET | `/mail/api/cloud/items?drive=&parent=` | List a folder's children (omit `parent` for the root); returns the breadcrumb, the caller's effective role, `canWrite`, `canManage` (may manage the folder's permissions), the library's `columns`, and per item `restricted`, `checkedOut` and `fields` (values by column id). |
+| GET | `/mail/api/cloud/items?drive=&parent=` | List a folder's children (omit `parent` for the root); returns the breadcrumb, the caller's effective role, `requireApproval`, `canWrite`, `canManage` (may manage the folder's permissions), the library's `columns`, and per item `restricted`, `checkedOut`, `approval` and `fields` (values by column id). |
 | POST | `/mail/api/cloud/folder` | Create a folder (`{ "drive", "parent", "name" }`). |
 | POST | `/mail/api/cloud/doc` | Create a document (`{ "drive", "parent", "name" }`); returns the item id and the collab `doc` id. |
 | POST | `/mail/api/cloud/rename` | Rename an item (`{ "item", "name" }`). |
@@ -174,6 +181,8 @@ Check-out and columns:
 | POST | `/mail/api/cloud/checkin` | Check a file in (`{ "item" }`): the holder, or someone who may manage it to discard the check-out. |
 | POST | `/mail/api/cloud/column` | Add a column (`{ "drive", "name", "kind", "choices" }`, owners); `kind` is `text`, `number`, `date`, `choice` or `yesno`. |
 | POST | `/mail/api/cloud/column/delete` | Delete a column and its values (`{ "drive", "id" }`, owners). |
+| POST | `/mail/api/cloud/library/settings` | Library settings (`{ "drive", "require_approval" }`, owners). |
+| POST | `/mail/api/cloud/review` | Approve or reject a waiting file (`{ "item", "approve", "note" }`, owners). |
 | POST | `/mail/api/cloud/field` | Set an item's value for a column (`{ "item", "column", "value" }`, editors); an empty value clears it. |
 
 ## Webmail
@@ -186,8 +195,10 @@ previews for images, PDFs and text, new folders and new documents, rename, share
 links, version history, a **Recycle bin** that restores or permanently removes
 deleted items, a search box that finds items by name across every drive, and —
 for libraries — a member manager, **Manage access** for folders with their own
-permissions, **Check out** / **Check in** on files, **Columns** (owners) with a
-**Properties** dialog to fill them in, and **Share library** for guest links to
+permissions, **Check out** / **Check in** on files, **Settings** (owners: approval
+and columns) with a **Properties** dialog to fill in column values, sorting by
+name, date, size or any column and filtering by a column value, **Approve** /
+**Reject** on waiting files, and **Share library** for guest links to
 the whole library. Checked-out files show who holds them, column values show
 under the item name, and folders with their own permissions carry a lock. A
 folder someone was added to opens from **Shared with me** inside its library.

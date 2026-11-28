@@ -674,3 +674,59 @@ fn library_link_lets_guests_in_but_not_into_restricted_folders() {
     drive_api::revoke_item_link(&app, &owner, &body(serde_json::json!({ "token": token }))).unwrap();
     assert!(drive_api::shared_meta(&app, &token).is_err());
 }
+
+#[test]
+fn approval_hides_waiting_files_from_viewers_and_notifies() {
+    let (app, owner) = App::test();
+    let bob = app.store.create_user("bob@example.com", "Bob", "pw", "user").unwrap();
+    let vic = app.store.create_user("vic@example.com", "Vic", "pw", "user").unwrap();
+    let lib = app.store.create_library(owner.id, "Team").unwrap();
+    drive_api::set_member(&app, &owner, &body(serde_json::json!({ "drive": lib, "email": "bob@example.com", "role": "editor" }))).unwrap();
+    drive_api::set_member(&app, &owner, &body(serde_json::json!({ "drive": lib, "email": "vic@example.com", "role": "viewer" }))).unwrap();
+    // Membership is announced.
+    assert_eq!(app.store.activities(bob.id, 10).unwrap()[0].kind, "library_member");
+    assert!(drive_api::library_settings(&app, &bob, &body(serde_json::json!({ "drive": lib, "require_approval": true }))).is_err());
+    drive_api::library_settings(&app, &owner, &body(serde_json::json!({ "drive": lib, "require_approval": true }))).unwrap();
+
+    // Bob's new file waits; the owner is asked, the viewer doesn't see it.
+    let file = app.store.create_drive_file(lib, None, "draft.txt", 1, "text/plain", bob.id).unwrap();
+    drive_api::file_changed(&app, file, Some(&bob));
+    assert_eq!(app.store.activities(owner.id, 10).unwrap()[0].kind, "approval_requested");
+    let names = |u: &crate::store::User| drive_api::items(&app, u, &format!("drive={lib}")).unwrap()["items"].as_array().unwrap().iter().map(|i| i["name"].as_str().unwrap().to_string()).collect::<Vec<_>>();
+    assert_eq!(names(&vic), Vec::<String>::new());
+    assert_eq!(names(&bob), ["draft.txt"]);
+    let listing = drive_api::items(&app, &bob, &format!("drive={lib}")).unwrap();
+    assert_eq!(listing["items"][0]["approval"]["status"], "pending");
+    let r = drive_api::download(&app, &vic, &file.to_string());
+    assert_eq!(r.status(), axum::http::StatusCode::NOT_FOUND);
+
+    // Only owners decide; Bob hears the outcome.
+    assert!(drive_api::review(&app, &bob, &body(serde_json::json!({ "item": file, "approve": true }))).is_err());
+    drive_api::review(&app, &owner, &body(serde_json::json!({ "item": file, "approve": false, "note": "needs numbers" }))).unwrap();
+    let n = &app.store.activities(bob.id, 10).unwrap()[0];
+    assert_eq!((n.kind.as_str(), n.detail.as_str()), ("rejected", "needs numbers"));
+    assert!(names(&vic).is_empty());
+    drive_api::review(&app, &owner, &body(serde_json::json!({ "item": file, "approve": true }))).unwrap();
+    assert_eq!(names(&vic), ["draft.txt"]);
+
+    // A change by Bob puts it back in the queue; the owner's own changes don't.
+    drive_api::file_changed(&app, file, Some(&bob));
+    assert!(names(&vic).is_empty());
+    drive_api::file_changed(&app, file, Some(&owner));
+    assert_eq!(names(&vic), ["draft.txt"]);
+}
+
+#[test]
+fn activity_endpoint_lists_and_marks_read() {
+    let (app, user) = App::test();
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    calendar_api::share(&app, &anna, &body(serde_json::json!({ "email": user.email, "level": "read" }))).unwrap();
+    // Sharing again at the same level doesn't repeat the notice.
+    calendar_api::share(&app, &anna, &body(serde_json::json!({ "email": user.email, "level": "read" }))).unwrap();
+    let r = super::activity_list(&app, &user).unwrap();
+    assert_eq!(r["unread"], 1);
+    assert_eq!(r["items"][0]["kind"], "calendar_shared");
+    assert_eq!(r["items"][0]["actor"], "Anna");
+    super::activity_read(&app, &user, &Bytes::new()).unwrap();
+    assert_eq!(super::activity_list(&app, &user).unwrap()["unread"], 0);
+}

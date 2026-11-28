@@ -509,6 +509,12 @@ fn mentioned(app: &Shared, author: &User, doc_id: i64, text: &str) -> (Vec<User>
 fn notify_mentions(app: &Shared, author: &User, doc_id: i64, text: &str) -> Vec<String> {
     let (can, cannot) = mentioned(app, author, doc_id, text);
     let missing = cannot.iter().map(|u| u.email.clone()).collect();
+    // Everyone mentioned who can open the document gets a notice; those with a
+    // mailbox also get an e-mail.
+    let doc_name = app.store.doc(doc_id).ok().flatten().map(|d| d.name).unwrap_or_default();
+    for u in &can {
+        let _ = app.store.add_activity(u.id, (author.id, &display_name(author)), "mention", &doc_name, text.trim(), &format!("/files#doc={doc_id}"));
+    }
     let people: Vec<User> = can.into_iter().filter(|u| u.mailbox).collect();
     if people.is_empty() {
         return missing;
@@ -642,7 +648,12 @@ fn share_doc(app: &Shared, user: &User, id: &str, body: &Bytes) -> ApiResult {
     if target.id == user.id {
         return Err((StatusCode::BAD_REQUEST, "The document already belongs to you.".into()));
     }
+    let had_access = app.store.doc_access(target.id, id).map_err(ise)?.is_some();
     app.store.share_doc(id, target.id, b.can_write).map_err(ise)?;
+    if !had_access {
+        let name = app.store.doc(id).ok().flatten().map(|d| d.name).unwrap_or_default();
+        let _ = app.store.add_activity(target.id, (user.id, &display_name(user)), "doc_shared", &name, "", &format!("/files#doc={id}"));
+    }
     Ok(json!({ "ok": true }))
 }
 

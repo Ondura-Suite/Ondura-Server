@@ -85,7 +85,10 @@ them, and create or edit them over EWS (UpdateInboxRules).
 that sender in the current folder at once: delete them all, keep only the newest,
 or move them all to another folder.
 
-**Calendar** — a month view with your events; series are expanded by the
+**Calendar** — month, week and day views (the choice is remembered); week and
+day show a time grid with overlapping events side by side, all-day events in a
+strip above it and a line at the current time. Click a day number to open that
+day, or an empty slot to create an event there. Series are expanded by the
 server. Create and edit events with a description, attendees, a reminder, a
 free/busy status, a private flag and a repeat pattern (daily, weekdays, weekly,
 monthly, yearly, with an optional end date). Opening an occurrence of a series
@@ -128,6 +131,14 @@ the formatted document, a **Comments** pane for comments on selected text with
 replies, resolve and `@user@example.com` mentions, a revision history, and a
 download menu for Markdown, plain text, HTML and Word (.docx). A document has
 its own address (`/files#doc=<id>`), which mention e-mails link to.
+
+**Notifications** — the bell in the top bar collects notices about what other
+people did that concerns you: a mention in a document comment, a document,
+folder, library or calendar shared with you, a file submitted for your approval
+and the decision on a file you submitted. Unread notices are counted on the
+bell; clicking one opens what it is about. The newest 200 per account are kept.
+The list is `GET /mail/api/activity` (`items`, `unread`); `POST
+/mail/api/activity/read` with `{ "id": N }` marks one as read, with `{}` all.
 
 **Tasks and notes** — keep a task list (with due dates and completion) and
 simple notes.

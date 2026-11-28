@@ -1,6 +1,7 @@
 //! Ondura Server: mail server with Exchange ActiveSync and Exchange Web
 //! Services for mail, calendars, contacts and tasks.
 
+pub mod activity;
 pub mod admin;
 pub mod api;
 pub mod app;

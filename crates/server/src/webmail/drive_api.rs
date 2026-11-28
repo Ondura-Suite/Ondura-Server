@@ -122,9 +122,26 @@ fn role_at(app: &Shared, user: &User, drive_id: i64, item: Option<i64>) -> Resul
     app.store.item_role(user.id, drive_id, item).map_err(internal)?.ok_or_else(not_found)
 }
 
-/// Whether the caller can see an item at all.
+/// Whether the caller can see an item at all: they have access, and it isn't
+/// a file waiting for approval that their read-only access doesn't show.
 fn visible(app: &Shared, user: &User, it: &crate::cloud::Item) -> bool {
-    app.store.item_role(user.id, it.drive_id, Some(it.id)).ok().flatten().is_some()
+    match app.store.item_role(user.id, it.drive_id, Some(it.id)).ok().flatten() {
+        Some(r) => !app.store.hidden_until_approved(it, r).unwrap_or(true),
+        None => false,
+    }
+}
+
+/// After a file's contents changed (`by` is `None` for a guest): in a library
+/// that requires approval the file waits for an owner, and the owners hear
+/// about it.
+pub(crate) fn file_changed(app: &Shared, item: i64, by: Option<&User>) {
+    let Ok(Some("pending")) = app.store.file_changed_for_approval(item, by.map(|u| u.id).unwrap_or(0)) else { return };
+    let Ok(Some(it)) = app.store.drive_item(item) else { return };
+    let actor = by.map(crate::activity::display_name).unwrap_or_else(|| "Guest".into());
+    let link = format!("/sharepoint/{}{}", it.drive_id, it.parent_id.map(|p| format!("/{p}")).unwrap_or_default());
+    for m in app.store.drive_members(it.drive_id).unwrap_or_default().into_iter().filter(|m| m.role == "owner") {
+        let _ = app.store.add_activity(m.user_id, (by.map(|u| u.id).unwrap_or(0), &actor), "approval_requested", &it.name, "", &link);
+    }
 }
 
 /// Refuse a change to an item (or anything below it) that someone else has
@@ -219,6 +236,7 @@ pub fn items(app: &Shared, user: &User, query: &str) -> ApiResult {
         .map_err(internal)?
         .into_iter()
         .filter(|it| it.kind != "folder" || !app.store.is_restricted(it.id).unwrap_or(false) || visible(app, user, it))
+        .filter(|it| !app.store.hidden_until_approved(it, r).unwrap_or(true))
         .collect();
     // The breadcrumb starts at the first folder the caller can see, so someone
     // given access to one folder doesn't see the names above it.
@@ -237,7 +255,10 @@ pub fn items(app: &Shared, user: &User, query: &str) -> ApiResult {
     let checkouts = app.store.checkouts_in_folder(drive_id, parent).map_err(internal)?;
     let fields = app.store.fields_in_folder(drive_id, parent).map_err(internal)?;
     let columns = app.store.drive_columns(drive_id).map_err(internal)?;
+    let approvals = app.store.approvals_in_folder(drive_id, parent).map_err(internal)?;
+    let require_approval = app.store.requires_approval(drive_id).map_err(internal)?;
     Ok(json!({
+        "requireApproval": require_approval,
         "drive": drive_id,
         "role": r.as_str(),
         "canWrite": r.can_write(),
@@ -254,6 +275,9 @@ pub fn items(app: &Shared, user: &User, query: &str) -> ApiResult {
             }
             if let Some((_, c)) = checkouts.iter().find(|(id, _)| *id == it.id) {
                 v["checkedOut"] = json!({ "id": c.user_id, "name": c.name, "email": c.email, "since": c.since, "mine": c.user_id == user.id });
+            }
+            if require_approval && let Some((_, a)) = approvals.iter().find(|(id, _)| *id == it.id) {
+                v["approval"] = json!({ "status": a.status, "note": a.note, "by": a.submitted_by, "at": a.submitted_at, "mine": a.submitted_by == user.id });
             }
             let f: serde_json::Map<String, Value> = fields.iter().filter(|(i, _, _)| *i == it.id).map(|(_, c, val)| (c.to_string(), json!(val))).collect();
             if !f.is_empty() {
@@ -418,7 +442,12 @@ pub fn set_member(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         return Err(forbidden());
     }
     let target = app.store.user_by_email(b.email.trim()).map_err(internal)?.ok_or_else(|| bad("no such user"))?;
+    let was_member = app.store.role_in_drive(target.id, b.drive).map_err(internal)?.is_some();
     app.store.set_drive_member(b.drive, target.id, Role::parse(&b.role)).map_err(internal)?;
+    if !was_member {
+        let name = app.store.list_drives(target.id).map_err(internal)?.into_iter().find(|d| d.id == b.drive).map(|d| d.name).unwrap_or_default();
+        let _ = app.store.add_activity(target.id, (user.id, &crate::activity::display_name(user)), "library_member", &name, "", &format!("/sharepoint/{}", b.drive));
+    }
     Ok(json!({ "id": target.id }))
 }
 
@@ -491,6 +520,7 @@ pub fn upload(app: &Shared, user: &User, query: &str, headers: &HeaderMap, body:
         }
         return json_err(StatusCode::INTERNAL_SERVER_ERROR, "could not store file");
     }
+    file_changed(app, item, Some(user));
     (StatusCode::OK, axum::Json(json!({ "id": item }))).into_response()
 }
 
@@ -585,6 +615,7 @@ pub fn restore_version(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         return Err(internal(anyhow::anyhow!("could not restore version")));
     }
     app.store.set_file_meta(it.id, v.size, &v.content_type, user.id).map_err(internal)?;
+    file_changed(app, it.id, Some(user));
     Ok(json!({ "ok": true }))
 }
 
@@ -780,6 +811,10 @@ impl LinkScope {
         if below.iter().any(|id| app.store.is_restricted(*id).unwrap_or(true)) {
             return false;
         }
+        // Guests only see approved files in a library that requires approval.
+        if app.store.hidden_until_approved(&it, Role::Viewer).unwrap_or(true) {
+            return false;
+        }
         // Nothing on the way down may be in the recycle bin.
         let trashed = app.store.trashed_items(self.drive).unwrap_or_default();
         !path.iter().any(|(id, _)| trashed.iter().any(|t| t.id == *id))
@@ -831,6 +866,7 @@ pub fn shared_items(app: &Shared, token: &str, query: &str) -> ApiResult {
         .map_err(internal)?
         .into_iter()
         .filter(|it| !(it.kind == "folder" && app.store.is_restricted(it.id).unwrap_or(true)))
+        .filter(|it| !app.store.hidden_until_approved(it, Role::Viewer).unwrap_or(true))
         .collect();
     // Breadcrumb within the share only (root-relative).
     let path: Vec<(i64, String)> = match parent {
@@ -918,6 +954,7 @@ pub fn shared_upload(app: &Shared, token: &str, query: &str, headers: &HeaderMap
         }
         return json_err(StatusCode::INTERNAL_SERVER_ERROR, "could not store file");
     }
+    file_changed(app, item, None);
     (StatusCode::OK, axum::Json(json!({ "id": item }))).into_response()
 }
 
@@ -1039,7 +1076,12 @@ pub fn set_permission(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         return Err(bad("the folder inherits its permissions"));
     }
     let target = app.store.user_by_email(b.email.trim()).map_err(internal)?.ok_or_else(|| bad("no such user"))?;
+    let had_access = app.store.item_role(target.id, it.drive_id, Some(it.id)).map_err(internal)?.is_some();
     app.store.set_item_acl(b.item, target.id, Role::parse(&b.role)).map_err(internal)?;
+    if !had_access {
+        let link = format!("/sharepoint/{}/{}", it.drive_id, it.id);
+        let _ = app.store.add_activity(target.id, (user.id, &crate::activity::display_name(user)), "folder_access", &it.name, "", &link);
+    }
     Ok(json!({ "id": target.id }))
 }
 
@@ -1138,5 +1180,48 @@ pub fn set_field(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     }
     ensure_unlocked(app, user, it.id)?;
     app.store.set_item_field(it.id, b.column, &b.value).map_err(|e| bad(e.to_string()))?;
+    Ok(json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct LibrarySettings {
+    drive: i64,
+    require_approval: bool,
+}
+
+/// Library settings (owners): whether changes need an owner's approval.
+pub fn library_settings(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: LibrarySettings = parse(body)?;
+    if app.store.drive_kind(b.drive).map_err(internal)?.as_deref() != Some("library") {
+        return Err(bad("only libraries have settings"));
+    }
+    if !role(app, user, b.drive)?.can_admin() {
+        return Err(forbidden());
+    }
+    app.store.set_requires_approval(b.drive, b.require_approval).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+#[derive(Deserialize)]
+struct Review {
+    item: i64,
+    approve: bool,
+    #[serde(default)]
+    note: String,
+}
+
+/// Approve or reject a waiting file (library owners). The person who submitted
+/// it is told the outcome.
+pub fn review(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: Review = parse(body)?;
+    let it = app.store.drive_item(b.item).map_err(internal)?.ok_or_else(not_found)?;
+    if !role(app, user, it.drive_id)?.can_admin() {
+        return Err(forbidden());
+    }
+    let before = app.store.approval_of(it.id).map_err(internal)?.ok_or_else(|| bad("nothing to approve"))?;
+    app.store.review_file(it.id, user.id, b.approve, &b.note).map_err(|e| bad(e.to_string()))?;
+    let link = format!("/sharepoint/{}{}", it.drive_id, it.parent_id.map(|p| format!("/{p}")).unwrap_or_default());
+    let kind = if b.approve { "approved" } else { "rejected" };
+    let _ = app.store.add_activity(before.submitted_by, (user.id, &crate::activity::display_name(user)), kind, &it.name, b.note.trim(), &link);
     Ok(json!({ "ok": true }))
 }

@@ -33,6 +33,18 @@ pub struct Checkout {
     pub since: i64,
 }
 
+/// The approval state of a file in a library that requires approval.
+#[derive(Debug, Clone, Serialize)]
+pub struct Approval {
+    /// `pending`, `approved` or `rejected`.
+    pub status: String,
+    pub submitted_by: i64,
+    pub submitted_at: i64,
+    pub reviewed_by: Option<i64>,
+    pub reviewed_at: Option<i64>,
+    pub note: String,
+}
+
 /// A folder someone outside its library was given access to.
 #[derive(Debug, Clone, Serialize)]
 pub struct GrantedFolder {
@@ -295,6 +307,91 @@ impl Store {
             params![item, column_id, value],
         )?;
         Ok(())
+    }
+
+    // ------------------------------------------------------------ approval
+
+    /// Whether new and changed files in a library wait for an owner's approval.
+    pub fn requires_approval(&self, drive_id: i64) -> Result<bool> {
+        let v: Option<i64> = self.db().query_row("SELECT require_approval FROM drive_settings WHERE drive_id = ?1", [drive_id], |r| r.get(0)).optional()?;
+        Ok(v.unwrap_or(0) != 0)
+    }
+
+    pub fn set_requires_approval(&self, drive_id: i64, on: bool) -> Result<()> {
+        self.db().execute(
+            "INSERT INTO drive_settings (drive_id, require_approval) VALUES (?1, ?2) \
+             ON CONFLICT (drive_id) DO UPDATE SET require_approval = excluded.require_approval",
+            params![drive_id, on as i64],
+        )?;
+        Ok(())
+    }
+
+    pub fn approval_of(&self, item: i64) -> Result<Option<Approval>> {
+        self.db()
+            .query_row(
+                "SELECT status, submitted_by, submitted_at, reviewed_by, reviewed_at, note FROM drive_approvals WHERE item_id = ?1",
+                [item],
+                |r| Ok(Approval { status: r.get(0)?, submitted_by: r.get(1)?, submitted_at: r.get(2)?, reviewed_by: r.get(3)?, reviewed_at: r.get(4)?, note: r.get(5)? }),
+            )
+            .optional()
+    }
+
+    /// Approval states of the direct children of a folder (or the drive root).
+    pub fn approvals_in_folder(&self, drive_id: i64, parent: Option<i64>) -> Result<Vec<(i64, Approval)>> {
+        let db = self.db();
+        let sql = "SELECT a.item_id, a.status, a.submitted_by, a.submitted_at, a.reviewed_by, a.reviewed_at, a.note FROM drive_approvals a \
+                   JOIN drive_items i ON i.id = a.item_id WHERE i.drive_id = ?1 AND ";
+        let row = |r: &crate::db::Row| {
+            Ok((r.get(0)?, Approval { status: r.get(1)?, submitted_by: r.get(2)?, submitted_at: r.get(3)?, reviewed_by: r.get(4)?, reviewed_at: r.get(5)?, note: r.get(6)? }))
+        };
+        match parent {
+            None => db.prepare(&format!("{sql} i.parent_id IS NULL"))?.query_map([drive_id], row),
+            Some(p) => db.prepare(&format!("{sql} i.parent_id = ?2"))?.query_map(params![drive_id, p], row),
+        }
+    }
+
+    /// Record that `by` changed a file. In a library that requires approval the
+    /// file waits for approval (`Some("pending")`), unless `by` owns the
+    /// library, whose changes count as approved (`Some("approved")`). `None`
+    /// when the library doesn't require approval.
+    pub fn file_changed_for_approval(&self, item: i64, by: i64) -> Result<Option<&'static str>> {
+        let Some(it) = self.drive_item(item)? else { return Ok(None) };
+        if it.kind != "file" || !self.requires_approval(it.drive_id)? {
+            return Ok(None);
+        }
+        let owner = self.role_in_drive(by, it.drive_id)?.is_some_and(|r| r.can_admin());
+        let status = if owner { "approved" } else { "pending" };
+        let ts = now();
+        let (reviewed_by, reviewed_at) = if owner { (Some(by), Some(ts)) } else { (None, None) };
+        self.db().execute(
+            "INSERT INTO drive_approvals (item_id, status, submitted_by, submitted_at, reviewed_by, reviewed_at, note) VALUES (?1, ?2, ?3, ?4, ?5, ?6, '') \
+             ON CONFLICT (item_id) DO UPDATE SET status = excluded.status, submitted_by = excluded.submitted_by, submitted_at = excluded.submitted_at, \
+             reviewed_by = excluded.reviewed_by, reviewed_at = excluded.reviewed_at, note = ''",
+            params![item, status, by, ts, reviewed_by, reviewed_at],
+        )?;
+        Ok(Some(status))
+    }
+
+    /// An owner's decision on a waiting file.
+    pub fn review_file(&self, item: i64, by: i64, approve: bool, note: &str) -> Result<()> {
+        let n = self.db().execute(
+            "UPDATE drive_approvals SET status = ?1, reviewed_by = ?2, reviewed_at = ?3, note = ?4 WHERE item_id = ?5",
+            params![if approve { "approved" } else { "rejected" }, by, now(), note.trim(), item],
+        )?;
+        if n == 0 {
+            bail!("nothing to approve");
+        }
+        Ok(())
+    }
+
+    /// Whether a file is hidden from someone with read-only access because it
+    /// is waiting for approval or was rejected. Files changed before approval
+    /// was turned on (no record) count as approved.
+    pub fn hidden_until_approved(&self, item: &crate::cloud::Item, role: Role) -> Result<bool> {
+        if item.kind != "file" || role.can_write() || !self.requires_approval(item.drive_id)? {
+            return Ok(false);
+        }
+        Ok(self.approval_of(item.id)?.is_some_and(|a| a.status != "approved"))
     }
 
     // -------------------------------------------------------- library links

@@ -73,7 +73,8 @@ the passage is deleted entirely, the anchor collapses to where it stood.
 Replies reference their parent with `parent` and are not anchored themselves.
 
 A comment body may mention accounts as `@user@example.com`. Each mentioned
-account that can open the document gets an e-mail with the comment and a link
+account that can open the document gets a notice in the web app (see
+`webmail.md`) and, if it has a mailbox, an e-mail with the comment and a link
 to the document. Mentioned accounts without access are not notified; their
 addresses come back in `noAccess`, so the client can offer to share the
 document with them.
