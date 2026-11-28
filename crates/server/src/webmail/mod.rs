@@ -101,6 +101,16 @@ pub(crate) fn session_user(app: &Shared, headers: &HeaderMap) -> Option<User> {
     app.store.session_user(&token).ok().flatten().filter(|u| u.enabled && u.kind == "user")
 }
 
+/// The webmail single-page app shell (index.html). Served under `/mail` and the
+/// other per-app paths (`/files`, `/sharepoint`, `/tasks`, `/notes`, `/`); the
+/// SPA reads its path to decide which app to open. The JSON API and assets stay
+/// under `/mail`.
+pub fn shell() -> Response {
+    let mut r = (StatusCode::OK, INDEX).into_response();
+    r.headers_mut().insert(header::CONTENT_TYPE, HeaderValue::from_static("text/html; charset=utf-8"));
+    security_headers(r)
+}
+
 pub async fn handle(app: Shared, method: Method, path: &str, query: &str, headers: &HeaderMap, body: Bytes, ip: IpAddr) -> Response {
     let rest = path.trim_start_matches("/mail");
     if !rest.starts_with("/api") {
@@ -298,6 +308,7 @@ fn me(app: &Shared, user: &User) -> ApiResult {
         "addresses": addresses,
         "collab": app.collab_enabled(),
         "cloud": app.cfg.cloud.enabled,
+        "admin": user.is_admin && app.cfg.http.admin_center,
         "avatar": app.store.avatar_updated(user.id).ok().flatten(),
         "id": user.id,
         "folders": list,

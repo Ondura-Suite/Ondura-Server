@@ -5,12 +5,22 @@ without setting up a mail program. It offers mail, calendar and contacts and
 uses the same storage as ActiveSync and EWS — anything changed in webmail shows
 up in connected clients and vice versa.
 
-Signing in lands on a **home dashboard** with a tile for each app — Mail,
-Files (the cloud), Calendar, Contacts, Tasks and Notes. Each app is its own
-space with its own left navigation: Mail shows mail folders, Files shows the
-drives (My Files and shared libraries), and so on. Switch apps from the home
-tiles or the app launcher (the grid button, top left); the Ondura logo returns
-to the dashboard.
+Signing in lands on a **home dashboard** with a tile for each app, and each app
+has its own URL:
+
+| App | URL | Contents |
+| --- | --- | --- |
+| Mail | `/mail` | Mail, calendar and contacts (like Outlook), switched from the app's own left navigation. |
+| Files | `/files` | The personal drive (OneDrive-style). |
+| SharePoint | `/sharepoint`, `/sharepoint/<id>` | Shared libraries; each library has its own link, so it can be shared or bookmarked. |
+| Tasks | `/tasks` | Tasks. |
+| Notes | `/notes` | Notes. |
+| Home | `/` | The dashboard. |
+
+Each app is its own space with its own left navigation. Switch apps from the
+home tiles or the app launcher (the grid button, top left); the Ondura logo
+returns to the dashboard. Admins also get an **Admin Center** tile linking to
+`/admin`. The Compose button and mail search appear only inside the Mail app.
 
 ![Webmail](screenshots/webmail.png)
 

@@ -180,8 +180,20 @@ async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
         "/autodiscover/autodiscover.xml" => autodiscover::xml(&app, &headers, &body, ip).await,
         "/.well-known/ondura-server" | "/ondura-server" => ondura_identity(&app),
         "" => {
-            let to = if app.cfg.http.webmail { "/mail/" } else { "/admin/" };
-            Redirect::temporary(to).into_response()
+            if app.cfg.http.webmail {
+                webmail::shell()
+            } else {
+                Redirect::temporary("/admin/").into_response()
+            }
+        }
+        // Each app has its own URL; all serve the same SPA shell, which reads the
+        // path to decide which app to open. The API and assets stay under /mail.
+        p if p == "/files" || p.starts_with("/files/") || p == "/sharepoint" || p.starts_with("/sharepoint/") || p == "/tasks" || p.starts_with("/tasks/") || p == "/notes" || p.starts_with("/notes/") => {
+            if app.cfg.http.webmail && method == axum::http::Method::GET {
+                webmail::shell()
+            } else {
+                StatusCode::NOT_FOUND.into_response()
+            }
         }
         p if p.starts_with("/admin") => {
             if !app.cfg.http.admin_center {

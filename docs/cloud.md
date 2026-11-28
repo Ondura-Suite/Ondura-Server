@@ -94,6 +94,14 @@ Collaborative documents live **only** inside the cloud now: they are created as
 items in a drive and opened from Files, and there is no separate documents
 section.
 
+The cloud is split into two apps with their own URLs: **Files** (`/files`, the
+personal drive, OneDrive-style) and **SharePoint** (`/sharepoint`, the shared
+libraries). Each library has its own link (`/sharepoint/<id>`) — the **Copy
+link** button copies it — so a library can be shared or bookmarked like a
+SharePoint site.
+
+![SharePoint](screenshots/sharepoint.png)
+
 ## Nextcloud clients
 
 Each user's personal drive is also reachable by the official Nextcloud mobile
