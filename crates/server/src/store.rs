@@ -317,6 +317,9 @@ pub struct UserSettings {
     pub keep_forwarded_copy: bool,
     /// Senders that recently got an automatic reply (address → time).
     pub oof_sent: HashMap<String, i64>,
+    /// Whether the Nextcloud-compatible interface (WebDAV, app passwords) is
+    /// enabled for this mailbox. Off by default.
+    pub nextcloud: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq, Eq)]

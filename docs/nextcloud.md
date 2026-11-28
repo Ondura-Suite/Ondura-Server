@@ -7,6 +7,14 @@ personal drive. The main use is **automatic photo upload** from a phone.
 This surface is part of the cloud module and turns off with it
 (`[cloud] enabled = false`).
 
+## Per-user, off by default
+
+The interface is **disabled per mailbox by default**. A user turns it on under
+**Settings → Mobile app (Nextcloud)** in webmail; until then every WebDAV and
+OCS request for that account is rejected and the login flow refuses to grant an
+app password. The administrator can also turn the whole module off with
+`[cloud] enabled = false`.
+
 ## Connecting the Nextcloud app
 
 1. In the Nextcloud app, enter the server address — your Ondura host, e.g.

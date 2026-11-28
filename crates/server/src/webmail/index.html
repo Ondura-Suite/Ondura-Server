@@ -139,12 +139,18 @@ svg { width: 18px; height: 18px; display: block; }
 .homehd p { color: var(--muted); margin: 0 0 30px; }
 .appgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
 .appgrid.mini { grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.apptile { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 12px; border: 1px solid var(--border); border-radius: 14px; background: transparent; cursor: pointer; color: var(--text); font-weight: 600; font-size: 13.5px; }
-.apptile:hover { background: var(--surface-hover); }
+.apptile { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 26px 12px; border: 1px solid var(--border); border-radius: 16px; background: transparent; cursor: pointer; color: var(--text); font-weight: 600; font-size: 13.5px; transition: transform .14s ease, background .14s ease, border-color .14s ease, box-shadow .14s ease; }
+.apptile:hover { background: var(--surface-hover); transform: translateY(-3px); box-shadow: 0 12px 26px rgba(0,0,0,.18); }
+.apptile:active { transform: translateY(-1px); }
 .appgrid.mini .apptile { padding: 12px 6px; font-size: 12px; border: 0; gap: 7px; }
-.appicon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 12px; }
-.appicon svg { width: 24px; height: 24px; }
+.appgrid.mini .apptile:hover { transform: none; box-shadow: none; }
+.appicon { display: flex; align-items: center; justify-content: center; width: 52px; height: 52px; border-radius: 14px; transition: transform .14s ease; }
+.apptile:hover .appicon { transform: scale(1.08); }
+.appicon svg { width: 26px; height: 26px; }
+.appgrid.mini .appicon { width: 44px; height: 44px; }
 #appLauncher svg { width: 20px; height: 20px; }
+.taskrow[data-open] { border-radius: 10px; transition: background .1s ease; }
+.taskrow[data-open]:hover { background: var(--surface-hover); }
 .folder { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 8px; cursor: pointer; }
 .folder:hover { background: var(--surface-hover); }
 .folder.active { background: var(--tint-soft); color: var(--tint); font-weight: 600; }
@@ -405,7 +411,7 @@ const T = {
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
     tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
-    history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", noDocuments: "No documents", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add", files: "Files", myFiles: "My Files", libraries: "Libraries", newLibrary: "New library", libraryName: "Library name", upload: "Upload", uploading: "Uploading…", download: "Download", members: "Members", addMember: "Add member (e-mail)", roleViewer: "Viewer", roleEditor: "Editor", emptyFolder: "This folder is empty", deleteLibrary: "Delete library", confirmDeleteItem: "Delete this item?", confirmDeleteLibrary: "Delete this library and everything in it?", home: "Home", hub: "Your apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center",
+    history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", noDocuments: "No documents", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add", files: "Files", myFiles: "My Files", libraries: "Libraries", newLibrary: "New library", libraryName: "Library name", upload: "Upload", uploading: "Uploading…", download: "Download", members: "Members", addMember: "Add member (e-mail)", roleViewer: "Viewer", roleEditor: "Editor", emptyFolder: "This folder is empty", deleteLibrary: "Delete library", confirmDeleteItem: "Delete this item?", confirmDeleteLibrary: "Delete this library and everything in it?", home: "Home", hub: "Your apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center", mobileApp: "Mobile app (Nextcloud)", ncEnable: "Allow the Nextcloud app to access my files", ncHint: "Off by default. When on, add this server in the Nextcloud app:", gMorning: "Good morning", gAfternoon: "Good afternoon", gEvening: "Good evening",
     shareLink: "Share link", createLink: "Create link", copyLink: "Copy link", copied: "Link copied", linkView: "View only", linkEdit: "Can edit", anyoneCanView: "Anyone with the link can view", anyoneCanEdit: "Anyone with the link can edit", revoke: "Revoke", noLinks: "No links yet", linkInvalid: "This link is invalid or has been revoked.", guestBadge: "Guest",
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
@@ -430,7 +436,7 @@ const T = {
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
     tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
-    history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", noDocuments: "Keine Dokumente", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen", files: "Dateien", myFiles: "Meine Dateien", libraries: "Bibliotheken", newLibrary: "Neue Bibliothek", libraryName: "Name der Bibliothek", upload: "Hochladen", uploading: "Lädt hoch…", download: "Herunterladen", members: "Mitglieder", addMember: "Mitglied hinzufügen (E-Mail)", roleViewer: "Leser", roleEditor: "Bearbeiter", emptyFolder: "Dieser Ordner ist leer", deleteLibrary: "Bibliothek löschen", confirmDeleteItem: "Dieses Element löschen?", confirmDeleteLibrary: "Diese Bibliothek samt Inhalt löschen?", home: "Start", hub: "Deine Apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center",
+    history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", noDocuments: "Keine Dokumente", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen", files: "Dateien", myFiles: "Meine Dateien", libraries: "Bibliotheken", newLibrary: "Neue Bibliothek", libraryName: "Name der Bibliothek", upload: "Hochladen", uploading: "Lädt hoch…", download: "Herunterladen", members: "Mitglieder", addMember: "Mitglied hinzufügen (E-Mail)", roleViewer: "Leser", roleEditor: "Bearbeiter", emptyFolder: "Dieser Ordner ist leer", deleteLibrary: "Bibliothek löschen", confirmDeleteItem: "Dieses Element löschen?", confirmDeleteLibrary: "Diese Bibliothek samt Inhalt löschen?", home: "Start", hub: "Deine Apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center", mobileApp: "Mobile App (Nextcloud)", ncEnable: "Nextcloud-App Zugriff auf meine Dateien erlauben", ncHint: "Standardmäßig aus. Wenn aktiv, diesen Server in der Nextcloud-App hinzufügen:", gMorning: "Guten Morgen", gAfternoon: "Guten Tag", gEvening: "Guten Abend",
     shareLink: "Freigabelink", createLink: "Link erstellen", copyLink: "Link kopieren", copied: "Link kopiert", linkView: "Nur ansehen", linkEdit: "Darf bearbeiten", anyoneCanView: "Jeder mit dem Link kann ansehen", anyoneCanEdit: "Jeder mit dem Link kann bearbeiten", revoke: "Entziehen", noLinks: "Noch keine Links", linkInvalid: "Dieser Link ist ungültig oder wurde entzogen.", guestBadge: "Gast",
     remoteBlocked: "Externe Inhalte (z. B. Bilder) wurden zum Schutz deiner Privatsphäre blockiert.", loadRemote: "Inhalte laden",
   },
@@ -455,6 +461,8 @@ const fmtBytes = (b) => { if (!b) return "0 KB"; const u = ["B", "KB", "MB", "GB
 const personStr = (p) => p ? (p.name || p.email) : "";
 
 const ICON = {
+  shield: '<path d="M12 3l7 3v5.5c0 4.3-3 7.4-7 8.5-4-1.1-7-4.2-7-8.5V6l7-3z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M9 12l2 2 4-4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  cloud: '<path d="M7 18a4 4 0 0 1-.4-7.98A5 5 0 0 1 16 9.5a3.5 3.5 0 0 1 .5 6.98" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
   inbox: '<path d="M3 13l3-8h12l3 8v5a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3 13h5l1 2h6l1-2h5" fill="none" stroke="currentColor" stroke-width="1.6"/>',
   drafts: '<path d="M5 3h9l5 5v13H5z" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M8 13h8M8 16h8" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   sentitems: '<path d="M4 12 20 4l-6 16-3-7z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
@@ -772,10 +780,10 @@ function renderRail() {
 // Admins also get a link to the Admin Center.
 function appList() {
   const a = [{ k: "mail", ic: "mail", c: "#4f6ef7" }];
-  if (me && me.cloud) { a.push({ k: "files", ic: "folder", c: "#16a34a" }); a.push({ k: "sharepoint", ic: "share", c: "#0d9488" }); }
+  if (me && me.cloud) { a.push({ k: "files", ic: "cloud", c: "#16a34a" }); a.push({ k: "sharepoint", ic: "share", c: "#0d9488" }); }
   a.push({ k: "tasks", ic: "tasks", c: "#0ea5e9" });
   a.push({ k: "notes", ic: "note", c: "#8b5cf6" });
-  if (me && me.admin) a.push({ k: "admin", ic: "settings", c: "#ef4444", ext: "/admin/" });
+  if (me && me.admin) a.push({ k: "admin", ic: "shield", c: "#e11d48", ext: "/admin/" });
   return a;
 }
 function navTo(k) {
@@ -790,8 +798,11 @@ function navTo(k) {
 function appTiles() {
   return appList().map((a) => `<button class="apptile" data-app="${a.k}"><span class="appicon" style="background:${a.c}22;color:${a.c}">${icon(a.ic)}</span><span>${esc(t(a.k))}</span></button>`).join("");
 }
+function greeting() { const h = new Date().getHours(); return h < 11 ? t("gMorning") : h < 18 ? t("gAfternoon") : t("gEvening"); }
 function renderHome() {
-  $("#view").innerHTML = `<div class="homewrap"><div class="homehd"><h1>${esc(me && me.name ? me.name : "Ondura")}</h1><p>${esc(t("hub"))}</p></div><div class="appgrid">${appTiles()}</div></div>`;
+  const name = me && me.name ? me.name.split(" ")[0] : "";
+  const hi = name ? `${greeting()}, ${name}` : "Ondura";
+  $("#view").innerHTML = `<div class="homewrap"><div class="homehd"><h1>${esc(hi)}</h1><p>${esc(t("hub"))}</p></div><div class="appgrid">${appTiles()}</div></div>`;
   $("#view").querySelectorAll("[data-app]").forEach((e) => e.onclick = () => navTo(e.dataset.app));
 }
 function openApps() {
@@ -1693,6 +1704,9 @@ async function openSettings() {
      <div class="field"><label><input type="checkbox" id="stOof" ${oof.state === "Enabled" ? "checked" : ""}> ${esc(t("oofOn"))}</label></div>
      <div class="field"><label>${esc(t("internalReply"))}</label><textarea id="stOofInt" style="min-height:70px">${esc(oof.internalReply || "")}</textarea></div>
      <div class="field"><label>${esc(t("externalReply"))}</label><textarea id="stOofExt" style="min-height:70px">${esc(oof.externalReply || "")}</textarea></div>
+     ${s.cloudEnabled ? `<h3 style="margin:22px 0 10px">${esc(t("mobileApp"))}</h3>
+     <div class="field"><label><input type="checkbox" id="stNc" ${s.nextcloud ? "checked" : ""}> ${esc(t("ncEnable"))}</label></div>
+     <div style="color:var(--muted);font-size:12.5px;margin:-4px 0 4px">${esc(t("ncHint"))} <code>https://${esc(s.host || location.host)}</code></div>` : ""}
      <h3 style="margin:22px 0 10px">${esc(t("changePassword"))}</h3>
      <div class="field"><label>${esc(t("currentPassword"))}</label><input id="stPwCur" type="password" autocomplete="current-password"></div>
      <div class="row2"><div class="field"><label>${esc(t("newPassword"))}</label><input id="stPwNew" type="password" autocomplete="new-password"></div>
@@ -1703,6 +1717,7 @@ async function openSettings() {
     await api("POST", "/settings", {
       name: $("#stName").value, signature: $("#stSig").value,
       oof: { state: $("#stOof").checked ? "Enabled" : "Disabled", internalReply: $("#stOofInt").value, externalReply: $("#stOofExt").value, externalAudience: "All" },
+      nextcloud: $("#stNc") ? $("#stNc").checked : undefined,
     });
     me = await api("GET", "/me"); renderAcct();
     closePanel(); toast(t("saved"));

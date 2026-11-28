@@ -27,6 +27,9 @@ pub fn get(app: &Shared, user: &User) -> ApiResult {
         },
         "forwardTo": s.forward_to,
         "keepForwardedCopy": s.keep_forwarded_copy,
+        "nextcloud": s.nextcloud,
+        "cloudEnabled": app.cfg.cloud.enabled,
+        "host": app.cfg.hostname,
     }))
 }
 
@@ -60,6 +63,8 @@ struct SettingsBody {
     forward_to: Option<String>,
     #[serde(default)]
     keep_forwarded_copy: Option<bool>,
+    #[serde(default)]
+    nextcloud: Option<bool>,
 }
 
 /// POST /settings
@@ -95,6 +100,9 @@ pub fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     }
     if let Some(k) = b.keep_forwarded_copy {
         s.keep_forwarded_copy = k;
+    }
+    if let Some(n) = b.nextcloud {
+        s.nextcloud = n;
     }
     app.store.set_settings(user.id, &s).map_err(internal)?;
     Ok(json!({ "ok": true }))

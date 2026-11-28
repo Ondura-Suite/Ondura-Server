@@ -100,6 +100,11 @@ impl Store {
 
 // --------------------------------------------------------------- helpers
 
+/// Whether the Nextcloud interface is enabled for a mailbox (off by default).
+fn nextcloud_on(app: &Shared, user_id: i64) -> bool {
+    app.store.settings(user_id).map(|s| s.nextcloud).unwrap_or(false)
+}
+
 fn unauthorized() -> Response {
     let mut r = (StatusCode::UNAUTHORIZED, "").into_response();
     r.headers_mut().insert(header::WWW_AUTHENTICATE, HeaderValue::from_static("Basic realm=\"Ondura\""));
@@ -113,7 +118,7 @@ fn authenticate(app: &Shared, headers: &HeaderMap) -> Result<User, Box<Response>
     let h = headers.get(header::AUTHORIZATION).and_then(|v| v.to_str().ok()).ok_or_else(fail)?;
     let (login, secret) = crate::auth::parse_basic(h).ok_or_else(fail)?;
     let user = app.store.user_by_email(&login).ok().flatten().ok_or_else(fail)?;
-    if user.kind != "user" || !user.enabled {
+    if user.kind != "user" || !user.enabled || !nextcloud_on(app, user.id) {
         return Err(fail());
     }
     if crate::auth::verify_hash(&secret, &user.password) {
@@ -298,6 +303,9 @@ async fn login_flow(app: &Shared, method: &Method, rest: &str, _headers: &Header
             let email = form_value(&form, "user").unwrap_or_default();
             let password = form_value(&form, "password").unwrap_or_default();
             match crate::auth::login(&app.store, &email, &password, None) {
+                Ok(u) if u.kind == "user" && u.enabled && !nextcloud_on(app, u.id) => {
+                    return (StatusCode::OK, [(header::CONTENT_TYPE, "text/html; charset=utf-8")], html_page("Nextcloud access is turned off for this account. Enable it in Ondura webmail settings, then try again.")).into_response();
+                }
                 Ok(u) if u.kind == "user" && u.enabled => {
                     let app_pw = app.store.create_app_password(u.id, "Nextcloud client").unwrap_or_default();
                     let _ = app.store.complete_login_flow(login_token, u.id, &app_pw);
@@ -816,6 +824,10 @@ mod tests {
     async fn webdav_mkcol_propfind_and_put_get() {
         let dir = std::env::temp_dir().join(format!("ondura-nc-{}", token()));
         let (app, user) = App::test_in(dir.clone());
+        // The Nextcloud interface is off by default; enable it for this user.
+        let mut st = app.store.settings(user.id).unwrap();
+        st.nextcloud = true;
+        app.store.set_settings(user.id, &st).unwrap();
         let pw = app.store.create_app_password(user.id, "t").unwrap();
         let auth = basic(&user.email, &pw);
         let root = format!("/remote.php/dav/files/{}/", user.email);
