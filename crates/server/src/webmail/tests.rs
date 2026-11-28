@@ -501,3 +501,51 @@ async fn freebusy_shows_times_and_details_only_when_shared() {
     let r = calendar_api::freebusy(&app, &user, &q).unwrap();
     assert_eq!(r["people"][0]["busy"][0]["subject"], "Dentist");
 }
+
+#[tokio::test]
+async fn shared_calendar_levels_control_what_is_seen_and_changed() {
+    let (app, user) = App::test();
+    let anna = app.store.create_user("anna@example.com", "Anna", "pw", "user").unwrap();
+    let start = 1_800_000_000i64;
+    let ev = |uid: &str, subject: &str, extra: serde_json::Value| {
+        let mut e = serde_json::json!({ "uid": uid, "subject": subject, "start": start, "end": start + 3600, "tz": "UTC" });
+        e.as_object_mut().unwrap().extend(extra.as_object().unwrap().clone());
+        e
+    };
+    let plain = calendar_api::save(&app, &anna, &body(serde_json::json!({ "event": ev("p", "Lunch", serde_json::json!({})) }))).await.unwrap()["id"].as_i64().unwrap();
+    calendar_api::save(&app, &anna, &body(serde_json::json!({ "event": ev("s", "Therapy", serde_json::json!({ "sensitivity": "private" })) }))).await.unwrap();
+    let range = format!("from={}&to={}&owner={}", start - 1, start + 7200, anna.id);
+
+    // Without a share: blocks only, nothing to open or change.
+    let r = calendar_api::list(&app, &user, &range).unwrap();
+    assert_eq!(r["access"], "freebusy");
+    assert!(r["events"].as_array().unwrap().iter().all(|e| e["subject"].is_null() && e["id"].is_null()));
+    assert!(calendar_api::get(&app, &user, &format!("id={plain}")).is_err());
+
+    // Read: details show, except the private event; still not changeable.
+    calendar_api::share(&app, &anna, &body(serde_json::json!({ "email": "niklas@example.com", "level": "read" }))).unwrap();
+    let r = calendar_api::list(&app, &user, &range).unwrap();
+    let evs = r["events"].as_array().unwrap();
+    assert!(evs.iter().any(|e| e["subject"] == "Lunch"));
+    assert!(!evs.iter().any(|e| e["subject"] == "Therapy"));
+    assert_eq!(calendar_api::get(&app, &user, &format!("id={plain}")).unwrap()["canEdit"], false);
+    let mut changed = calendar_api::get(&app, &user, &format!("id={plain}")).unwrap()["event"].clone();
+    changed["subject"] = "Hacked".into();
+    assert!(calendar_api::save(&app, &user, &body(serde_json::json!({ "id": plain, "event": changed.clone() }))).await.is_err());
+
+    // Write: the event can be changed, and a new one added to Anna's calendar.
+    calendar_api::share(&app, &anna, &body(serde_json::json!({ "email": "niklas@example.com", "level": "write" }))).unwrap();
+    calendar_api::save(&app, &user, &body(serde_json::json!({ "id": plain, "event": changed }))).await.unwrap();
+    assert_eq!(calendar_api::get(&app, &anna, &format!("id={plain}")).unwrap()["event"]["subject"], "Hacked");
+    let added = calendar_api::save(&app, &user, &body(serde_json::json!({ "owner": anna.id, "event": ev("n", "Added", serde_json::json!({})) }))).await.unwrap()["id"].as_i64().unwrap();
+    assert_eq!(app.store.item(added).unwrap().unwrap().user_id, anna.id);
+    // But not a meeting in Anna's name.
+    let mtg = ev("m", "Mtg", serde_json::json!({ "attendees": [ { "email": "x@other.org" } ] }));
+    assert!(calendar_api::save(&app, &user, &body(serde_json::json!({ "owner": anna.id, "event": mtg }))).await.is_err());
+
+    // The share shows up on both sides, and can be withdrawn.
+    assert_eq!(calendar_api::shares(&app, &anna).unwrap()["given"][0]["level"], "write");
+    assert_eq!(calendar_api::shares(&app, &user).unwrap()["received"][0]["access"], "write");
+    calendar_api::share(&app, &anna, &body(serde_json::json!({ "email": "niklas@example.com", "level": "none" }))).unwrap();
+    assert!(calendar_api::shares(&app, &user).unwrap()["received"].as_array().unwrap().is_empty());
+}

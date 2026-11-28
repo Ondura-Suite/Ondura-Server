@@ -6,12 +6,53 @@ use serde_json::{json, Value};
 
 use super::{bad, internal, not_found, own_item, parse, ApiResult, WRITER};
 use crate::app::Shared;
+use crate::calendar::CalendarAccess;
 use crate::model::{Event, ItemKind, Person, Response as MeetingResponse};
 use crate::store::User;
 
-fn calendar_folders(app: &Shared, user: &User) -> Result<Vec<i64>, (axum::http::StatusCode, String)> {
-    let folders = app.store.folders(user.id).map_err(internal)?;
+fn calendar_folders(app: &Shared, owner: i64) -> Result<Vec<i64>, (axum::http::StatusCode, String)> {
+    let folders = app.store.folders(owner).map_err(internal)?;
     Ok(folders.iter().filter(|f| matches!(f.class, crate::model::FolderClass::Calendar)).map(|f| f.id).collect())
+}
+
+/// The calendar owner a request is about: `owner=<id>` or the caller, with the
+/// caller's access to that calendar. Only enabled accounts with a mailbox
+/// have a calendar.
+fn calendar_owner(app: &Shared, user: &User, owner: Option<i64>) -> Result<(i64, CalendarAccess), (axum::http::StatusCode, String)> {
+    let owner = owner.unwrap_or(user.id);
+    if owner != user.id {
+        app.store.user(owner).map_err(internal)?.filter(|u| u.enabled && u.mailbox).ok_or_else(not_found)?;
+    }
+    Ok((owner, crate::calendar::calendar_access(app, user.id, owner)))
+}
+
+/// A calendar item the caller may read (own, or in a calendar shared at least
+/// for reading; another person's private events need write access).
+fn readable_event(app: &Shared, user: &User, id: i64) -> Result<(crate::store::Item, Event, CalendarAccess), (axum::http::StatusCode, String)> {
+    let item = app.store.item(id).map_err(internal)?.filter(|i| i.kind == ItemKind::Event).ok_or_else(not_found)?;
+    let e = item.event().ok_or_else(|| bad("not a calendar item"))?;
+    let access = crate::calendar::calendar_access(app, user.id, item.user_id);
+    let private = matches!(e.sensitivity, crate::model::Sensitivity::Private | crate::model::Sensitivity::Confidential);
+    if access < CalendarAccess::Read || (private && access < CalendarAccess::Write) {
+        return Err(not_found());
+    }
+    Ok((item, e, access))
+}
+
+/// Whether the caller may change this event: always in their own calendar; in
+/// another person's calendar with write access, except meetings, whose mail
+/// would go out in the owner's name.
+fn may_edit(user: &User, item: &crate::store::Item, e: &Event, access: CalendarAccess) -> bool {
+    item.user_id == user.id || (access == CalendarAccess::Write && e.attendees.is_empty())
+}
+
+/// A calendar item the caller may change.
+fn writable_event(app: &Shared, user: &User, id: i64) -> Result<(crate::store::Item, Event), (axum::http::StatusCode, String)> {
+    let (item, e, access) = readable_event(app, user, id)?;
+    if !may_edit(user, &item, &e, access) {
+        return Err((axum::http::StatusCode::FORBIDDEN, "You can't change this event.".into()));
+    }
+    Ok((item, e))
 }
 
 /// `times` is (start, end, original_start) in UTC seconds.
@@ -40,7 +81,9 @@ fn occurrence_json(item_id: i64, folder: i64, e: &Event, times: (i64, i64, i64),
     })
 }
 
-/// GET /calendar?from=<ts>&to=<ts>
+/// GET /calendar?from=<ts>&to=<ts>[&owner=<id>] — the caller's calendar, or a
+/// calendar shared with them. With free/busy access only the busy blocks are
+/// returned, and private events show as blocks unless the caller may edit.
 pub fn list(app: &Shared, user: &User, query: &str) -> ApiResult {
     let get = |k: &str| query.split('&').filter_map(|p| p.split_once('=')).find(|(x, _)| *x == k).and_then(|(_, v)| v.parse::<i64>().ok());
     let from = get("from").ok_or_else(|| bad("from required"))?;
@@ -48,21 +91,40 @@ pub fn list(app: &Shared, user: &User, query: &str) -> ApiResult {
     if to <= from {
         return Err(bad("to must be after from"));
     }
+    let (owner, access) = calendar_owner(app, user, get("owner"))?;
     let mut out = Vec::new();
-    for folder in calendar_folders(app, user)? {
+    for folder in calendar_folders(app, owner)? {
         for item in app.store.events_in_range(folder, from, to).map_err(internal)? {
             let Some(e) = item.event() else { continue };
+            let private = matches!(e.sensitivity, crate::model::Sensitivity::Private | crate::model::Sensitivity::Confidential);
+            let blocks_only = access < CalendarAccess::Read || (private && access < CalendarAccess::Write);
+            if blocks_only && (e.cancelled || e.busy == crate::model::BusyStatus::Free) {
+                continue;
+            }
+            let editable = may_edit(user, &item, &e, access);
             let recurring = e.recurrence.is_some();
-            if recurring {
-                for occ in e.occurrences(from, to) {
-                    out.push(occurrence_json(item.id, folder, &e, (occ.start, occ.end, occ.original_start), true, occ.exception.as_ref()));
-                }
+            let occurrences: Vec<_> = if recurring {
+                e.occurrences(from, to).into_iter().map(|o| (o.start, o.end, o.original_start, o.exception)).collect()
             } else {
-                out.push(occurrence_json(item.id, folder, &e, (e.start, e.end, e.start), false, None));
+                vec![(e.start, e.end, e.start, None)]
+            };
+            for (start, end, original, ex) in occurrences {
+                let mut v = occurrence_json(item.id, folder, &e, (start, end, original), recurring, ex.as_ref());
+                v["owner"] = json!(owner);
+                v["canEdit"] = json!(editable);
+                if blocks_only {
+                    // Only that the time is taken, not what for.
+                    for k in ["subject", "location", "organizer", "uid"] {
+                        v[k] = Value::Null;
+                    }
+                    v["blocksOnly"] = json!(true);
+                    v["id"] = Value::Null;
+                }
+                out.push(v);
             }
         }
     }
-    Ok(json!({ "events": out }))
+    Ok(json!({ "events": out, "owner": owner, "access": access.as_str() }))
 }
 
 /// POST /event — create or update an event. Body: the Event plus optional id.
@@ -71,6 +133,9 @@ pub async fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     struct SaveBody {
         #[serde(default)]
         id: Option<i64>,
+        /// Calendar owner for a new event (default: the caller).
+        #[serde(default)]
+        owner: Option<i64>,
         /// Send meeting invitations to attendees (default true).
         #[serde(default = "crate::serde_true")]
         send: bool,
@@ -81,13 +146,28 @@ pub async fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     // the meeting sequence (raised so attendees' clients accept the change).
     let existing = match req.id {
         Some(id) => {
-            let item = own_item(app, user, id)?;
-            if item.kind != ItemKind::Event {
-                return Err(bad("not a calendar item"));
+            let (item, e) = writable_event(app, user, id)?;
+            if item.user_id != user.id && !req.event.attendees.is_empty() {
+                return Err(bad("Meetings can only be planned in your own calendar."));
             }
-            Some((item.id, item.event().unwrap_or_default()))
+            Some((item.id, e))
         }
         None => None,
+    };
+    // A new event goes into the caller's calendar, or into a calendar shared
+    // with them for writing.
+    let target_owner = match (&existing, req.owner) {
+        (None, Some(owner)) if owner != user.id => {
+            let (owner, access) = calendar_owner(app, user, Some(owner))?;
+            if access < CalendarAccess::Write {
+                return Err((axum::http::StatusCode::FORBIDDEN, "You can't add events to this calendar.".into()));
+            }
+            if !req.event.attendees.is_empty() {
+                return Err(bad("Meetings can only be planned in your own calendar."));
+            }
+            owner
+        }
+        _ => user.id,
     };
     if let Some((_, old)) = &existing {
         if req.event.uid.is_empty() || req.event.uid != old.uid {
@@ -130,8 +210,8 @@ pub async fn save(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         app.store.update_pim(id, &data, WRITER).map_err(internal)?;
         id
     } else {
-        let folder = app.store.folder_by_role(user.id, "calendar").map_err(internal)?.ok_or_else(not_found)?;
-        app.store.insert_pim(user.id, folder.id, ItemKind::Event, &data, Some(&req.event.uid), WRITER).map_err(internal)?
+        let folder = app.store.folder_by_role(target_owner, "calendar").map_err(internal)?.ok_or_else(not_found)?;
+        app.store.insert_pim(target_owner, folder.id, ItemKind::Event, &data, Some(&req.event.uid), WRITER).map_err(internal)?
     };
     if req.send
         && !removed.is_empty()
@@ -189,16 +269,71 @@ pub fn freebusy(app: &Shared, user: &User, query: &str) -> ApiResult {
     Ok(json!({ "people": out }))
 }
 
+/// GET /calendar/shares — who the caller shares their calendar with, and the
+/// calendars the caller can open (shared with them, or mailboxes they have full
+/// access to).
+pub fn shares(app: &Shared, user: &User) -> ApiResult {
+    let person = |id: i64| app.store.user(id).ok().flatten().filter(|u| u.enabled && u.mailbox);
+    let given: Vec<Value> = app
+        .store
+        .calendar_shares_of(user.id)
+        .map_err(internal)?
+        .into_iter()
+        .filter_map(|(id, level)| person(id).map(|u| json!({ "id": u.id, "email": u.email, "name": u.name, "level": level })))
+        .collect();
+    let mut owners: Vec<i64> = app.store.calendars_shared_with(user.id).map_err(internal)?.into_iter().map(|(id, _)| id).collect();
+    owners.extend(app.store.full_access_owners(user.id).map_err(internal)?);
+    owners.sort_unstable();
+    owners.dedup();
+    let received: Vec<Value> = owners
+        .into_iter()
+        .filter(|id| *id != user.id)
+        .filter_map(|id| person(id).map(|u| json!({ "id": u.id, "email": u.email, "name": u.name, "access": crate::calendar::calendar_access(app, user.id, u.id).as_str() })))
+        .collect();
+    Ok(json!({ "given": given, "received": received }))
+}
+
+/// POST /calendar/share { email, level } — share the caller's calendar with an
+/// account on this server at `freebusy`, `read` or `write`, or stop sharing it
+/// with `none`.
+pub fn share(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    #[derive(Deserialize)]
+    struct ShareBody {
+        email: String,
+        level: String,
+    }
+    let b: ShareBody = parse(body)?;
+    let grantee = app
+        .store
+        .resolve_address(&b.email)
+        .map_err(internal)?
+        .and_then(|(id, _)| app.store.user(id).ok().flatten())
+        .filter(|u| u.enabled && u.kind == "user")
+        .ok_or_else(|| bad("No account with that address on this server."))?;
+    if grantee.id == user.id {
+        return Err(bad("That is your own calendar."));
+    }
+    let level = match b.level.as_str() {
+        "none" => None,
+        l @ ("freebusy" | "read" | "write") => Some(l),
+        _ => return Err(bad("invalid level")),
+    };
+    app.store.set_calendar_share(user.id, grantee.id, level).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
 /// GET /event?id= — the full stored event, so an editor can change it without
 /// losing fields it does not show.
 pub fn get(app: &Shared, user: &User, query: &str) -> ApiResult {
     let id: i64 = query.split('&').filter_map(|p| p.split_once('=')).find(|(k, _)| *k == "id").and_then(|(_, v)| v.parse().ok()).ok_or_else(|| bad("id required"))?;
-    let item = own_item(app, user, id)?;
-    let e = item.event().ok_or_else(|| bad("not a calendar item"))?;
+    let (item, e, access) = readable_event(app, user, id)?;
+    let own = item.user_id == user.id;
     Ok(json!({
         "id": item.id,
         "folder": item.folder_id,
-        "isOrganizer": e.attendees.is_empty() || crate::calendar::user_is_organizer(app, user, &e),
+        "owner": item.user_id,
+        "canEdit": may_edit(user, &item, &e, access),
+        "isOrganizer": !own || e.attendees.is_empty() || crate::calendar::user_is_organizer(app, user, &e),
         "event": e,
     }))
 }
@@ -226,8 +361,7 @@ pub async fn occurrence(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         send: bool,
     }
     let b: OccBody = parse(body)?;
-    let item = own_item(app, user, b.id)?;
-    let mut ev = item.event().ok_or_else(|| bad("not a calendar item"))?;
+    let (item, mut ev) = writable_event(app, user, b.id)?;
     if ev.recurrence.is_none() {
         return Err(bad("not a recurring event"));
     }
@@ -296,7 +430,7 @@ pub async fn delete(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
         send: bool,
     }
     let d: DelBody = parse(body)?;
-    let item = own_item(app, user, d.id)?;
+    let (item, _) = writable_event(app, user, d.id)?;
     // Cancel the meeting for its attendees when we organize it.
     if d.send
         && let Some(data) = &item.data

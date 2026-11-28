@@ -83,6 +83,12 @@ svg { width: 18px; height: 18px; display: block; }
   background: var(--surface-solid); outline: none; border-bottom: 2px solid transparent; width: 100%;
 }
 .field input, .field select { height: 34px; }
+.raillabel { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); padding: 4px 10px; }
+.calrow { cursor: default; }
+label.calrow { cursor: pointer; }
+.calrow input { margin: 0; accent-color: var(--tint); }
+.caldot { width: 10px; height: 10px; border-radius: 3px; flex: none; }
+.evblock { font-style: italic; opacity: .8; cursor: default; }
 .fbrow { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
 .fbl { width: 110px; flex: none; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fbbar { position: relative; flex: 1; height: 22px; background: var(--surface-hover); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
@@ -400,16 +406,16 @@ const T = {
     logout: "Sign out", confirmDelete: "Delete this item?", sent: "Sent", saved: "Saved", deleted: "Deleted", emptyTrash: "Empty", confirmEmpty: "Permanently delete all items in Deleted Items?", loading: "Loading…", langName: "Deutsch",
     changePicture: "Change picture", removePicture: "Remove picture", discard: "Discard", newMessage: "New message", linkUrl: "Link URL",
     print: "Print", bcc: "Bcc", showBcc: "Bcc", noArchive: "No archive folder", unflag: "Clear flag", recipientRequired: "Add at least one recipient",
-    shortcuts: "Keyboard shortcuts", navigate: "Move between messages", openMsg: "Open message", close: "Close / deselect",
+    shortcuts: "Keyboard shortcuts", navigate: "Move between messages", openMsg: "Open message", escClose: "Close / deselect",
     categories: "Categories", categorize: "Categorize", newCategory: "New category", manageCategories: "Manage categories", categoryName: "Category name", color: "Color", clearCategoryFilter: "Clear filter", noCategories: "No categories yet",
     rules: "Rules", newRule: "New rule", ruleName: "Rule name", conditionsTitle: "When a message arrives and", actionsTitle: "Do the following", matchAll: "all conditions match", matchAny: "any condition matches", contains: "contains", addCondition: "Add condition", addAction: "Add action", stopProcessing: "Stop processing more rules", enabled: "Enabled", noRules: "No rules yet", actMarkRead: "Mark as read", actDelete: "Move to Deleted Items", chooseFolder: "Choose folder", chooseCategory: "Choose category",
     sweep: "Sweep", sweepTitle: "Sweep messages from", sweepDeleteAll: "Delete all from this sender", sweepKeepLatest: "Keep the newest, delete the rest", sweepMoveAll: "Move all to…", swept: "Swept",
     filterAll: "All", filterUnread: "Unread", filterFlagged: "Flagged", filterAttach: "Attachments", selectAll: "Select all",
     conversationView: "Conversation view",
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
-    tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
+    tasks: "Tasks", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
-    history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add", files: "Files", myFiles: "My Files", libraries: "Libraries", newLibrary: "New library", libraryName: "Library name", upload: "Upload", uploading: "Uploading…", download: "Download", members: "Members", addMember: "Add member (e-mail)", roleViewer: "Viewer", roleEditor: "Editor", emptyFolder: "This folder is empty", deleteLibrary: "Delete library", confirmDeleteItem: "Move this item to the recycle bin?", confirmDeleteLibrary: "Delete this library and everything in it?", home: "Home", hub: "Your apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center", mobileApp: "Mobile app (Nextcloud)", ncEnable: "Allow the Nextcloud app to access my files", ncHint: "Off by default. When on, add this server in the Nextcloud app:", gMorning: "Good morning", gAfternoon: "Good afternoon", gEvening: "Good evening", recycleBin: "Recycle bin", restore: "Restore", restored: "Restored", back: "Back", binEmpty: "The recycle bin is empty", emptyBin: "Empty recycle bin", confirmEmptyBin: "Permanently delete everything in the recycle bin?", confirmPurge: "Permanently delete this item? This cannot be undone.", recent: "Recent", noRecent: "Nothing here yet", close: "Close", versionHistory: "Version history", currentVersion: "Current version", noVersions: "No earlier versions", expiryNever: "No expiry", expiry7: "Expires in 7 days", expiry30: "Expires in 30 days", expiry90: "Expires in 90 days", expiresOn: "expires", replaceFile: "Replace file", sharedWithMe: "Shared with me", sharedBy: "Shared by", noShared: "Nothing shared with you yet", searchFiles: "Search files", noResults: "No matches", occurrenceOrSeries: "This is a recurring event. Open only this occurrence or the whole series?", openSeries: "Whole series", openOccurrence: "This occurrence", editOccurrence: "Edit occurrence", editSeries: "Edit series", reminderNone: "No reminder", reminderAtStart: "At start", oneDay: "1 day", accepted: "Accepted", declined: "Declined", noResponse: "No response", repeat: "Repeat", repeatNone: "Does not repeat", repeatDaily: "Every day", repeatWeekdays: "Every weekday (Mon–Fri)", repeatWeekly: "Every week", repeatMonthly: "Every month", repeatYearly: "Every year", repeatCustom: "Custom (unchanged)", until: "Until", seriesResetHint: "Changing the time or the repeat pattern of a series resets occurrences that were changed individually.", showAs: "Show as", busyBusy: "Busy", busyFree: "Free", busyOof: "Away", reminder: "Reminder", private: "Private", attendees: "Attendees", attendeesHint: "E-mail addresses, separated by commas", organizer: "Organizer", responses: "Responses", description: "Description", endBeforeStart: "The end is before the start.", confirmDeleteOccurrence: "Delete this occurrence?", me: "Me", scheduling: "Availability", nextFree: "Next free time", noFreeBusy: "No availability information", noFreeSlot: "No free time found in the next two weeks",
+    history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add", files: "Files", myFiles: "My Files", libraries: "Libraries", newLibrary: "New library", libraryName: "Library name", upload: "Upload", uploading: "Uploading…", download: "Download", members: "Members", addMember: "Add member (e-mail)", roleViewer: "Viewer", roleEditor: "Editor", emptyFolder: "This folder is empty", deleteLibrary: "Delete library", confirmDeleteItem: "Move this item to the recycle bin?", confirmDeleteLibrary: "Delete this library and everything in it?", home: "Home", hub: "Your apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center", mobileApp: "Mobile app (Nextcloud)", ncEnable: "Allow the Nextcloud app to access my files", ncHint: "Off by default. When on, add this server in the Nextcloud app:", gMorning: "Good morning", gAfternoon: "Good afternoon", gEvening: "Good evening", recycleBin: "Recycle bin", restore: "Restore", restored: "Restored", back: "Back", binEmpty: "The recycle bin is empty", emptyBin: "Empty recycle bin", confirmEmptyBin: "Permanently delete everything in the recycle bin?", confirmPurge: "Permanently delete this item? This cannot be undone.", recent: "Recent", noRecent: "Nothing here yet", close: "Close", versionHistory: "Version history", currentVersion: "Current version", noVersions: "No earlier versions", expiryNever: "No expiry", expiry7: "Expires in 7 days", expiry30: "Expires in 30 days", expiry90: "Expires in 90 days", expiresOn: "expires", replaceFile: "Replace file", sharedWithMe: "Shared with me", sharedBy: "Shared by", noShared: "Nothing shared with you yet", searchFiles: "Search files", noResults: "No matches", occurrenceOrSeries: "This is a recurring event. Open only this occurrence or the whole series?", openSeries: "Whole series", openOccurrence: "This occurrence", editOccurrence: "Edit occurrence", editSeries: "Edit series", reminderNone: "No reminder", reminderAtStart: "At start", oneDay: "1 day", accepted: "Accepted", declined: "Declined", noResponse: "No response", repeat: "Repeat", repeatNone: "Does not repeat", repeatDaily: "Every day", repeatWeekdays: "Every weekday (Mon–Fri)", repeatWeekly: "Every week", repeatMonthly: "Every month", repeatYearly: "Every year", repeatCustom: "Custom (unchanged)", until: "Until", seriesResetHint: "Changing the time or the repeat pattern of a series resets occurrences that were changed individually.", showAs: "Show as", busyBusy: "Busy", busyFree: "Free", busyOof: "Away", reminder: "Reminder", private: "Private", attendees: "Attendees", attendeesHint: "E-mail addresses, separated by commas", organizer: "Organizer", responses: "Responses", description: "Description", endBeforeStart: "The end is before the start.", confirmDeleteOccurrence: "Delete this occurrence?", calendars: "Calendars", myCalendar: "My calendar", shareCalendar: "Share calendar", shareCalendarHint: "Everyone on this server can see when you are busy. Share your calendar to let people see the details or edit it.", shareFreeBusy: "Can see when I'm busy", shareRead: "Can see all details", shareWrite: "Can edit", notShared: "Not shared with anyone yet", event: "Event", me: "Me", scheduling: "Availability", nextFree: "Next free time", noFreeBusy: "No availability information", noFreeSlot: "No free time found in the next two weeks",
     shareLink: "Share link", createLink: "Create link", copyLink: "Copy link", copied: "Link copied", linkView: "View only", linkEdit: "Can edit", anyoneCanView: "Anyone with the link can view", anyoneCanEdit: "Anyone with the link can edit", revoke: "Revoke", noLinks: "No links yet", linkInvalid: "This link is invalid or has been revoked.", guestBadge: "Guest",
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
@@ -425,16 +431,16 @@ const T = {
     logout: "Abmelden", confirmDelete: "Diesen Eintrag löschen?", sent: "Gesendet", saved: "Gespeichert", deleted: "Gelöscht", emptyTrash: "Leeren", confirmEmpty: "Alle Elemente im Papierkorb endgültig löschen?", loading: "Lädt…", langName: "English",
     changePicture: "Bild ändern", removePicture: "Bild entfernen", discard: "Verwerfen", newMessage: "Neue Nachricht", linkUrl: "Link-URL",
     print: "Drucken", bcc: "Bcc", showBcc: "Bcc", noArchive: "Kein Archivordner", unflag: "Kennzeichnung entfernen", recipientRequired: "Mindestens einen Empfänger angeben",
-    shortcuts: "Tastenkürzel", navigate: "Zwischen Nachrichten wechseln", openMsg: "Nachricht öffnen", close: "Schließen / Auswahl aufheben",
+    shortcuts: "Tastenkürzel", navigate: "Zwischen Nachrichten wechseln", openMsg: "Nachricht öffnen", escClose: "Schließen / Auswahl aufheben",
     categories: "Kategorien", categorize: "Kategorisieren", newCategory: "Neue Kategorie", manageCategories: "Kategorien verwalten", categoryName: "Kategoriename", color: "Farbe", clearCategoryFilter: "Filter aufheben", noCategories: "Noch keine Kategorien",
     rules: "Regeln", newRule: "Neue Regel", ruleName: "Regelname", conditionsTitle: "Wenn eine Nachricht eintrifft und", actionsTitle: "Dann", matchAll: "alle Bedingungen zutreffen", matchAny: "eine Bedingung zutrifft", contains: "enthält", addCondition: "Bedingung hinzufügen", addAction: "Aktion hinzufügen", stopProcessing: "Keine weiteren Regeln anwenden", enabled: "Aktiv", noRules: "Noch keine Regeln", actMarkRead: "Als gelesen markieren", actDelete: "In Gelöscht verschieben", chooseFolder: "Ordner wählen", chooseCategory: "Kategorie wählen",
     sweep: "Aufräumen", sweepTitle: "Nachrichten aufräumen von", sweepDeleteAll: "Alle von diesem Absender löschen", sweepKeepLatest: "Neueste behalten, Rest löschen", sweepMoveAll: "Alle verschieben nach…", swept: "Aufgeräumt",
     filterAll: "Alle", filterUnread: "Ungelesen", filterFlagged: "Gekennzeichnet", filterAttach: "Anhänge", selectAll: "Alle auswählen",
     conversationView: "Konversationsansicht",
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
-    tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
+    tasks: "Aufgaben", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
-    history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen", files: "Dateien", myFiles: "Meine Dateien", libraries: "Bibliotheken", newLibrary: "Neue Bibliothek", libraryName: "Name der Bibliothek", upload: "Hochladen", uploading: "Lädt hoch…", download: "Herunterladen", members: "Mitglieder", addMember: "Mitglied hinzufügen (E-Mail)", roleViewer: "Leser", roleEditor: "Bearbeiter", emptyFolder: "Dieser Ordner ist leer", deleteLibrary: "Bibliothek löschen", confirmDeleteItem: "Dieses Element in den Papierkorb verschieben?", confirmDeleteLibrary: "Diese Bibliothek samt Inhalt löschen?", home: "Start", hub: "Deine Apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center", mobileApp: "Mobile App (Nextcloud)", ncEnable: "Nextcloud-App Zugriff auf meine Dateien erlauben", ncHint: "Standardmäßig aus. Wenn aktiv, diesen Server in der Nextcloud-App hinzufügen:", gMorning: "Guten Morgen", gAfternoon: "Guten Tag", gEvening: "Guten Abend", recycleBin: "Papierkorb", restore: "Wiederherstellen", restored: "Wiederhergestellt", back: "Zurück", binEmpty: "Der Papierkorb ist leer", emptyBin: "Papierkorb leeren", confirmEmptyBin: "Alles im Papierkorb endgültig löschen?", confirmPurge: "Dieses Element endgültig löschen? Das kann nicht rückgängig gemacht werden.", recent: "Zuletzt", noRecent: "Noch nichts hier", close: "Schließen", versionHistory: "Versionsverlauf", currentVersion: "Aktuelle Version", noVersions: "Keine früheren Versionen", expiryNever: "Kein Ablauf", expiry7: "Läuft in 7 Tagen ab", expiry30: "Läuft in 30 Tagen ab", expiry90: "Läuft in 90 Tagen ab", expiresOn: "läuft ab am", replaceFile: "Datei ersetzen", sharedWithMe: "Für mich freigegeben", sharedBy: "Geteilt von", noShared: "Noch nichts für dich freigegeben", searchFiles: "Dateien suchen", noResults: "Keine Treffer", occurrenceOrSeries: "Das ist ein Serientermin. Nur dieses Vorkommen oder die ganze Serie öffnen?", openSeries: "Ganze Serie", openOccurrence: "Dieses Vorkommen", editOccurrence: "Vorkommen bearbeiten", editSeries: "Serie bearbeiten", reminderNone: "Keine Erinnerung", reminderAtStart: "Zum Beginn", oneDay: "1 Tag", accepted: "Zugesagt", declined: "Abgesagt", noResponse: "Keine Antwort", repeat: "Wiederholen", repeatNone: "Keine Wiederholung", repeatDaily: "Täglich", repeatWeekdays: "An Werktagen (Mo–Fr)", repeatWeekly: "Wöchentlich", repeatMonthly: "Monatlich", repeatYearly: "Jährlich", repeatCustom: "Benutzerdefiniert (unverändert)", until: "Bis", seriesResetHint: "Wenn Uhrzeit oder Muster einer Serie geändert werden, gehen einzeln geänderte Vorkommen verloren.", showAs: "Anzeigen als", busyBusy: "Gebucht", busyFree: "Frei", busyOof: "Abwesend", reminder: "Erinnerung", private: "Privat", attendees: "Teilnehmer", attendeesHint: "E-Mail-Adressen, durch Kommas getrennt", organizer: "Organisator", responses: "Antworten", description: "Beschreibung", endBeforeStart: "Das Ende liegt vor dem Beginn.", confirmDeleteOccurrence: "Dieses Vorkommen löschen?", me: "Ich", scheduling: "Verfügbarkeit", nextFree: "Nächste freie Zeit", noFreeBusy: "Keine Verfügbarkeitsinformationen", noFreeSlot: "In den nächsten zwei Wochen keine freie Zeit gefunden",
+    history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen", files: "Dateien", myFiles: "Meine Dateien", libraries: "Bibliotheken", newLibrary: "Neue Bibliothek", libraryName: "Name der Bibliothek", upload: "Hochladen", uploading: "Lädt hoch…", download: "Herunterladen", members: "Mitglieder", addMember: "Mitglied hinzufügen (E-Mail)", roleViewer: "Leser", roleEditor: "Bearbeiter", emptyFolder: "Dieser Ordner ist leer", deleteLibrary: "Bibliothek löschen", confirmDeleteItem: "Dieses Element in den Papierkorb verschieben?", confirmDeleteLibrary: "Diese Bibliothek samt Inhalt löschen?", home: "Start", hub: "Deine Apps", apps: "Apps", sharepoint: "SharePoint", admin: "Admin Center", mobileApp: "Mobile App (Nextcloud)", ncEnable: "Nextcloud-App Zugriff auf meine Dateien erlauben", ncHint: "Standardmäßig aus. Wenn aktiv, diesen Server in der Nextcloud-App hinzufügen:", gMorning: "Guten Morgen", gAfternoon: "Guten Tag", gEvening: "Guten Abend", recycleBin: "Papierkorb", restore: "Wiederherstellen", restored: "Wiederhergestellt", back: "Zurück", binEmpty: "Der Papierkorb ist leer", emptyBin: "Papierkorb leeren", confirmEmptyBin: "Alles im Papierkorb endgültig löschen?", confirmPurge: "Dieses Element endgültig löschen? Das kann nicht rückgängig gemacht werden.", recent: "Zuletzt", noRecent: "Noch nichts hier", close: "Schließen", versionHistory: "Versionsverlauf", currentVersion: "Aktuelle Version", noVersions: "Keine früheren Versionen", expiryNever: "Kein Ablauf", expiry7: "Läuft in 7 Tagen ab", expiry30: "Läuft in 30 Tagen ab", expiry90: "Läuft in 90 Tagen ab", expiresOn: "läuft ab am", replaceFile: "Datei ersetzen", sharedWithMe: "Für mich freigegeben", sharedBy: "Geteilt von", noShared: "Noch nichts für dich freigegeben", searchFiles: "Dateien suchen", noResults: "Keine Treffer", occurrenceOrSeries: "Das ist ein Serientermin. Nur dieses Vorkommen oder die ganze Serie öffnen?", openSeries: "Ganze Serie", openOccurrence: "Dieses Vorkommen", editOccurrence: "Vorkommen bearbeiten", editSeries: "Serie bearbeiten", reminderNone: "Keine Erinnerung", reminderAtStart: "Zum Beginn", oneDay: "1 Tag", accepted: "Zugesagt", declined: "Abgesagt", noResponse: "Keine Antwort", repeat: "Wiederholen", repeatNone: "Keine Wiederholung", repeatDaily: "Täglich", repeatWeekdays: "An Werktagen (Mo–Fr)", repeatWeekly: "Wöchentlich", repeatMonthly: "Monatlich", repeatYearly: "Jährlich", repeatCustom: "Benutzerdefiniert (unverändert)", until: "Bis", seriesResetHint: "Wenn Uhrzeit oder Muster einer Serie geändert werden, gehen einzeln geänderte Vorkommen verloren.", showAs: "Anzeigen als", busyBusy: "Gebucht", busyFree: "Frei", busyOof: "Abwesend", reminder: "Erinnerung", private: "Privat", attendees: "Teilnehmer", attendeesHint: "E-Mail-Adressen, durch Kommas getrennt", organizer: "Organisator", responses: "Antworten", description: "Beschreibung", endBeforeStart: "Das Ende liegt vor dem Beginn.", confirmDeleteOccurrence: "Dieses Vorkommen löschen?", calendars: "Kalender", myCalendar: "Mein Kalender", shareCalendar: "Kalender freigeben", shareCalendarHint: "Alle auf diesem Server sehen, wann du gebucht bist. Gib deinen Kalender frei, damit andere die Details sehen oder ihn bearbeiten können.", shareFreeBusy: "Sieht, wann ich gebucht bin", shareRead: "Sieht alle Details", shareWrite: "Darf bearbeiten", notShared: "Noch mit niemandem geteilt", event: "Termin", me: "Ich", scheduling: "Verfügbarkeit", nextFree: "Nächste freie Zeit", noFreeBusy: "Keine Verfügbarkeitsinformationen", noFreeSlot: "In den nächsten zwei Wochen keine freie Zeit gefunden",
     shareLink: "Freigabelink", createLink: "Link erstellen", copyLink: "Link kopieren", copied: "Link kopiert", linkView: "Nur ansehen", linkEdit: "Darf bearbeiten", anyoneCanView: "Jeder mit dem Link kann ansehen", anyoneCanEdit: "Jeder mit dem Link kann bearbeiten", revoke: "Entziehen", noLinks: "Noch keine Links", linkInvalid: "Dieser Link ist ungültig oder wurde entzogen.", guestBadge: "Gast",
     remoteBlocked: "Externe Inhalte (z. B. Bilder) wurden zum Schutz deiner Privatsphäre blockiert.", loadRemote: "Inhalte laden",
   },
@@ -617,7 +623,7 @@ const SHORTCUTS = [
   ["↑ ↓  /  j k", "navigate"], ["Enter", "openMsg"], ["c  /  n", "newMessage"],
   ["r", "reply"], ["Shift+R  /  a", "replyAll"], ["f", "forward"],
   ["e", "archive"], ["Del  /  #", "delete"], ["u", "markUnread"], ["m", "moveTo"],
-  ["/", "search"], ["Esc", "close"], ["?", "shortcuts"],
+  ["/", "search"], ["Esc", "escClose"], ["?", "shortcuts"],
 ];
 function showShortcuts() {
   const rows = SHORTCUTS.map(([k, label]) => `<div class="scrow"><span>${esc(t(label))}</span><kbd>${k}</kbd></div>`).join("");
@@ -691,7 +697,7 @@ async function start() {
 function routeFromPath() {
   const seg = location.pathname.split("/").filter(Boolean);
   switch (seg[0]) {
-    case "mail": return { view: "mail" };
+    case "mail": return { view: seg[1] === "calendar" ? "calendar" : seg[1] === "contacts" ? "contacts" : "mail" };
     case "files": fs.parent = seg[1] ? +seg[1] : null; return { view: "files" };
     case "sharepoint": fs.driveId = seg[1] ? +seg[1] : null; fs.parent = seg[2] ? +seg[2] : null; return { view: "sharepoint" };
     case "tasks": return { view: "tasks" };
@@ -712,7 +718,9 @@ function appPath(v, o) {
   o = o || {};
   if (v === "files") return "/files" + (o.parent ? "/" + o.parent : "");
   if (v === "sharepoint") return "/sharepoint" + (o.drive ? "/" + o.drive : "") + (o.drive && o.parent ? "/" + o.parent : "");
-  if (v === "mail" || v === "calendar" || v === "contacts") return "/mail";
+  if (v === "calendar") return "/mail/calendar";
+  if (v === "contacts") return "/mail/contacts";
+  if (v === "mail") return "/mail";
   if (v === "tasks") return "/tasks";
   if (v === "notes") return "/notes";
   return "/";
@@ -846,6 +854,12 @@ function renderRail() {
         return `<div class="folder ${curFolder && f.id === curFolder.id ? "active" : ""}" data-folder="${f.id}">${icon(f.role || "folder")}<span class="nm">${esc(folderLabel(f))}</span>${custom ? `<button class="iconbtn fmenu" data-fid="${f.id}" data-fname="${esc(f.name)}" style="width:22px;height:22px">${icon("dots")}</button>` : ""}${f.unread ? `<span class="ct">${f.unread}</span>` : ""}</div>`;
       }).join("");
     }
+    if (view === "calendar") {
+      html += `<div class="railsep"></div><div class="raillabel">${esc(t("calendars"))}</div>`;
+      html += `<div class="folder calrow"><span class="caldot" style="background:${calColor(me.id)}"></span><span class="nm">${esc(t("myCalendar"))}</span></div>`;
+      html += (cal.shared || []).map((c) => `<label class="folder calrow"><input type="checkbox" data-calown="${c.id}" ${cal.visible.has(c.id) ? "checked" : ""}><span class="caldot" style="background:${calColor(c.id)}"></span><span class="nm" title="${esc(c.email)}">${esc(c.name || c.email)}</span></label>`).join("");
+      html += `<div class="folder" id="calShare" style="color:var(--muted)">${icon("share")}<span class="nm">${esc(t("shareCalendar"))}</span></div>`;
+    }
   } else if (view === "sharepoint") {
     const libs = (typeof fs !== "undefined" && fs.drives ? fs.drives : []).filter((d) => d.kind === "library");
     html += libs.map((d) => `<div class="navitem ${fs.driveId === d.id ? "active" : ""}" data-drive="${d.id}">${icon("share")}<span>${esc(d.name)}</span></div>`).join("");
@@ -856,6 +870,9 @@ function renderRail() {
     html += `<div class="navitem ${fs.sharedView ? "active" : ""}" id="railShared">${icon("share")}<span>${esc(t("sharedWithMe"))}</span></div>`;
   }
   $("#rail").innerHTML = html;
+  $("#rail").querySelectorAll("[data-view]").forEach((e) => e.onclick = () => { if (view !== e.dataset.view) navTo(e.dataset.view); });
+  $("#rail").querySelectorAll("[data-calown]").forEach((c) => c.onchange = () => { const id = +c.dataset.calown; if (c.checked) cal.visible.add(id); else cal.visible.delete(id); saveCalVisible(); renderCalendar(); });
+  const cs = $("#calShare"); if (cs) cs.onclick = () => openCalendarShare();
   $("#rail").querySelectorAll("[data-folder]").forEach((e) => e.onclick = (ev) => { if (ev.target.closest(".fmenu")) return; curFolder = folders.find((f) => f.id == e.dataset.folder); curMsg = null; selected.clear(); catFilter = null; msgFilter = "all"; $("#q").value = ""; render(); });
   const af = $("#addFolder"); if (af) af.onclick = guard(async () => { const name = prompt(t("folderName")); if (!name || !name.trim()) return; await api("POST", "/folder", { name: name.trim() }); await refreshFolders(); renderRail(); toast(t("saved")); });
   $("#rail").querySelectorAll(".fmenu").forEach((b) => b.onclick = guard(async (ev) => {
@@ -1630,6 +1647,12 @@ function fileB64(file) { return new Promise((res) => { const r = new FileReader(
 
 // ------------------------------------------------------------ CALENDAR
 let calRef = new Date();
+// Calendars shared with this account, and which of them are overlaid.
+const cal = { shared: null, loadedAt: 0, visible: new Set(), palette: ["#0ea5e9", "#16a34a", "#f59e0b", "#e11d48", "#8b5cf6", "#14b8a6", "#f97316"] };
+try { JSON.parse(localStorage.getItem("ondura.cal.visible") || "[]").forEach((id) => cal.visible.add(id)); } catch (e) {}
+function saveCalVisible() { try { localStorage.setItem("ondura.cal.visible", JSON.stringify([...cal.visible])); } catch (e) {} }
+function calColor(owner) { return !me || owner === me.id ? "var(--tint)" : cal.palette[(owner * 7) % cal.palette.length]; }
+function calName(owner) { const c = (cal.shared || []).find((x) => x.id === owner); return c ? (c.name || c.email) : ""; }
 async function renderCalendar() {
   calRef.setDate(1);
   const y = calRef.getFullYear(), mo = calRef.getMonth();
@@ -1649,8 +1672,18 @@ async function renderCalendar() {
   $("#calToday").onclick = () => { calRef = new Date(); renderCalendar(); };
   $("#calNew").onclick = () => openEvent();
   const dows = lang === "de" ? ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"] : ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+  // Refresh the list of shared calendars now and then; it feeds the rail.
+  if (!cal.shared || Date.now() - cal.loadedAt > 60000) {
+    try { cal.shared = (await api("GET", "/calendar/shares")).received; } catch (e) { cal.shared = cal.shared || []; }
+    cal.loadedAt = Date.now();
+    renderRail();
+  }
   let events = [];
   try { events = (await api("GET", `/calendar?from=${from}&to=${to}`)).events; } catch (e) {}
+  for (const owner of cal.visible) {
+    if (!cal.shared.some((c) => c.id === owner)) continue;
+    try { events = events.concat((await api("GET", `/calendar?from=${from}&to=${to}&owner=${owner}`)).events); } catch (e) {}
+  }
   const byDay = {};
   events.forEach((ev) => { const k = new Date(ev.start * 1000).toDateString(); (byDay[k] = byDay[k] || []).push(ev); });
   let cells = dows.map((d) => `<div class="dow">${d}</div>`).join("");
@@ -1660,11 +1693,16 @@ async function renderCalendar() {
     const evs = (byDay[d.toDateString()] || []).sort((a, b) => a.start - b.start);
     cells += `<div class="cell ${other ? "other" : ""} ${today ? "today" : ""}" data-day="${Math.floor(d.getTime() / 1000)}">
       <span class="n">${d.getDate()}</span>
-      ${evs.map((e) => `<div class="ev" data-ev='${esc(JSON.stringify({ id: e.id, occ: e.occurrenceStart }))}' title="${esc(e.subject)}">${e.allDay ? "" : new Date(e.start * 1000).toLocaleTimeString(lang === "de" ? "de-DE" : "en-GB", { hour: "2-digit", minute: "2-digit" }) + " "}${esc(e.subject)}</div>`).join("")}</div>`;
+      ${evs.map((e, i) => {
+        const shared = me && e.owner && e.owner !== me.id;
+        const label = (shared ? calName(e.owner) + ": " : "") + (e.blocksOnly ? t("busyBusy") : e.subject);
+        const col = calColor(e.owner);
+        return `<div class="ev${e.blocksOnly ? " evblock" : ""}" data-evi="${events.indexOf(e)}" title="${esc(label)}" style="${shared ? `color:${col};background:color-mix(in srgb, ${col} 14%, transparent);border-left:3px solid ${col}` : ""}">${e.allDay ? "" : new Date(e.start * 1000).toLocaleTimeString(lang === "de" ? "de-DE" : "en-GB", { hour: "2-digit", minute: "2-digit" }) + " "}${esc(label)}</div>`;
+      }).join("")}</div>`;
   }
   $("#calGrid").innerHTML = cells;
   $("#calGrid").querySelectorAll(".cell").forEach((c) => c.onclick = (e) => { if (e.target.closest(".ev")) return; openEvent(null, +c.dataset.day); });
-  $("#calGrid").querySelectorAll(".ev").forEach((el) => el.onclick = () => { const d = JSON.parse(el.dataset.ev); const ev = events.find((x) => x.id === d.id && x.occurrenceStart === d.occ); openEvent(ev); });
+  $("#calGrid").querySelectorAll(".ev").forEach((el) => el.onclick = () => { const ev = events[+el.dataset.evi]; if (ev && !ev.blocksOnly) openEvent(ev); });
 }
 function toLocalInput(ts) { const d = new Date(ts * 1000); const p = (n) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; }
 function fromLocalInput(v) { return Math.floor(new Date(v).getTime() / 1000); }
@@ -1707,6 +1745,7 @@ async function openEvent(ev, dayTs) {
   let full;
   try { full = await api("GET", "/event?id=" + ev.id); } catch (e) { toast(e.message, true); return; }
   if (!full.event.recurrence) return eventEditor(ev, full, "single");
+  if (full.canEdit === false) return eventEditor(ev, full, "occurrence");
   panel(ev.subject || t("editEvent"), `<p style="margin:0 0 6px;color:var(--muted)">${esc(t("occurrenceOrSeries"))}</p>`,
     `<div style="flex:1"></div><button class="btn" id="evSeries">${esc(t("openSeries"))}</button><button class="btn primary" id="evOcc">${esc(t("openOccurrence"))}</button>`);
   $("#evOcc").onclick = () => eventEditor(ev, full, "occurrence");
@@ -1717,7 +1756,11 @@ function eventEditor(ev, full, mode, dayTs) {
   const e = full ? full.event : null;
   const occ = mode === "occurrence";
   const organizer = !full || full.isOrganizer;
-  const isInvite = !!e && !organizer;
+  const readOnly = !!full && full.canEdit === false;
+  const isInvite = !!e && !organizer && !readOnly;
+  // Another person's calendar: meetings can't be planned there.
+  const foreign = !!full && me && full.owner !== me.id;
+  const writable = (cal.shared || []).filter((c) => c.access === "write");
   // In occurrence mode the list entry carries the occurrence's own values.
   const ex = occ ? (e.exceptions || []).find((x) => x.original_start === ev.occurrenceStart) || {} : {};
   const start = occ ? ev.start : e ? e.start : (dayTs ? dayTs + 9 * 3600 : Math.floor(Date.now() / 1000));
@@ -1730,14 +1773,15 @@ function eventEditor(ev, full, mode, dayTs) {
   const repeat = e ? recurToUi(e.recurrence, e.start) : "none";
   const until = e && e.recurrence && e.recurrence.until ? toLocalDate(e.recurrence.until) : "";
   const attendees = e ? (e.attendees || []) : [];
-  const dis = isInvite ? "disabled" : "";
+  const dis = isInvite || readOnly ? "disabled" : "";
   const opt = (v, l, cur) => `<option value="${v}" ${v === cur ? "selected" : ""}>${esc(l)}</option>`;
   const reminders = [["", t("reminderNone")], ["0", t("reminderAtStart")], ["5", "5 min"], ["15", "15 min"], ["30", "30 min"], ["60", "1 h"], ["120", "2 h"], ["1440", t("oneDay")]];
   const curReminder = e && e.reminder != null ? String(e.reminder) : (e ? "" : "15");
   const statusLabel = (s) => ({ accepted: t("accepted"), declined: t("declined"), tentative: t("tentative") }[s] || t("noResponse"));
-  const title = occ ? t("editOccurrence") : mode === "series" ? t("editSeries") : ev ? t("editEvent") : t("newEvent");
+  const title = readOnly ? (calName(full.owner) || t("event")) : occ ? t("editOccurrence") : mode === "series" ? t("editSeries") : ev ? t("editEvent") : t("newEvent");
   panel(title,
-    `<div class="field"><label>${esc(t("title"))}</label><input id="evTitle" ${dis} value="${esc(subject)}"></div>
+    `${!ev && writable.length ? `<div class="field"><label>${esc(t("calendar"))}</label><select id="evCal"><option value="">${esc(t("myCalendar"))}</option>${writable.map((c) => `<option value="${c.id}">${esc(c.name || c.email)}</option>`).join("")}</select></div>` : ""}
+     <div class="field"><label>${esc(t("title"))}</label><input id="evTitle" ${dis} value="${esc(subject)}"></div>
      <div class="field"><label>${esc(t("location"))}</label><input id="evLoc" ${dis} value="${esc(location)}"></div>
      <div class="row2" id="evTimes"><div class="field"><label>${esc(t("start"))}</label><input id="evStart" ${dis} type="datetime-local" value="${toLocalInput(start)}"></div>
        <div class="field"><label>${esc(t("end"))}</label><input id="evEnd" ${dis} type="datetime-local" value="${toLocalInput(end)}"></div></div>
@@ -1747,16 +1791,20 @@ function eventEditor(ev, full, mode, dayTs) {
      ${occ ? "" : `<div class="row2"><div class="field"><label>${esc(t("repeat"))}</label><select id="evRepeat" ${dis}>${[["none", t("repeatNone")], ["daily", t("repeatDaily")], ["weekdays", t("repeatWeekdays")], ["weekly", t("repeatWeekly")], ["monthly", t("repeatMonthly")], ["yearly", t("repeatYearly")]].concat(repeat === "custom" ? [["custom", t("repeatCustom")]] : []).map(([v, l]) => opt(v, l, repeat)).join("")}</select></div>
        <div class="field" id="evUntilF"><label>${esc(t("until"))}</label><input id="evUntil" ${dis} type="date" value="${until}"></div></div>
        ${mode === "series" ? `<p style="margin:-6px 0 12px;font-size:12px;color:var(--muted)">${esc(t("seriesResetHint"))}</p>` : ""}`}
-     <div class="row2"><div class="field"><label>${esc(t("showAs"))}</label><select id="evBusy" ${isInvite && occ ? "disabled" : ""}>${[["busy", t("busyBusy")], ["tentative", t("tentative")], ["free", t("busyFree")], ["oof", t("busyOof")]].map(([v, l]) => opt(v, l, busy)).join("")}</select></div>
-       ${occ ? "" : `<div class="field"><label>${esc(t("reminder"))}</label><select id="evRem">${reminders.map(([v, l]) => opt(v, l, curReminder)).join("")}</select></div>`}</div>
+     <div class="row2"><div class="field"><label>${esc(t("showAs"))}</label><select id="evBusy" ${(isInvite && occ) || readOnly ? "disabled" : ""}>${[["busy", t("busyBusy")], ["tentative", t("tentative")], ["free", t("busyFree")], ["oof", t("busyOof")]].map(([v, l]) => opt(v, l, busy)).join("")}</select></div>
+       ${occ ? "" : `<div class="field"><label>${esc(t("reminder"))}</label><select id="evRem" ${readOnly ? "disabled" : ""}>${reminders.map(([v, l]) => opt(v, l, curReminder)).join("")}</select></div>`}</div>
      ${occ ? "" : `<div class="field"><label><input type="checkbox" id="evPriv" ${dis} ${e && (e.sensitivity === "private" || e.sensitivity === "confidential") ? "checked" : ""}> ${esc(t("private"))}</label></div>`}
-     ${occ || isInvite ? "" : `<div class="field"><label>${esc(t("attendees"))}</label><input id="evAtt" placeholder="${esc(t("attendeesHint"))}" value="${esc(attendees.map((a) => a.email).join(", "))}"></div>`}
+     ${occ || isInvite || readOnly || foreign ? "" : `<div class="field" id="evAttF"><label>${esc(t("attendees"))}</label><input id="evAtt" placeholder="${esc(t("attendeesHint"))}" value="${esc(attendees.map((a) => a.email).join(", "))}"></div>`}
      ${attendees.length ? `<div class="field"><label>${esc(isInvite && e.organizer ? t("organizer") + ": " + (e.organizer.name || e.organizer.email) : t("responses"))}</label>${attendees.map((a) => `<div style="display:flex;gap:8px;font-size:12.5px;padding:2px 0"><span style="flex:1">${esc(a.name || a.email)}</span><span style="color:var(--muted)">${esc(statusLabel(a.status))}</span></div>`).join("")}</div>` : ""}
      <div id="evSched"></div>
      <div class="field"><label>${esc(t("description"))}</label><textarea id="evBody" ${dis} rows="5">${esc(descr)}</textarea></div>`,
-    `${ev ? `<button class="btn danger" id="evDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div>
+    readOnly ? `<div style="flex:1"></div><button class="btn primary" id="evClose">${esc(t("close"))}</button>`
+    : `${ev ? `<button class="btn danger" id="evDel">${esc(t("delete"))}</button>` : ""}<div style="flex:1"></div>
      ${isInvite ? `<button class="btn" id="evTent">${esc(t("tentative"))}</button><button class="btn danger" id="evDecline">${esc(t("decline"))}</button><button class="btn primary" id="evAccept">${esc(t("accept"))}</button>`
        : `<button class="btn primary" id="evSave">${esc(t("save"))}</button>`}`);
+  if ($("#evClose")) $("#evClose").onclick = closePanel;
+  // Meetings are planned in one's own calendar only.
+  const ec = $("#evCal"); if (ec) ec.onchange = () => { const f = $("#evAttF"); if (f) f.style.display = ec.value ? "none" : ""; };
   const syncAllDay = () => { const a = $("#evAllDay").checked; $("#evTimes").style.display = a ? "none" : ""; $("#evDates").style.display = a ? "" : "none"; };
   $("#evAllDay").onchange = syncAllDay; syncAllDay();
   const rep = $("#evRepeat"); const syncRepeat = () => { if (rep) $("#evUntilF").style.visibility = rep.value === "none" ? "hidden" : ""; };
@@ -1767,7 +1815,7 @@ function eventEditor(ev, full, mode, dayTs) {
     if ($("#evAllDay").checked) { const s = fromLocalDate($("#evStartD").value); const last = fromLocalDate($("#evEndD").value || $("#evStartD").value); return [s, addDays(Math.max(s, last), 1), true]; }
     return [fromLocalInput($("#evStart").value), fromLocalInput($("#evEnd").value), false];
   };
-  if (!occ && !isInvite) scheduleAssist(times, ev ? ev.id : null);
+  if (!occ && !isInvite && !readOnly && !foreign) scheduleAssist(times, ev ? ev.id : null);
   if ($("#evSave")) $("#evSave").onclick = guard(async () => {
     const [s, en, ad] = times();
     if (en < s) throw new Error(t("endBeforeStart"));
@@ -1784,10 +1832,12 @@ function eventEditor(ev, full, mode, dayTs) {
       out.sensitivity = $("#evPriv").checked ? "private" : "normal";
       const r = uiToRecur($("#evRepeat").value, s, $("#evUntil").value, e && e.recurrence);
       if (r) out.recurrence = r; else delete out.recurrence;
-      const emails = ($("#evAtt").value || "").split(/[,;\s]+/).map((x) => x.trim()).filter((x) => x.includes("@"));
+      const toOther = $("#evCal") && $("#evCal").value;
+      const emails = $("#evAtt") && !toOther ? $("#evAtt").value.split(/[,;\s]+/).map((x) => x.trim()).filter((x) => x.includes("@")) : attendees.map((a) => a.email);
       out.attendees = emails.map((em) => attendees.find((a) => a.email.toLowerCase() === em.toLowerCase()) || { email: em, kind: "required", status: "none" });
       const body = { event: out };
       if (ev) body.id = ev.id;
+      if (toOther) body.owner = +toOther;
       await api("POST", "/event", body);
     }
     closePanel(); toast(t("saved")); renderCalendar();
@@ -1802,6 +1852,27 @@ function eventEditor(ev, full, mode, dayTs) {
   if ($("#evAccept")) $("#evAccept").onclick = respond("accepted");
   if ($("#evDecline")) $("#evDecline").onclick = respond("declined");
   if ($("#evTent")) $("#evTent").onclick = respond("tentative");
+}
+
+// Share one's calendar with other accounts: see free/busy, see details, or edit.
+async function openCalendarShare() {
+  const levels = [["freebusy", t("shareFreeBusy")], ["read", t("shareRead")], ["write", t("shareWrite")]];
+  const sel = (cur, attr) => `<select ${attr} style="width:auto">${levels.map(([v, l]) => `<option value="${v}" ${v === cur ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  const draw = async () => {
+    let given = [];
+    try { given = (await api("GET", "/calendar/shares")).given; } catch (e) {}
+    const rows = given.length ? given.map((g) => `<div class="taskrow"><div class="tt" style="flex:1;min-width:0"><div>${esc(g.name || g.email)}</div><div style="font-size:11px;color:var(--muted)">${esc(g.email)}</div></div>${sel(g.level, `data-lvl="${esc(g.email)}"`)}<button class="iconbtn danger" data-unshare="${esc(g.email)}" title="${esc(t("revoke"))}">${icon("trash")}</button></div>`).join("")
+      : `<p style="color:var(--muted);font-size:12.5px;margin:4px 0 0">${esc(t("notShared"))}</p>`;
+    panel(t("shareCalendar"),
+      `<p style="margin:0 0 10px;color:var(--muted);font-size:12.5px">${esc(t("shareCalendarHint"))}</p><div id="csList">${rows}</div>
+       <div class="row" style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><input id="csEmail" type="email" placeholder="${esc(t("addPerson"))}" style="flex:1;min-width:160px">${sel("read", 'id="csLevel"')}<button class="btn primary" id="csAdd">${esc(t("add"))}</button></div>`,
+      `<div style="flex:1"></div><button class="btn" id="csClose">${esc(t("close"))}</button>`);
+    $("#csClose").onclick = closePanel;
+    $("#csAdd").onclick = guard(async () => { const email = $("#csEmail").value.trim(); if (!email) return; await api("POST", "/calendar/share", { email, level: $("#csLevel").value }); toast(t("saved")); draw(); });
+    $("#csList").querySelectorAll("[data-lvl]").forEach((s) => s.onchange = guard(async () => { await api("POST", "/calendar/share", { email: s.dataset.lvl, level: s.value }); toast(t("saved")); }));
+    $("#csList").querySelectorAll("[data-unshare]").forEach((b) => b.onclick = guard(async () => { await api("POST", "/calendar/share", { email: b.dataset.unshare, level: "none" }); draw(); }));
+  };
+  draw();
 }
 
 // Scheduling assistant in the event editor: everyone's busy times on the

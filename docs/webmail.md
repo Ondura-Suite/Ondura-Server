@@ -94,6 +94,17 @@ be moved, renamed or deleted on its own, and the rest of the series stays as it
 is. Accept, decline or tentatively answer meeting invitations, for one occurrence
 or the whole series.
 
+**Shared calendars** — **Share calendar** in the calendar's left navigation lets
+other accounts on the server see when you are busy, see all details, or edit
+your calendar. Calendars shared with you (and those of mailboxes you have full
+access to) are listed there with a colour and a checkbox to overlay them on your
+own; the choice is remembered in the browser. With free/busy access you only see
+blocked time; private events stay blocks unless you may edit. With edit access
+you can add and change events in that calendar — the event editor then offers
+it as a target — but meetings with attendees stay read-only there, so no
+invitation goes out in someone else's name. Calendar and contacts have their own
+addresses (`/mail/calendar`, `/mail/contacts`).
+
 **Contacts** — list, create, edit and delete contacts with the common fields.
 
 **Tasks and notes** — keep a task list (with due dates and completion) and
