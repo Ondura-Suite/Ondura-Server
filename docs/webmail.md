@@ -5,6 +5,13 @@ without setting up a mail program. It offers mail, calendar and contacts and
 uses the same storage as ActiveSync and EWS — anything changed in webmail shows
 up in connected clients and vice versa.
 
+Signing in lands on a **home dashboard** with a tile for each app — Mail,
+Files (the cloud), Calendar, Contacts, Tasks and Notes. Each app is its own
+space with its own left navigation: Mail shows mail folders, Files shows the
+drives (My Files and shared libraries), and so on. Switch apps from the home
+tiles or the app launcher (the grid button, top left); the Ondura logo returns
+to the dashboard.
+
 ![Webmail](screenshots/webmail.png)
 
 ## Signing in

@@ -127,11 +127,24 @@ svg { width: 18px; height: 18px; display: block; }
 .iconbtn:hover { background: var(--surface-hover); }
 
 #body { display: grid; grid-template-columns: 220px 1fr; min-height: 0; }
+#app.norail #body { grid-template-columns: 1fr; }
+#app.norail #rail { display: none; }
 #rail { border-right: 1px solid var(--border); padding: 10px 8px; overflow-y: auto; display: flex; flex-direction: column; gap: 2px; }
 .navitem { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--text); }
 .navitem:hover { background: var(--surface-hover); }
 .navitem.active { background: var(--tint-soft); color: var(--tint); font-weight: 600; }
 .railsep { height: 1px; background: var(--border); margin: 8px 4px; }
+.homewrap { padding: 44px 32px; max-width: 920px; margin: 0 auto; width: 100%; box-sizing: border-box; overflow-y: auto; }
+.homehd h1 { font-size: 26px; margin: 0 0 2px; }
+.homehd p { color: var(--muted); margin: 0 0 30px; }
+.appgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
+.appgrid.mini { grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.apptile { display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 24px 12px; border: 1px solid var(--border); border-radius: 14px; background: transparent; cursor: pointer; color: var(--text); font-weight: 600; font-size: 13.5px; }
+.apptile:hover { background: var(--surface-hover); }
+.appgrid.mini .apptile { padding: 12px 6px; font-size: 12px; border: 0; gap: 7px; }
+.appicon { display: flex; align-items: center; justify-content: center; width: 48px; height: 48px; border-radius: 12px; }
+.appicon svg { width: 24px; height: 24px; }
+#appLauncher svg { width: 20px; height: 20px; }
 .folder { display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 8px; cursor: pointer; }
 .folder:hover { background: var(--surface-hover); }
 .folder.active { background: var(--tint-soft); color: var(--tint); font-weight: 600; }
@@ -348,7 +361,8 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 
 <div id="app" class="hidden">
   <div id="top">
-    <div class="brand"><img src="/mail/logo.svg" alt=""><span>Ondura</span></div>
+    <button class="iconbtn" id="appLauncher" title="Apps"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="5" r="1.8"/><circle cx="12" cy="5" r="1.8"/><circle cx="19" cy="5" r="1.8"/><circle cx="5" cy="12" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="19" cy="12" r="1.8"/><circle cx="5" cy="19" r="1.8"/><circle cx="12" cy="19" r="1.8"/><circle cx="19" cy="19" r="1.8"/></svg></button>
+    <div class="brand" id="brandHome" style="cursor:pointer"><img src="/mail/logo.svg" alt=""><span>Ondura</span></div>
     <div class="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m16 16 4.5 4.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><input id="q" placeholder=""></div>
     <div class="sp"></div>
     <button class="btn primary" id="composeBtn"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><span data-t="compose">Compose</span></button>
@@ -391,7 +405,7 @@ const T = {
     fwd: "Fwd", re: "Re", on: "On", wrote: "wrote:", message: "Message",
     tasks: "Tasks", notes: "Notes", settings: "Settings", newTask: "New task", editTask: "Task", newNote: "New note", editNote: "Note", noTasks: "No tasks", noNotes: "No notes", due: "Due", complete: "Complete", markComplete: "Mark complete", content: "Content",
     profile: "Profile", displayName: "Display name", signature: "Signature", changePassword: "Change password", currentPassword: "Current password", newPassword: "New password", outOfOffice: "Out of office", oofOff: "Off", oofOn: "On", internalReply: "Reply to internal senders", externalReply: "Reply to external senders", passwordChanged: "Password changed", pwMismatch: "Passwords do not match",
-    history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", noDocuments: "No documents", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add", files: "Files", myFiles: "My Files", libraries: "Libraries", newLibrary: "New library", libraryName: "Library name", upload: "Upload", uploading: "Uploading…", download: "Download", members: "Members", addMember: "Add member (e-mail)", roleViewer: "Viewer", roleEditor: "Editor", emptyFolder: "This folder is empty", deleteLibrary: "Delete library", confirmDeleteItem: "Delete this item?", confirmDeleteLibrary: "Delete this library and everything in it?",
+    history: "History", revisions: "Revisions", preview: "Preview", documents: "Documents", newDocument: "New document", noDocuments: "No documents", share: "Share", sharedWith: "Shared with", canEdit: "Can edit", readOnly: "Read only", addPerson: "Share with (e-mail)", owner: "Owner", connecting: "Connecting…", online: "online", readOnlyDoc: "You can view this document but not edit it.", newFolder: "New folder", folderName: "Folder name", rename: "Rename", moveTo: "Move to", markAllRead: "Mark all read", selected: "selected", confirmDeleteFolder: "Delete this folder and its messages?", add: "Add", files: "Files", myFiles: "My Files", libraries: "Libraries", newLibrary: "New library", libraryName: "Library name", upload: "Upload", uploading: "Uploading…", download: "Download", members: "Members", addMember: "Add member (e-mail)", roleViewer: "Viewer", roleEditor: "Editor", emptyFolder: "This folder is empty", deleteLibrary: "Delete library", confirmDeleteItem: "Delete this item?", confirmDeleteLibrary: "Delete this library and everything in it?", home: "Home", hub: "Your apps", apps: "Apps",
     shareLink: "Share link", createLink: "Create link", copyLink: "Copy link", copied: "Link copied", linkView: "View only", linkEdit: "Can edit", anyoneCanView: "Anyone with the link can view", anyoneCanEdit: "Anyone with the link can edit", revoke: "Revoke", noLinks: "No links yet", linkInvalid: "This link is invalid or has been revoked.", guestBadge: "Guest",
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
@@ -416,7 +430,7 @@ const T = {
     fwd: "WG", re: "AW", on: "Am", wrote: "schrieb:", message: "Nachricht",
     tasks: "Aufgaben", notes: "Notizen", settings: "Einstellungen", newTask: "Neue Aufgabe", editTask: "Aufgabe", newNote: "Neue Notiz", editNote: "Notiz", noTasks: "Keine Aufgaben", noNotes: "Keine Notizen", due: "Fällig", complete: "Erledigt", markComplete: "Als erledigt", content: "Inhalt",
     profile: "Profil", displayName: "Anzeigename", signature: "Signatur", changePassword: "Passwort ändern", currentPassword: "Aktuelles Passwort", newPassword: "Neues Passwort", outOfOffice: "Abwesenheitsnotiz", oofOff: "Aus", oofOn: "An", internalReply: "Antwort an interne Absender", externalReply: "Antwort an externe Absender", passwordChanged: "Passwort geändert", pwMismatch: "Passwörter stimmen nicht überein",
-    history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", noDocuments: "Keine Dokumente", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen", files: "Dateien", myFiles: "Meine Dateien", libraries: "Bibliotheken", newLibrary: "Neue Bibliothek", libraryName: "Name der Bibliothek", upload: "Hochladen", uploading: "Lädt hoch…", download: "Herunterladen", members: "Mitglieder", addMember: "Mitglied hinzufügen (E-Mail)", roleViewer: "Leser", roleEditor: "Bearbeiter", emptyFolder: "Dieser Ordner ist leer", deleteLibrary: "Bibliothek löschen", confirmDeleteItem: "Dieses Element löschen?", confirmDeleteLibrary: "Diese Bibliothek samt Inhalt löschen?",
+    history: "Verlauf", revisions: "Versionen", preview: "Vorschau", documents: "Dokumente", newDocument: "Neues Dokument", noDocuments: "Keine Dokumente", share: "Teilen", sharedWith: "Geteilt mit", canEdit: "Darf bearbeiten", readOnly: "Nur lesen", addPerson: "Teilen mit (E-Mail)", owner: "Besitzer", connecting: "Verbinde…", online: "online", readOnlyDoc: "Du kannst dieses Dokument ansehen, aber nicht bearbeiten.", newFolder: "Neuer Ordner", folderName: "Ordnername", rename: "Umbenennen", moveTo: "Verschieben nach", markAllRead: "Alle als gelesen", selected: "ausgewählt", confirmDeleteFolder: "Diesen Ordner samt Nachrichten löschen?", add: "Hinzufügen", files: "Dateien", myFiles: "Meine Dateien", libraries: "Bibliotheken", newLibrary: "Neue Bibliothek", libraryName: "Name der Bibliothek", upload: "Hochladen", uploading: "Lädt hoch…", download: "Herunterladen", members: "Mitglieder", addMember: "Mitglied hinzufügen (E-Mail)", roleViewer: "Leser", roleEditor: "Bearbeiter", emptyFolder: "Dieser Ordner ist leer", deleteLibrary: "Bibliothek löschen", confirmDeleteItem: "Dieses Element löschen?", confirmDeleteLibrary: "Diese Bibliothek samt Inhalt löschen?", home: "Start", hub: "Deine Apps", apps: "Apps",
     shareLink: "Freigabelink", createLink: "Link erstellen", copyLink: "Link kopieren", copied: "Link kopiert", linkView: "Nur ansehen", linkEdit: "Darf bearbeiten", anyoneCanView: "Jeder mit dem Link kann ansehen", anyoneCanEdit: "Jeder mit dem Link kann bearbeiten", revoke: "Entziehen", noLinks: "Noch keine Links", linkInvalid: "Dieser Link ist ungültig oder wurde entzogen.", guestBadge: "Gast",
     remoteBlocked: "Externe Inhalte (z. B. Bilder) wurden zum Schutz deiner Privatsphäre blockiert.", loadRemote: "Inhalte laden",
   },
@@ -536,6 +550,8 @@ function setLang(l) { lang = l; try { localStorage.setItem("ondura-mail-lang", l
 $("#langToggle").addEventListener("click", (e) => { e.preventDefault(); setLang(lang === "de" ? "en" : "de"); });
 $("#langBtn").addEventListener("click", () => setLang(lang === "de" ? "en" : "de"));
 $("#composeBtn").addEventListener("click", () => openCompose());
+$("#appLauncher").addEventListener("click", openApps);
+$("#brandHome").addEventListener("click", () => gotoApp("home"));
 
 // ---- account menu + avatar ----
 function avatarUrl() { return me && me.avatar ? `/mail/api/avatar/${me.id}?v=${me.avatar}` : null; }
@@ -654,7 +670,7 @@ async function start() {
     let info = null; try { info = await capi("GET", "/link/" + linkTok); } catch (e) {}
     if (info && info.docId) { view = "documents"; renderDocuments(); setTimeout(() => openDoc(info.docId), 0); return; }
   }
-  view = "mail"; render();
+  view = "home"; render();
 }
 
 // Open a document from a share link without an account (guest mode).
@@ -682,21 +698,23 @@ function mailFolders() {
   const mail = folders.filter((f) => f.class === "mail");
   return mail.sort((a, b) => (FOLDER_ORDER.indexOf(a.role) + 1 || 99) - (FOLDER_ORDER.indexOf(b.role) + 1 || 99));
 }
+// Each app is its own system: the rail shows that app's own navigation only
+// (mail folders, or cloud drives), not a cross-app switcher. Apps are switched
+// from the home dashboard or the app launcher.
 function renderRail() {
-  const navItems = [["mail", "mail"], ["calendar", "calendar"], ["contacts", "contacts"], ["tasks", "tasks"], ["notes", "note"]];
-  if (me && me.cloud) navItems.push(["files", "folder"]);
-  const nav = navItems.map(([k, ic]) =>
-    `<div class="navitem ${view === k ? "active" : ""}" data-view="${k}">${icon(ic)}<span>${esc(t(k))}</span></div>`).join("");
-  let html = nav;
+  let html = "";
   if (view === "mail") {
-    html += `<div class="railsep"></div><div class="folder" id="addFolder" style="color:var(--muted)">${icon("plus")}<span class="nm">${esc(t("newFolder"))}</span></div>`;
+    html += `<div class="folder" id="addFolder" style="color:var(--muted)">${icon("plus")}<span class="nm">${esc(t("newFolder"))}</span></div>`;
     html += mailFolders().map((f) => {
       const custom = !f.role;
       return `<div class="folder ${curFolder && f.id === curFolder.id ? "active" : ""}" data-folder="${f.id}">${icon(f.role || "folder")}<span class="nm">${esc(folderLabel(f))}</span>${custom ? `<button class="iconbtn fmenu" data-fid="${f.id}" data-fname="${esc(f.name)}" style="width:22px;height:22px">${icon("dots")}</button>` : ""}${f.unread ? `<span class="ct">${f.unread}</span>` : ""}</div>`;
     }).join("");
+  } else if (view === "files") {
+    const drives = (typeof fs !== "undefined" && fs.drives) ? fs.drives : [];
+    html += drives.map((d) => `<div class="navitem ${fs.driveId === d.id ? "active" : ""}" data-drive="${d.id}">${icon(d.kind === "personal" ? "folder" : "share")}<span>${esc(d.kind === "personal" ? t("myFiles") : d.name)}</span></div>`).join("");
+    html += `<div class="railsep"></div><div class="navitem" id="railNewLib" style="color:var(--muted)">${icon("plus")}<span>${esc(t("newLibrary"))}</span></div>`;
   }
   $("#rail").innerHTML = html;
-  $("#rail").querySelectorAll("[data-view]").forEach((e) => e.onclick = () => { view = e.dataset.view; curMsg = null; selected.clear(); catFilter = null; msgFilter = "all"; render(); });
   $("#rail").querySelectorAll("[data-folder]").forEach((e) => e.onclick = (ev) => { if (ev.target.closest(".fmenu")) return; curFolder = folders.find((f) => f.id == e.dataset.folder); curMsg = null; selected.clear(); catFilter = null; msgFilter = "all"; $("#q").value = ""; render(); });
   const af = $("#addFolder"); if (af) af.onclick = guard(async () => { const name = prompt(t("folderName")); if (!name || !name.trim()) return; await api("POST", "/folder", { name: name.trim() }); await refreshFolders(); renderRail(); toast(t("saved")); });
   $("#rail").querySelectorAll(".fmenu").forEach((b) => b.onclick = guard(async (ev) => {
@@ -706,10 +724,45 @@ function renderRail() {
     else { if (!confirm(t("confirmDeleteFolder"))) return; await api("POST", "/folder/delete", { id: +b.dataset.fid }); if (curFolder && curFolder.id == b.dataset.fid) curFolder = folders.find((f) => f.role === "inbox"); }
     await refreshFolders(); render();
   }));
+  $("#rail").querySelectorAll("[data-drive]").forEach((e) => e.onclick = () => { fs.driveId = +e.dataset.drive; fs.parent = null; renderFiles(); });
+  const rnl = $("#railNewLib"); if (rnl) rnl.onclick = guard(async () => { const name = prompt(t("libraryName")); if (!name) return; const r = await api("POST", "/cloud/library", { name: name.trim() }); fs.drives = []; fs.driveId = r.id; fs.parent = null; renderFiles(); });
+}
+
+// The apps shown on the home dashboard and in the app launcher.
+function appList() {
+  return [
+    { k: "mail", ic: "mail", c: "#4f6ef7" },
+    (me && me.cloud) ? { k: "files", ic: "folder", c: "#16a34a" } : null,
+    { k: "calendar", ic: "calendar", c: "#db2777" },
+    { k: "contacts", ic: "contacts", c: "#f59e0b" },
+    { k: "tasks", ic: "tasks", c: "#0ea5e9" },
+    { k: "notes", ic: "note", c: "#8b5cf6" },
+  ].filter(Boolean);
+}
+function gotoApp(k) { view = k; curMsg = null; selected.clear(); catFilter = null; msgFilter = "all"; render(); }
+function appTiles() {
+  return appList().map((a) => `<button class="apptile" data-app="${a.k}"><span class="appicon" style="background:${a.c}22;color:${a.c}">${icon(a.ic)}</span><span>${esc(t(a.k))}</span></button>`).join("");
+}
+function renderHome() {
+  $("#view").innerHTML = `<div class="homewrap"><div class="homehd"><h1>${esc(me && me.name ? me.name : "Ondura")}</h1><p>${esc(t("hub"))}</p></div><div class="appgrid">${appTiles()}</div></div>`;
+  $("#view").querySelectorAll("[data-app]").forEach((e) => e.onclick = () => gotoApp(e.dataset.app));
+}
+function openApps() {
+  closeMenu();
+  const m = document.createElement("div"); m.id = "ctxMenu"; m.className = "glass";
+  m.style.cssText = "position:fixed;top:52px;left:10px;z-index:70;padding:12px;width:264px";
+  m.innerHTML = `<div class="appgrid mini">${appTiles()}</div>`;
+  document.body.appendChild(m);
+  m.querySelectorAll("[data-app]").forEach((e) => e.onclick = () => { closeMenu(); gotoApp(e.dataset.app); });
+  setTimeout(() => document.addEventListener("click", closeMenu, { once: true }), 0);
 }
 function render() {
-  applyTexts(); renderRail();
-  if (view === "mail") renderMail();
+  applyTexts();
+  const hasRail = view === "mail" || view === "files";
+  document.getElementById("app").classList.toggle("norail", !hasRail);
+  renderRail();
+  if (view === "home") renderHome();
+  else if (view === "mail") renderMail();
   else if (view === "calendar") renderCalendar();
   else if (view === "contacts") renderContacts();
   else if (view === "tasks") renderTasks();
@@ -1859,8 +1912,6 @@ async function renderFiles() {
   fs.items = data.items || []; fs.path = data.path || []; fs.role = data.role || "viewer"; fs.canWrite = !!data.canWrite;
   const drive = fs.drives.find((d) => d.id === fs.driveId);
   const driveName = (d) => d.kind === "personal" ? t("myFiles") : d.name;
-  const chips = fs.drives.map((d) => `<button class="btn ${d.id === fs.driveId ? "primary" : ""}" data-drive="${d.id}">${icon(d.kind === "personal" ? "folder" : "share")}<span>${esc(driveName(d))}</span></button>`).join("")
-    + `<button class="btn" id="fNewLib" title="${esc(t("newLibrary"))}">${icon("plus")}</button>`;
   const tools = fs.canWrite ? `<button class="btn" id="fNewFolder">${icon("folder")}<span>${esc(t("newFolder"))}</span></button>
     <button class="btn" id="fNewDoc">${icon("doc")}<span>${esc(t("newDocument"))}</span></button>
     <button class="btn" id="fUpload">${icon("paperclip")}<span>${esc(t("upload"))}</span></button>
@@ -1877,13 +1928,11 @@ async function renderFiles() {
     : `<div class="empty">${esc(t("emptyFolder"))}</div>`;
   $("#view").innerHTML = `<div style="display:flex;flex-direction:column;height:100%">
     <div class="glass" style="display:flex;gap:8px;align-items:center;padding:10px 16px;flex-wrap:wrap;border-radius:0">
-      <div style="display:flex;gap:6px;flex-wrap:wrap;flex:1">${chips}</div>
+      <h2 style="flex:1;font-size:16px;margin:0">${esc(drive ? driveName(drive) : t("files"))}</h2>
       <div style="display:flex;gap:6px;flex-wrap:wrap">${tools}${memBtn}</div>
     </div>
     <div style="display:flex;gap:4px;align-items:center;padding:8px 16px;font-size:13px;flex-wrap:wrap">${crumbs}</div>
     <div style="flex:1;overflow:auto;padding:0 10px 16px">${rows}</div></div>`;
-  $("#view").querySelectorAll("[data-drive]").forEach((b) => b.onclick = () => { fs.driveId = +b.dataset.drive; fs.parent = null; renderFiles(); });
-  const nl = $("#fNewLib"); if (nl) nl.onclick = guard(async () => { const name = prompt(t("libraryName")); if (!name) return; const r = await api("POST", "/cloud/library", { name: name.trim() }); fs.drives = []; fs.driveId = r.id; fs.parent = null; renderFiles(); });
   $("#view").querySelectorAll("[data-crumb]").forEach((b) => b.onclick = () => { fs.parent = b.dataset.crumb ? +b.dataset.crumb : null; renderFiles(); });
   const nf = $("#fNewFolder"); if (nf) nf.onclick = guard(async () => { const name = prompt(t("folderName")); if (!name) return; await api("POST", "/cloud/folder", { drive: fs.driveId, parent: fs.parent, name: name.trim() }); renderFiles(); });
   const nd = $("#fNewDoc"); if (nd) nd.onclick = guard(async () => { const name = prompt(t("newDocument")); if (name === null) return; const r = await api("POST", "/cloud/doc", { drive: fs.driveId, parent: fs.parent, name: (name || "").trim() || t("newDocument") }); openDriveDoc(r.doc); });
@@ -1891,6 +1940,8 @@ async function renderFiles() {
   const mb = $("#fMembers"); if (mb) mb.onclick = () => openMembers(fs.driveId);
   $("#view").querySelectorAll("[data-open]").forEach((el) => el.onclick = () => openItem(fs.items.find((x) => x.id === +el.dataset.open)));
   $("#view").querySelectorAll("[data-menu]").forEach((el) => el.onclick = (ev) => { ev.stopPropagation(); itemMenu(ev, fs.items.find((x) => x.id === +el.dataset.menu)); });
+  // Refresh the left nav (drives) now that they are loaded.
+  if (view === "files") renderRail();
 }
 
 function openItem(it) {
