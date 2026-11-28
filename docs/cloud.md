@@ -165,8 +165,15 @@ Recycle bin (per drive):
 
 Deleting an item is a soft delete: it moves to the drive's recycle bin and stays
 out of the normal listings, but still counts toward the storage quota until the
-bin is emptied, matching OneDrive and SharePoint. Deleting a library is a hard
-delete of the whole library.
+bin is emptied, matching OneDrive and SharePoint. Older versions of a file
+don't count toward it. Each person sees how much their drive, its bin and its
+versions take up, and their largest files, under *Settings → Storage* in the
+web app (`GET /mail/api/storage`). Deleting a library is a hard delete of the
+whole library.
+
+Files from the personal drive and from libraries can be added to an e-mail
+straight from the web app's composer (**From Files**), as a copy or as a view
+link.
 
 Members (libraries only):
 

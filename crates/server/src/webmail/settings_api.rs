@@ -238,3 +238,14 @@ pub fn set_app_passwords_only(app: &Shared, user: &User, body: &Bytes) -> ApiRes
     crate::auth::forget(user.id);
     Ok(json!({ "ok": true }))
 }
+
+/// POST /profile — the caller's own directory details.
+pub fn save_profile(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let p: crate::directory::Profile = parse(body)?;
+    let p = p.cleaned();
+    if !p.manager.is_empty() && p.manager == user.email {
+        return Err(bad("You can't be your own manager."));
+    }
+    app.store.set_profile(user.id, &p).map_err(internal)?;
+    Ok(json!(p))
+}

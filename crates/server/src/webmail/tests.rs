@@ -796,7 +796,7 @@ fn repeating_task_starts_the_next_one_when_completed() {
     let due = 1_800_000_000i64; // a Friday
     let rec = serde_json::json!({ "freq": "weekly", "interval": 1, "days": 32, "count": 2 });
     let saved = pim_api::save_task(&app, &user, &body(serde_json::json!({ "task": {
-        "subject": "Report", "due": due, "reminder": due - 3600, "recurrence": rec,
+        "subject": "Report", "due": due, "reminder": due - 3600, "recurrence": rec, "my_day": "2027-01-15",
         "steps": [{ "text": "Collect numbers", "done": true }, { "text": "Send", "done": false }] } }))).unwrap();
     let id = saved["id"].as_i64().unwrap();
     let task = |v: &serde_json::Value| v["task"].clone();
@@ -810,6 +810,9 @@ fn repeating_task_starts_the_next_one_when_completed() {
     assert_eq!(open["reminder"], due + 7 * 86_400 - 3600);
     assert_eq!(task(open)["steps"][0]["done"], false);
     assert_eq!(task(open)["recurrence"]["count"], 1);
+    // The finished one stays on My Day; the next one isn't put there.
+    assert!(task(open).get("my_day").is_none());
+    assert_eq!(task(list.iter().find(|x| x["complete"] == true).unwrap())["my_day"], "2027-01-15");
     // The last one of the series doesn't start another.
     let mut t2 = task(open);
     t2["complete"] = true.into();
@@ -1037,4 +1040,17 @@ fn password_protected_links_and_favorites() {
     assert!(drive_api::set_favorite(&app, &anna, &body(serde_json::json!({ "item": folder, "on": true }))).is_err());
     drive_api::set_favorite(&app, &user, &body(serde_json::json!({ "item": folder, "on": false }))).unwrap();
     assert!(drive_api::favorites(&app, &user).unwrap()["items"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn directory_profile_and_storage() {
+    let (app, user) = App::test();
+    let r = settings_api::save_profile(&app, &user, &body(serde_json::json!({ "title": "CTO", "department": "IT", "manager": user.email }))).err();
+    assert!(r.is_some());
+    let p = settings_api::save_profile(&app, &user, &body(serde_json::json!({ "title": " CTO ", "department": "IT" }))).unwrap();
+    assert_eq!(p["title"], "CTO");
+    let list = crate::directory::listing(&app);
+    assert_eq!(list.iter().find(|v| v["id"] == user.id).unwrap()["title"], "CTO");
+    let usage = app.store.storage_usage(user.id, user.quota).unwrap();
+    assert_eq!(usage.files, 0);
 }

@@ -232,6 +232,17 @@ label.calrow { cursor: pointer; }
 .iconbtn.on { color: var(--tint); background: var(--tint-soft); }
 .acts { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .acts .sep { width: 1px; align-self: stretch; margin: 4px 4px; background: var(--border); }
+.sbar { height: 6px; border-radius: 3px; background: var(--border); overflow: hidden; margin: 6px 0 3px; } .sbar > div { height: 100%; background: var(--tint); } .sbar.full > div { background: var(--danger); }
+.taskrow .myday { opacity: .35; } .taskrow:hover .myday, .taskrow .myday.on { opacity: 1; } .taskrow .myday.on { color: #f59e0b; }
+.myday-head { padding: 16px 16px 10px; }
+.tboard { display: grid; grid-template-columns: repeat(3, minmax(220px, 1fr)); gap: 12px; padding: 12px 16px; overflow-x: auto; }
+.tcol { background: var(--surface-2, rgba(127,127,127,.06)); border: 1px solid var(--border); border-radius: 10px; min-height: 200px; padding-bottom: 6px; }
+.tcol.over { outline: 2px dashed var(--tint); outline-offset: -4px; }
+.tcolh { font-weight: 600; font-size: 13px; padding: 10px 12px; }
+.tcol .taskrow { background: var(--bg); margin: 6px 8px; border: 1px solid var(--border); border-radius: 8px; padding: 9px 10px; cursor: grab; flex-wrap: wrap; }
+.tcol .taskrow .td { width: 100%; padding-left: 34px; font-size: 11.5px; order: 3; }
+.tcol .taskrow .tt { flex: 1; min-width: 0; }
+.taskrow.dragging { opacity: .5; }
 .taskrow { display: flex; align-items: center; gap: 12px; padding: 11px 16px; border-bottom: 1px solid var(--border); }
 .taskrow .tck { width: 20px; height: 20px; border: 1.6px solid var(--border); border-radius: 50%; cursor: pointer; display: grid; place-items: center; flex: 0 0 auto; }
 .taskrow .tck.done { background: var(--tint); border-color: var(--tint); color: #fff; }
@@ -348,7 +359,8 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 .composepane .rh h1 { font-size: 18px; margin: 0; flex: 1; }
 .cform { flex: 1; overflow-y: auto; padding: 16px 20px; display: flex; flex-direction: column; min-height: 0; }
 .cform textarea.body { flex: 1; min-height: 220px; }
-.cfoot { display: flex; gap: 8px; align-items: center; padding: 12px 20px; border-top: 1px solid var(--border); }
+.cfoot { display: flex; gap: 8px; align-items: center; padding: 12px 20px; border-top: 1px solid var(--border); flex-wrap: wrap; }
+.cfoot .btn { white-space: nowrap; }
 .rte-toolbar { display: flex; gap: 2px; flex-wrap: wrap; padding: 4px 0 8px; border-bottom: 1px solid var(--border); margin-bottom: 8px; }
 .rte-toolbar button { min-width: 30px; height: 30px; padding: 0 7px; border: none; background: none; border-radius: 6px; cursor: pointer; color: var(--text); display: grid; place-items: center; font-size: 14px; }
 .rte-toolbar button:hover { background: var(--surface-hover); }
@@ -470,6 +482,43 @@ textarea.body { min-height: 260px; resize: vertical; font-family: inherit; }
 <script>
 const T = {
   en: {
+    searchPeople: "Search by name, title or department",
+    workPhone: "Work phone",
+    fromFiles: "From Files",
+    downloadFailed: "The file couldn't be loaded.",
+    attachAsLink: "Share as link",
+    attachCopy: "Attach a copy",
+    nSelected: "{n} selected",
+    docsOnlyLink: "Documents can only be shared as a link.",
+    tooLargeUseLink: "Too large to attach – share it as a link.",
+    document: "Document",
+    attached: "Added to the message",
+    myContacts: "My contacts",
+    directory: "Directory",
+    addToContacts: "Add to contacts",
+    sendEmail: "Send e-mail",
+    department: "Department",
+    office: "Office",
+    mobile: "Mobile",
+    manager: "Manager",
+    directReports: "Direct reports",
+    myDay: "My Day",
+    allTasks: "All",
+    board: "Board",
+    removeFromMyDay: "Remove from My Day",
+    addToMyDay: "Add to My Day",
+    myDaySuggestions: "Due today or overdue",
+    myDayEmpty: "Nothing planned for today yet. Add tasks with the sun icon.",
+    notStarted: "Not started",
+    inProgress: "In progress",
+    completed: "Completed",
+    unlimited: "no limit",
+    usedOf: "{u} of {q} used",
+    olderVersions: "Older versions",
+    notCounted: "not counted",
+    largestFiles: "Largest files",
+    profileHint: "Title, department, office, phone and manager appear in the organization directory.",
+    storage: "Storage",
     linkProtected: "This link is protected", linkProtectedHint: "Enter the password you were given to open it.", open: "Open", linkPasswordOpt: "Password (optional)", linkPassword: "Password", linkPasswordSet: "Password for this link:", linkPasswordChange: "New password for this link (empty to remove it):",
     favorite: "Add to favorites", unfavorite: "Remove from favorites", favorites: "Favorites", noFavorites: "Star files and folders to find them here.",
     subscriptions: "Subscriptions", subscribeCalendar: "Subscribe to a calendar", subscribeHint: "Add a published calendar by its address, e.g. public holidays, school holidays or a team calendar from another service. It is updated every hour and shown read-only.",
@@ -534,6 +583,43 @@ const T = {
     remoteBlocked: "Remote content (such as images) was blocked to protect your privacy.", loadRemote: "Load content",
   },
   de: {
+    searchPeople: "Nach Name, Position oder Abteilung suchen",
+    workPhone: "Telefon (geschäftlich)",
+    fromFiles: "Aus Dateien",
+    downloadFailed: "Die Datei konnte nicht geladen werden.",
+    attachAsLink: "Als Link teilen",
+    attachCopy: "Kopie anhängen",
+    nSelected: "{n} ausgewählt",
+    docsOnlyLink: "Dokumente lassen sich nur als Link teilen.",
+    tooLargeUseLink: "Zu groß zum Anhängen – als Link teilen.",
+    document: "Dokument",
+    attached: "Zur Nachricht hinzugefügt",
+    myContacts: "Meine Kontakte",
+    directory: "Verzeichnis",
+    addToContacts: "Zu Kontakten hinzufügen",
+    sendEmail: "E-Mail senden",
+    department: "Abteilung",
+    office: "Büro",
+    mobile: "Mobil",
+    manager: "Vorgesetzte(r)",
+    directReports: "Direkt unterstellt",
+    myDay: "Mein Tag",
+    allTasks: "Alle",
+    board: "Board",
+    removeFromMyDay: "Aus „Mein Tag“ entfernen",
+    addToMyDay: "Zu „Mein Tag“ hinzufügen",
+    myDaySuggestions: "Heute fällig oder überfällig",
+    myDayEmpty: "Für heute ist noch nichts geplant. Aufgaben mit dem Sonnen-Symbol hinzufügen.",
+    notStarted: "Nicht begonnen",
+    inProgress: "In Arbeit",
+    completed: "Erledigt",
+    unlimited: "ohne Limit",
+    usedOf: "{u} von {q} belegt",
+    olderVersions: "Ältere Versionen",
+    notCounted: "nicht angerechnet",
+    largestFiles: "Größte Dateien",
+    profileHint: "Titel, Abteilung, Büro, Telefon und Vorgesetzte(r) erscheinen im Firmenverzeichnis.",
+    storage: "Speicher",
     linkProtected: "Dieser Link ist geschützt", linkProtectedHint: "Gib das Passwort ein, das du bekommen hast.", open: "Öffnen", linkPasswordOpt: "Passwort (optional)", linkPassword: "Passwort", linkPasswordSet: "Passwort für diesen Link:", linkPasswordChange: "Neues Passwort für diesen Link (leer zum Entfernen):",
     favorite: "Zu Favoriten", unfavorite: "Aus Favoriten entfernen", favorites: "Favoriten", noFavorites: "Markiere Dateien und Ordner mit einem Stern, um sie hier zu finden.",
     subscriptions: "Abonnements", subscribeCalendar: "Kalender abonnieren", subscribeHint: "Füge einen veröffentlichten Kalender über seine Adresse hinzu, z. B. Feiertage, Schulferien oder einen Teamkalender aus einem anderen Dienst. Er wird stündlich aktualisiert und schreibgeschützt angezeigt.",
@@ -646,6 +732,7 @@ const ICON = {
   tasks: '<path d="M4 6h10M4 12h10M4 18h7" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><path d="m17 6 2 2 3-3M17 13l2 2 3-3" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
   note: '<path d="M5 4h14v12l-5 5H5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M14 21v-5h5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
   settings: '<circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2.5v2M12 19.5v2M21.5 12h-2M4.5 12h-2M18.4 5.6l-1.4 1.4M7 17l-1.4 1.4M18.4 18.4 17 17M7 7 5.6 5.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
+  sun: '<circle cx="12" cy="12" r="4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.6 1.6M17.1 17.1l1.6 1.6M5.3 18.7l1.6-1.6M17.1 6.9l1.6-1.6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>',
   check: '<path d="M5 12l4 4L19 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
   dots: '<circle cx="5" cy="12" r="1.6" fill="currentColor"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/><circle cx="19" cy="12" r="1.6" fill="currentColor"/>',
   plus: '<path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
@@ -1830,6 +1917,7 @@ function openCompose(opt) {
         `<div id="filelist" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px"></div>` +
       `</div>` +
       `<div class="cfoot"><label class="btn" style="cursor:pointer">${icon("paperclip")}<span>${esc(t("addFiles"))}</span><input id="cfiles" type="file" multiple hidden></label>` +
+        (me && me.cloud ? `<button class="btn" id="cfromdrive">${icon("folder")}<span>${esc(t("fromFiles"))}</span></button>` : "") +
         `<div style="flex:1"></div>` +
         `<button class="btn" id="cdiscard">${esc(t("discard"))}</button>` +
         `<button class="btn" id="cdraft">${esc(t("saveDraft"))}</button>` +
@@ -1883,6 +1971,23 @@ function openCompose(opt) {
   });
   $("#cto").focus();
   $("#cfiles").onchange = async (e) => { for (const f of e.target.files) { const b64 = await fileB64(f); pendingFiles.push({ name: f.name, contentType: f.type || "application/octet-stream", data: b64 }); } renderFileList(); scheduleSave(); };
+  if ($("#cfromdrive")) $("#cfromdrive").onclick = () => pickDriveFiles(async (items, asLink) => {
+    if (asLink) {
+      // A view link per item, added at the end of the message.
+      const links = [];
+      for (const it of items) { const r = await api("POST", "/cloud/link", { item: it.id, write: false, expires_days: 0 }); links.push(`<a href="${esc(itemShareUrl(r.token))}">${esc(it.name)}</a>`); }
+      $("#cbody").insertAdjacentHTML("beforeend", "<div>" + links.join("<br>") + "</div>");
+    } else {
+      for (const it of items) {
+        const res = await fetch("/mail/api/cloud/download/" + it.id, { credentials: "same-origin" });
+        if (!res.ok) throw new Error(t("downloadFailed"));
+        const blob = await res.blob();
+        pendingFiles.push({ name: it.name, contentType: it.contentType || blob.type || "application/octet-stream", data: await fileB64(blob) });
+      }
+      renderFileList();
+    }
+    scheduleSave();
+  });
   const doSend = async (sendAt) => {
     clearTimeout(saveTimer);
     if (!$("#cto").value.trim() && !$("#ccc").value.trim() && !$("#cbcc").value.trim()) { toast(t("recipientRequired"), true); $("#cto").focus(); return; }
@@ -1934,6 +2039,11 @@ function openCompose(opt) {
 function textToHtml(s) { return esc(s || "").replace(/\n/g, "<br>"); }
 // Contacts cache for recipient autocomplete.
 let contactsCache = null;
+let directoryCache = null;
+async function loadDirectory() {
+  if (!directoryCache) directoryCache = api("GET", "/directory").catch(() => []);
+  return directoryCache;
+}
 async function loadContacts() {
   if (contactsCache) return contactsCache;
   const recips = [];
@@ -1942,6 +2052,11 @@ async function loadContacts() {
     (r.contacts || []).forEach((c) => (c.emails || []).forEach((em) => { if (em) recips.push({ name: c.displayName || em, email: em }); }));
   } catch (e) { /* no contacts */ }
   // Contact groups expand to all their members.
+  // Everyone in the organization directory who isn't a contact already.
+  try {
+    const known = new Set(recips.map((r) => r.email.toLowerCase()));
+    (await loadDirectory()).forEach((d) => { if (d.email && !known.has(d.email.toLowerCase())) recips.push({ name: d.name || d.email, email: d.email }); });
+  } catch (e) {}
   try { ((await api("GET", "/contact-groups")).groups || []).forEach((g) => { if (g.members.length) recips.unshift({ name: g.name, email: "", group: g.members }); }); } catch (e) {}
   contactsCache = recips; return recips;
 }
@@ -1978,6 +2093,52 @@ function attachAutocomplete(input) {
   input.addEventListener("blur", () => setTimeout(close, 150));
 }
 function renderFileList() { $("#filelist").innerHTML = pendingFiles.map((f, i) => `<span class="att">${esc(f.name)} <a href="#" data-rm="${i}" style="color:var(--danger)">✕</a></span>`).join(""); $("#filelist").querySelectorAll("[data-rm]").forEach((e) => e.onclick = (ev) => { ev.preventDefault(); pendingFiles.splice(+e.dataset.rm, 1); renderFileList(); }); }
+// Pick files from the personal drive or a library: attach them as copies, or
+// as share links. Documents can only go as links.
+const PICK_COPY_MAX = 25 * 1048576;
+function pickDriveFiles(onDone) {
+  const st = { drives: [], drive: null, parent: null, path: [], items: [], sel: new Map() };
+  panel(t("fromFiles"),
+    `<div class="field"><select id="pdDrive"></select></div><div id="pdPath" class="dm" style="margin:6px 0;font-size:12.5px"></div><div id="pdList"></div>`,
+    `<span id="pdInfo" class="dm" style="font-size:12px"></span><div style="flex:1"></div><button class="btn" id="pdLink">${icon("link")}<span>${esc(t("attachAsLink"))}</span></button><button class="btn primary" id="pdCopy">${esc(t("attachCopy"))}</button>`);
+  const update = () => {
+    const sel = [...st.sel.values()];
+    const size = sel.reduce((n, it) => n + (it.size || 0), 0);
+    $("#pdInfo").textContent = sel.length ? t("nSelected").replace("{n}", sel.length) + " · " + fmtSize(size) : "";
+    $("#pdLink").disabled = !sel.length;
+    $("#pdCopy").disabled = !sel.length || sel.some((it) => it.kind !== "file") || size > PICK_COPY_MAX;
+    $("#pdCopy").title = sel.some((it) => it.kind !== "file") ? t("docsOnlyLink") : size > PICK_COPY_MAX ? t("tooLargeUseLink") : "";
+  };
+  const load = guard(async () => {
+    const r = await api("GET", `/cloud/items?drive=${st.drive}` + (st.parent ? `&parent=${st.parent}` : ""));
+    st.items = r.items || []; st.path = r.path || [];
+    const crumbs = [`<a href="#" data-pp="">${esc($("#pdDrive").selectedOptions[0] ? $("#pdDrive").selectedOptions[0].textContent : t("myFiles"))}</a>`].concat(st.path.map((p) => `<a href="#" data-pp="${p.id}">${esc(p.name)}</a>`));
+    $("#pdPath").innerHTML = crumbs.join(" › ");
+    $("#pdPath").querySelectorAll("[data-pp]").forEach((a) => a.onclick = (e) => { e.preventDefault(); st.parent = a.dataset.pp ? +a.dataset.pp : null; load(); });
+    const rows = st.items.map((it) => it.kind === "folder"
+      ? `<div class="taskrow click" data-open="${it.id}">${icon("folder")}<div class="tt" style="flex:1">${esc(it.name)}</div></div>`
+      : `<label class="taskrow click"><input type="checkbox" data-pick="${it.id}" ${st.sel.has(it.id) ? "checked" : ""}>${icon("doc")}<div class="tt" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis">${esc(it.name)}</div><span class="dm" style="font-size:12px">${it.kind === "file" ? esc(fmtSize(it.size || 0)) : esc(t("document"))}</span></label>`);
+    $("#pdList").innerHTML = rows.join("") || `<div class="empty">${esc(t("emptyFolder"))}</div>`;
+    $("#pdList").querySelectorAll("[data-open]").forEach((r) => r.onclick = () => { st.parent = +r.dataset.open; load(); });
+    $("#pdList").querySelectorAll("[data-pick]").forEach((c) => c.onchange = () => {
+      const it = st.items.find((x) => x.id === +c.dataset.pick);
+      if (c.checked) st.sel.set(it.id, it); else st.sel.delete(it.id);
+      update();
+    });
+    update();
+  });
+  const finish = (asLink) => guard(async () => { const items = [...st.sel.values()]; await onDone(items, asLink); closePanel(); toast(t("attached")); });
+  $("#pdLink").onclick = finish(true);
+  $("#pdCopy").onclick = finish(false);
+  guard(async () => {
+    st.drives = (await api("GET", "/cloud/drives")).drives || [];
+    $("#pdDrive").innerHTML = st.drives.map((d) => `<option value="${d.id}">${esc(d.kind === "personal" ? t("myFiles") : d.name)}</option>`).join("");
+    if (!st.drives.length) { $("#pdList").innerHTML = `<div class="empty">${esc(t("emptyFolder"))}</div>`; update(); return; }
+    st.drive = st.drives[0].id;
+    $("#pdDrive").onchange = () => { st.drive = +$("#pdDrive").value; st.parent = null; load(); };
+    load();
+  })();
+}
 function fileB64(file) { return new Promise((res) => { const r = new FileReader(); r.onload = () => res(r.result.split(",")[1]); r.readAsDataURL(file); }); }
 
 // ------------------------------------------------------------ CALENDAR
@@ -2494,7 +2655,7 @@ function scheduleAssist(times, selfId) {
 let contacts = [], curContact = null;
 async function renderContacts() {
   $("#view").innerHTML = `<div class="cgrid" style="height:100%;display:grid;grid-template-columns:340px 1fr;min-height:0"><div class="clist"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 14px;display:flex;gap:6px;position:sticky;top:0;background:var(--bg);align-items:center"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("contacts"))}</h2>
-    <button class="iconbtn" id="ctMore" title="${esc(t("more"))}">${icon("dots")}</button><button class="btn" id="ctNewGroup" title="${esc(t("newGroup"))}">${icon("share")}</button><button class="btn primary" id="ctNew" title="${esc(t("newContact"))}">${icon("contacts")}</button></div><div id="clist"></div></div><div class="cdetail" id="cdetail"><div class="empty">${esc(t("selectContact"))}</div></div></div>
+    <button class="iconbtn" id="ctMore" title="${esc(t("more"))}">${icon("dots")}</button><button class="btn" id="ctNewGroup" title="${esc(t("newGroup"))}">${icon("share")}</button><button class="btn primary" id="ctNew" title="${esc(t("newContact"))}">${icon("contacts")}</button></div><div style="padding:0 14px 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><div class="segs" id="ctTabs"><button data-ct="mine" class="${ctMode === "mine" ? "on" : ""}">${esc(t("myContacts"))}</button><button data-ct="dir" class="${ctMode === "dir" ? "on" : ""}">${esc(t("directory"))}</button></div><input id="ctFind" type="search" placeholder="${esc(t("searchPeople"))}" style="flex:1 1 100%;min-width:0;height:32px"></div><div id="clist"></div></div><div class="cdetail" id="cdetail"><div class="empty">${esc(t("selectContact"))}</div></div></div>
     <input type="file" id="ctImportFile" accept=".vcf,text/vcard,text/x-vcard" style="display:none">`;
   $("#ctNew").onclick = () => openContact();
   $("#ctNewGroup").onclick = () => openGroup();
@@ -2509,6 +2670,9 @@ async function renderContacts() {
     toast(t("contactsImported").replace("{n}", r.added).replace("{m}", r.skipped));
     renderContacts();
   });
+  document.querySelectorAll("#ctTabs [data-ct]").forEach((b) => b.onclick = () => { ctMode = b.dataset.ct; renderContacts(); });
+  if (ctMode === "dir") return renderDirectory();
+  $("#ctFind").oninput = () => { const q = $("#ctFind").value.toLowerCase(); $("#clist").querySelectorAll(".citem").forEach((e) => { e.style.display = e.textContent.toLowerCase().includes(q) ? "" : "none"; }); };
   try { contacts = (await api("GET", "/contacts")).contacts; } catch (e) { contacts = []; }
   try { contactGroups = (await api("GET", "/contact-groups")).groups || []; } catch (e) { contactGroups = []; }
   const box = $("#clist");
@@ -2519,6 +2683,49 @@ async function renderContacts() {
   box.querySelectorAll("[data-gid]").forEach((e) => e.onclick = () => showGroup(+e.dataset.gid));
 }
 let contactGroups = [];
+let ctMode = "mine";
+// The organization directory: everyone with an account here, with the work
+// details they keep in Settings → Profile.
+async function renderDirectory() {
+  directoryCache = null;
+  const people = await loadDirectory();
+  const box = $("#clist");
+  const draw = () => {
+    const q = $("#ctFind").value.toLowerCase();
+    const list = people.filter((p) => !q || [p.name, p.email, p.title, p.department, p.office].join(" ").toLowerCase().includes(q));
+    box.innerHTML = list.length ? list.map((p) => `<div class="citem" data-did="${p.id}" style="display:flex;gap:10px;align-items:center">${dirAvatar(p, 34)}<div style="min-width:0"><div class="cn">${esc(p.name || p.email)}${p.kind === "room" ? ` <span class="dm" style="font-size:11px">· ${esc(t("room"))}</span>` : ""}</div><div class="ce">${esc([p.title, p.department].filter(Boolean).join(" · ") || p.email)}</div></div></div>`).join("")
+      : `<div class="empty" style="height:auto;padding:40px">${esc(t("noResults"))}</div>`;
+    box.querySelectorAll("[data-did]").forEach((e) => e.onclick = () => showPerson(people, +e.dataset.did));
+  };
+  $("#ctFind").oninput = draw;
+  draw();
+}
+function dirAvatar(p, size) {
+  const initials = (p.name || p.email || "?").split(/\s+/).map((x) => x[0]).slice(0, 2).join("").toUpperCase();
+  const st = `width:${size}px;height:${size}px;font-size:${Math.round(size * 0.4)}px;flex:none`;
+  return p.avatar ? `<img class="avatar" style="${st};object-fit:cover" src="/mail/api/avatar/${p.id}?v=${p.avatar}" alt="">` : `<div class="avatar" style="${st}">${esc(initials)}</div>`;
+}
+function showPerson(people, id) {
+  const p = people.find((x) => x.id === id); if (!p) return;
+  const byMail = (em) => people.find((x) => x.email.toLowerCase() === (em || "").toLowerCase());
+  const mgr = byMail(p.manager);
+  const reports = people.filter((x) => x.manager && x.manager.toLowerCase() === p.email.toLowerCase());
+  const row = (k, v) => v ? `<div class="k">${esc(k)}</div><div>${v}</div>` : "";
+  const tel = (n) => n ? `<a href="tel:${esc(n.replace(/[^+\d]/g, ""))}">${esc(n)}</a>` : "";
+  const personLink = (x) => `<a href="#" data-goto="${x.id}">${esc(x.name || x.email)}</a>`;
+  $("#cdetail").innerHTML = `<div style="display:flex;gap:16px;align-items:center">${dirAvatar(p, 64)}<div><h1 style="margin:0;font-size:22px">${esc(p.name || p.email)}</h1><div style="color:var(--muted)">${esc([p.title, p.department].filter(Boolean).join(" · "))}</div></div><div style="flex:1"></div>
+      <button class="btn" id="dpAdd">${icon("contacts")}<span>${esc(t("addToContacts"))}</span></button><button class="btn primary" id="dpMail">${icon("mail")}<span>${esc(t("sendEmail"))}</span></button></div>
+    <div class="kv">${row(t("email"), esc(p.email))}${row(t("jobTitle"), esc(p.title))}${row(t("department"), esc(p.department))}${row(t("office"), esc(p.office))}${row(t("workPhone"), tel(p.phone))}${row(t("mobile"), tel(p.mobile))}
+      ${row(t("manager"), mgr ? personLink(mgr) : esc(p.manager))}${row(t("directReports"), reports.map(personLink).join(", "))}</div>`;
+  $("#cdetail").querySelectorAll("[data-goto]").forEach((a) => a.onclick = (e) => { e.preventDefault(); showPerson(people, +a.dataset.goto); });
+  $("#dpMail").onclick = () => openCompose({ to: p.email });
+  $("#dpAdd").onclick = guard(async () => {
+    const parts = (p.name || "").trim().split(/\s+/);
+    const last = parts.length > 1 ? parts.pop() : (parts[0] || "");
+    await api("POST", "/contact", { contact: { display_name: p.name || p.email, first_name: parts.join(" "), last_name: last, emails: [p.email], department: p.department || "", office: p.office || "", job_title: p.title || "", business_phone: p.phone || "", mobile_phone: p.mobile || "" } });
+    contactsCache = null; toast(t("saved"));
+  });
+}
 function showGroup(id) {
   const g = contactGroups.find((x) => x.id === id); if (!g) return;
   $("#cdetail").innerHTML = `<div style="display:flex;gap:16px;align-items:center"><div class="avatar">${icon("share")}</div><div><h1 style="margin:0;font-size:22px">${esc(g.name)}</h1><div style="color:var(--muted)">${esc(t("groupMembers").replace("{n}", g.members.length))}</div></div><div style="flex:1"></div><button class="btn" id="grMail">${icon("mail")}<span>${esc(t("newMessage"))}</span></button><button class="btn" id="grEdit">${esc(t("editGroup"))}</button></div>
@@ -2586,14 +2793,25 @@ function openContact(c) {
 }
 
 // ------------------------------------------------------------ TASKS
+// Tasks: "My Day" (picked for today), the full list, or a board by progress.
+let taskMode = (() => { try { return localStorage.getItem("ondura.taskMode") || "all"; } catch (e) { return "all"; } })();
+function localDay(d) { d = d || new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+function taskStage(tk) { return tk.complete ? "done" : (tk.percentComplete || 0) > 0 ? "doing" : "todo"; }
 async function renderTasks() {
-  $("#view").innerHTML = `<div class="listpane"><div class="list" style="border:0"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 16px;display:flex;gap:8px;position:sticky;top:0;background:var(--bg)"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("tasks"))}</h2><button class="btn primary" id="newTask">${icon("plus")}<span>${esc(t("newTask"))}</span></button></div><div id="taskList" class="listscroll"></div></div></div>`;
-  $("#newTask").onclick = () => openTask();
+  const modes = [["myday", t("myDay")], ["all", t("allTasks")], ["board", t("board")]];
+  $("#view").innerHTML = `<div class="listpane"><div class="list" style="border:0"><div class="hd glass" style="box-shadow:none;border:0;border-radius:0;padding:12px 16px;display:flex;gap:8px;position:sticky;top:0;background:var(--bg);align-items:center;flex-wrap:wrap"><h2 style="flex:1;font-size:16px;margin:0">${esc(t("tasks"))}</h2>
+    <div class="segs" id="tkModes">${modes.map(([k, l]) => `<button class="${taskMode === k ? "on" : ""}" data-tm="${k}">${esc(l)}</button>`).join("")}</div>
+    <button class="btn primary" id="newTask">${icon("plus")}<span>${esc(t("newTask"))}</span></button></div><div id="taskList"></div></div></div>`;
+  document.querySelectorAll("#tkModes [data-tm]").forEach((b) => b.onclick = () => { taskMode = b.dataset.tm; try { localStorage.setItem("ondura.taskMode", taskMode); } catch (e) {} renderTasks(); });
+  const today = localDay();
+  $("#newTask").onclick = () => openTask(null, taskMode === "myday" ? { my_day: today } : null);
   let tasks = [];
   try { tasks = (await api("GET", "/tasks")).tasks; } catch (e) {}
   const box = $("#taskList");
   const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-  box.innerHTML = tasks.length ? tasks.map((tk) => {
+  const dayEnd = dayStart.getTime() / 1000 + 86400;
+  const save = guard(async (tk, change) => { await api("POST", "/task", { id: tk.id, task: Object.assign({}, tk.task, change) }); renderTasks(); });
+  const row = (tk) => {
     const x = tk.task || {};
     const steps = x.steps || [];
     const meta = [];
@@ -2602,17 +2820,54 @@ async function renderTasks() {
     if (tk.reminder && !tk.complete) meta.push("⏰");
     if (x.assigned_to) meta.push(`→ ${x.assigned_to}`);
     if (x.assigned_by) meta.push(`${t("assignedBy")} ${x.assigned_by}`);
+    if (!tk.complete && tk.percentComplete > 0) meta.push(tk.percentComplete + " %");
     const overdue = !tk.complete && tk.due && tk.due < dayStart.getTime() / 1000;
-    return `<div class="taskrow ${tk.complete ? "done" : ""}" data-id="${tk.id}">
+    const onDay = x.my_day === today;
+    return `<div class="taskrow ${tk.complete ? "done" : ""}" data-id="${tk.id}" draggable="${taskMode === "board"}">
     <div class="tck ${tk.complete ? "done" : ""}" data-toggle="${tk.id}">${tk.complete ? icon("check") : ""}</div>
     <div class="tt" data-edit="${tk.id}">${tk.importance === "high" ? `<b style="color:var(--danger)">!</b> ` : ""}${esc(tk.subject)}${meta.length ? `<div style="font-size:11.5px;color:var(--muted)">${esc(meta.join(" · "))}</div>` : ""}</div>
-    ${tk.due ? `<div class="td" style="${overdue ? "color:var(--danger)" : ""}">${esc(t("due"))}: ${esc(fmtDate(tk.due))}</div>` : ""}</div>`;
-  }).join("") : `<div class="empty" style="height:auto;padding:40px">${esc(t("noTasks"))}</div>`;
-  box.querySelectorAll("[data-toggle]").forEach((e) => e.onclick = guard(async () => {
+    ${tk.due ? `<div class="td" style="${overdue ? "color:var(--danger)" : ""}">${esc(t("due"))}: ${esc(fmtDate(tk.due))}</div>` : ""}
+    ${tk.complete ? "" : `<button class="iconbtn myday ${onDay ? "on" : ""}" data-day="${tk.id}" title="${esc(onDay ? t("removeFromMyDay") : t("addToMyDay"))}">${icon("sun")}</button>`}</div>`;
+  };
+  const empty = (k) => `<div class="empty" style="height:auto;padding:40px">${esc(t(k))}</div>`;
+  if (taskMode === "myday") {
+    const mine = tasks.filter((tk) => (tk.task || {}).my_day === today);
+    const suggest = tasks.filter((tk) => !tk.complete && (tk.task || {}).my_day !== today && tk.due && tk.due < dayEnd);
+    box.innerHTML = `<div class="myday-head"><div style="font-size:20px;font-weight:600">${esc(t("myDay"))}</div><div class="dm">${esc(dayStart.toLocaleDateString(lang, { weekday: "long", day: "numeric", month: "long" }))}</div></div>` +
+      (mine.length ? mine.map(row).join("") : empty("myDayEmpty")) +
+      (suggest.length ? `<div class="clabel" style="padding:14px 16px 4px">${esc(t("myDaySuggestions"))}</div>` + suggest.map(row).join("") : "");
+  } else if (taskMode === "board") {
+    const cols = [["todo", t("notStarted")], ["doing", t("inProgress")], ["done", t("completed")]];
+    box.innerHTML = `<div class="tboard">${cols.map(([k, l]) => { const list = tasks.filter((tk) => taskStage(tk) === k); return `<div class="tcol" data-col="${k}"><div class="tcolh">${esc(l)} <span class="dm">${list.length}</span></div>${list.map(row).join("")}</div>`; }).join("")}</div>`;
+    let dragId = null;
+    box.querySelectorAll(".taskrow[draggable=true]").forEach((r) => {
+      r.ondragstart = (e) => { dragId = +r.dataset.id; e.dataTransfer.setData("text/plain", r.dataset.id); r.classList.add("dragging"); };
+      r.ondragend = () => r.classList.remove("dragging");
+    });
+    box.querySelectorAll(".tcol").forEach((c) => {
+      c.ondragover = (e) => { e.preventDefault(); c.classList.add("over"); };
+      c.ondragleave = () => c.classList.remove("over");
+      c.ondrop = (e) => {
+        e.preventDefault(); c.classList.remove("over");
+        const tk = tasks.find((x) => x.id === (dragId || +e.dataTransfer.getData("text/plain")));
+        if (!tk || taskStage(tk) === c.dataset.col) return;
+        const k = c.dataset.col;
+        const pct = k === "done" ? 100 : k === "todo" ? 0 : (tk.percentComplete > 0 && tk.percentComplete < 100 ? tk.percentComplete : 50);
+        save(tk, { complete: k === "done", percent_complete: pct });
+      };
+    });
+  } else {
+    box.innerHTML = tasks.length ? tasks.map(row).join("") : empty("noTasks");
+  }
+  box.querySelectorAll("[data-toggle]").forEach((e) => e.onclick = () => {
     const tk = tasks.find((x) => x.id == e.dataset.toggle);
-    const task = Object.assign({}, tk.task, { complete: !tk.complete, percent_complete: !tk.complete ? 100 : 0 });
-    await api("POST", "/task", { id: tk.id, task }); renderTasks();
-  }));
+    save(tk, { complete: !tk.complete, percent_complete: !tk.complete ? 100 : 0 });
+  });
+  box.querySelectorAll("[data-day]").forEach((e) => e.onclick = (ev) => {
+    ev.stopPropagation();
+    const tk = tasks.find((x) => x.id == e.dataset.day);
+    save(tk, { my_day: (tk.task || {}).my_day === today ? null : today });
+  });
   box.querySelectorAll("[data-edit]").forEach((e) => e.onclick = () => { const tk = tasks.find((x) => x.id == e.dataset.edit); openTask(tk); });
 }
 function openTask(tk, prefill, afterSave) {
@@ -2757,6 +3012,22 @@ function showNote(n) {
 }
 
 // ------------------------------------------------------------ SETTINGS
+// Settings → Storage: how much mail and files take up, against the quota.
+async function drawStorage() {
+  let u; try { u = await api("GET", "/storage"); } catch (e) { $("#stStorage").textContent = ""; return; }
+  const bar = (used) => {
+    if (!u.quota) return `<div class="dm" style="font-size:12px">${esc(fmtSize(used))} · ${esc(t("unlimited"))}</div>`;
+    const pct = Math.min(100, Math.round(used / u.quota * 100));
+    return `<div class="sbar ${pct > 90 ? "full" : ""}"><div style="width:${pct}%"></div></div><div class="dm" style="font-size:12px">${esc(t("usedOf").replace("{u}", fmtSize(used)).replace("{q}", fmtSize(u.quota)))} (${pct} %)</div>`;
+  };
+  const folderName = (f) => folderLabel(f);
+  const folders = u.folders.filter((f) => f.bytes > 0).slice(0, 6);
+  $("#stStorage").innerHTML =
+    `<div style="margin-bottom:12px"><b>${esc(t("mail"))}</b> ${bar(u.mail)}${folders.length ? `<div class="kv" style="margin-top:6px;font-size:12.5px">${folders.map((f) => `<div class="k">${esc(folderName(f))}</div><div>${esc(fmtSize(f.bytes))} · ${f.items}</div>`).join("")}</div>` : ""}</div>` +
+    (me && me.cloud ? `<div><b>${esc(t("myFiles"))}</b> ${bar(u.files)}
+      <div class="kv" style="margin-top:6px;font-size:12.5px">${u.filesTrash ? `<div class="k">${esc(t("recycleBin"))}</div><div>${esc(fmtSize(u.filesTrash))}</div>` : ""}${u.versions ? `<div class="k">${esc(t("olderVersions"))}</div><div>${esc(fmtSize(u.versions))} · ${esc(t("notCounted"))}</div>` : ""}</div>
+      ${u.largest.length ? `<div class="clabel" style="padding:10px 0 4px">${esc(t("largestFiles"))}</div>${u.largest.slice(0, 5).map((f) => `<div style="display:flex;gap:8px;font-size:12.5px;padding:2px 0"><span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}${f.trashed ? ` <span class="dm">(${esc(t("recycleBin"))})</span>` : ""}</span><span class="dm">${esc(fmtSize(f.size))}</span></div>`).join("")}` : ""}</div>` : "");
+}
 async function openSettings() {
   let s;
   try { s = await api("GET", "/settings"); } catch (e) { return; }
@@ -2764,7 +3035,13 @@ async function openSettings() {
   panel(t("settings"),
     `<h3 style="margin:0 0 10px">${esc(t("profile"))}</h3>
      <div class="field"><label>${esc(t("displayName"))}</label><input id="stName" value="${esc(s.name || "")}"></div>
+     <div class="row2"><div class="field"><label>${esc(t("jobTitle"))}</label><input id="stPfTitle"></div><div class="field"><label>${esc(t("department"))}</label><input id="stPfDept"></div></div>
+     <div class="row2"><div class="field"><label>${esc(t("office"))}</label><input id="stPfOffice"></div><div class="field" style="position:relative"><label>${esc(t("manager"))}</label><input id="stPfMgr" autocomplete="off" placeholder="name@example.com"></div></div>
+     <div class="row2"><div class="field"><label>${esc(t("workPhone"))}</label><input id="stPfPhone" type="tel"></div><div class="field"><label>${esc(t("mobile"))}</label><input id="stPfMobile" type="tel"></div></div>
+     <div style="color:var(--muted);font-size:12.5px;margin:-4px 0 8px">${esc(t("profileHint"))}</div>
      <div class="field"><label>${esc(t("signature"))}</label><textarea id="stSig" style="min-height:90px">${esc(s.signature || "")}</textarea></div>
+     <h3 style="margin:22px 0 10px">${esc(t("storage"))}</h3>
+     <div id="stStorage" class="dm">…</div>
      <h3 style="margin:22px 0 10px">${esc(t("outOfOffice"))}</h3>
      <div class="field"><label><input type="checkbox" id="stOof" ${oof.state === "Enabled" ? "checked" : ""}> ${esc(t("oofOn"))}</label></div>
      <div class="field"><label>${esc(t("internalReply"))}</label><textarea id="stOofInt" style="min-height:70px">${esc(oof.internalReply || "")}</textarea></div>
@@ -2782,7 +3059,14 @@ async function openSettings() {
      <h3 style="margin:22px 0 10px">${esc(t("appPasswords"))}</h3>
      <div id="stApp"></div>`,
     `<div style="flex:1"></div><button class="btn primary" id="stSave">${esc(t("save"))}</button>`);
+  const pfFields = [["stPfTitle", "title"], ["stPfDept", "department"], ["stPfOffice", "office"], ["stPfMgr", "manager"], ["stPfPhone", "phone"], ["stPfMobile", "mobile"]];
+  api("GET", "/profile").then((p) => pfFields.forEach(([id, k]) => { $("#" + id).value = p[k] || ""; })).catch(() => {});
+  attachAutocomplete($("#stPfMgr"));
+  drawStorage();
   $("#stSave").onclick = guard(async () => {
+    const pf = {}; pfFields.forEach(([id, k]) => { pf[k] = $("#" + id).value.replace(/,\s*$/, ""); });
+    await api("POST", "/profile", pf);
+    directoryCache = null;
     await api("POST", "/settings", {
       name: $("#stName").value, signature: $("#stSig").value,
       oof: { state: $("#stOof").checked ? "Enabled" : "Disabled", internalReply: $("#stOofInt").value, externalReply: $("#stOofExt").value, externalAudience: "All" },

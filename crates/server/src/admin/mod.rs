@@ -297,7 +297,17 @@ async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &By
         // -------------------------------------------------------- mailboxes
         ("GET", ["mailboxes"]) => {
             let stats = store.user_stats().map_err(internal)?;
-            let list: Vec<Value> = store.users().map_err(internal)?.iter().map(|u| user_json(app, u, Some(stats.get(&u.id).copied().unwrap_or((0, 0))))).collect();
+            let drives = store.drive_usage_by_owner().map_err(internal)?;
+            let list: Vec<Value> = store
+                .users()
+                .map_err(internal)?
+                .iter()
+                .map(|u| {
+                    let mut v = user_json(app, u, Some(stats.get(&u.id).copied().unwrap_or((0, 0))));
+                    v["driveUsed"] = json!(drives.get(&u.id).copied().unwrap_or(0));
+                    v
+                })
+                .collect();
             Ok(json!(list))
         }
         ("POST", ["mailboxes"]) => {
@@ -329,6 +339,8 @@ async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &By
             v["timeZone"] = json!(settings.time_zone);
             v["oof"] = json!({ "state": settings.oof.state, "internal": settings.oof.internal_reply, "external": settings.oof.external_reply });
             v["sendAs"] = json!(store.send_as_addresses(u.id).map_err(internal)?);
+            v["profile"] = json!(store.profile(u.id).map_err(internal)?);
+            v["storage"] = json!(store.storage_usage(u.id, u.quota).map_err(internal)?);
             let users = store.users().map_err(internal)?;
             let name_of = |id: i64| users.iter().find(|x| x.id == id).map(|x| x.email.clone()).unwrap_or_default();
             let perms: Vec<Value> = store
@@ -398,6 +410,13 @@ async fn route(app: &Shared, admin: &User, method: &Method, api: &str, body: &By
             store.set_password(u.id, &password).map_err(internal)?;
             audit("mailbox.password", &u.email);
             Ok(if generated { json!({ "password": password }) } else { json!({}) })
+        }
+        ("POST", ["mailboxes", id, "profile"]) => {
+            let u = find_user(app, id)?;
+            let p: crate::directory::Profile = parse(body)?;
+            store.set_profile(u.id, &p.cleaned()).map_err(internal)?;
+            audit("mailbox.profile", &u.email);
+            Ok(json!(store.profile(u.id).map_err(internal)?))
         }
         ("POST", ["mailboxes", id, "2fa", "reset"]) => {
             // For a lost phone: turns two-step sign-in off so the person can

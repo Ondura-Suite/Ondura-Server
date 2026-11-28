@@ -206,6 +206,7 @@ fn next_occurrence(t: &Task) -> Option<Task> {
     n.steps.iter_mut().for_each(|s| s.done = false);
     n.assigned_copy = None;
     n.assigned_to = None;
+    n.my_day = None;
     let mut r = r;
     r.count = r.count.map(|c| c - 1);
     n.recurrence = Some(r);

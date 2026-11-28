@@ -283,6 +283,18 @@ code, .mono { font-family: "Cascadia Code", "SFMono-Regular", Consolas, monospac
 // ------------------------------------------------------------ texts
 const T = {
   de: {
+    filesUsed: "Dateien: {n}",
+    profileTab: "Profil",
+    mailUsed: "E-Mail",
+    filesLabel: "Dateien",
+    inRecycleBin: "{n} im Papierkorb",
+    jobTitle: "Position",
+    department: "Abteilung",
+    office: "Büro",
+    phone: "Telefon",
+    mobile: "Mobil",
+    manager: "Vorgesetzte(r) (E-Mail-Adresse)",
+    profileLead: "Diese Angaben erscheinen im Firmenverzeichnis unter Kontakte. Jede Person kann ihre eigenen auch in den Einstellungen ändern.",
     signInCode: "Code aus der Authenticator-App (oder Wiederherstellungscode)", twoStep: "Zwei-Faktor-Anmeldung", twoStepReset: "Zwei-Faktor-Anmeldung zurücksetzen",
     twoStepResetHint: "Für dieses Konto ist die Zwei-Faktor-Anmeldung aktiv. Bei verlorenem Handy hier ausschalten; die Person meldet sich dann mit dem Passwort an und richtet sie neu ein.", twoStepResetConfirm: "Zwei-Faktor-Anmeldung für dieses Konto ausschalten?",
     dns_mx: "E-Mail für die Domäne wird an diesen Server zugestellt", dns_spf: "SPF: Dieser Server darf für die Domäne senden", dns_dkim: "DKIM-Signaturschlüssel",
@@ -325,6 +337,18 @@ const T = {
     setupText: "Ondura Mail, Outlook für iOS und Android, die Mail-Apps von iOS und Android sowie EWS-Clients finden den Server über Autodiscover. Es reicht die E-Mail-Adresse und das Kennwort.",
   },
   en: {
+    filesUsed: "Files: {n}",
+    profileTab: "Profile",
+    mailUsed: "Mail",
+    filesLabel: "Files",
+    inRecycleBin: "{n} in the recycle bin",
+    jobTitle: "Job title",
+    department: "Department",
+    office: "Office",
+    phone: "Phone",
+    mobile: "Mobile",
+    manager: "Manager (e-mail address)",
+    profileLead: "These details appear in the organization directory in Contacts. People can also edit their own in Settings.",
     signInCode: "Code from the authenticator app (or a recovery code)", twoStep: "Two-step sign-in", twoStepReset: "Reset two-step sign-in",
     twoStepResetHint: "This account uses two-step sign-in. If the phone is lost, turn it off here; the person then signs in with the password and sets it up again.", twoStepResetConfirm: "Turn off two-step sign-in for this account?",
     dns_mx: "Mail for the domain is delivered to this server", dns_spf: "SPF: this server may send mail for the domain", dns_dkim: "DKIM signature key",
@@ -556,7 +580,7 @@ function renderMailboxRows() {
     const pct = m.quota ? Math.min(100, Math.round(m.used / m.quota * 100)) : 0;
     return '<tr class="click" data-id="' + m.id + '"><td><div class="name">' + esc(m.name || m.email) + '</div><div class="sub">' + esc(m.email) + "</div></td>" +
       '<td class="hide-sm">' + esc(kindLabel(m.kind)) + (m.isAdmin ? ' <span class="badge tint">' + esc(t("admin")) + "</span>" : "") + (m.kind === "user" && m.mailbox === false ? ' <span class="badge warn">' + esc(t("noMailboxBadge")) + "</span>" : "") + "</td>" +
-      "<td>" + esc(fmtBytes(m.used)) + (m.quota ? " / " + esc(fmtBytes(m.quota)) + '<div class="bar' + (pct > 90 ? " full" : "") + '"><div style="width:' + pct + '%"></div></div>' : "") + "</td>" +
+      "<td>" + esc(fmtBytes(m.used)) + (m.driveUsed ? '<div class="sub">' + esc(t("filesUsed").replace("{n}", fmtBytes(m.driveUsed))) + "</div>" : "") + (m.quota ? " / " + esc(fmtBytes(m.quota)) + '<div class="bar' + (pct > 90 ? " full" : "") + '"><div style="width:' + pct + '%"></div></div>' : "") + "</td>" +
       "<td>" + (m.enabled ? '<span class="badge ok">' + esc(t("enabled")) + "</span>" : '<span class="badge bad">' + esc(t("disabled")) + "</span>") + "</td></tr>";
   }).join("") : '<tr><td colspan="4" class="empty">' + esc(t("none")) + "</td></tr>";
   document.querySelectorAll("#mbRows tr.click").forEach((r) => r.onclick = () => guard(openMailbox)(r.dataset.id));
@@ -609,13 +633,13 @@ function openNewMailbox() {
 
 async function openMailbox(id) {
   const m = await api("GET", "/mailboxes/" + id);
-  const tabs = [t("general"), t("emailAddresses"), t("passwordTab"), t("forwarding"), t("permissions"), t("folders"), t("devices")];
+  const tabs = [t("general"), t("profileTab"), t("emailAddresses"), t("passwordTab"), t("forwarding"), t("permissions"), t("folders"), t("devices")];
   const c = openPanel(m.name || m.email, m.email + " · " + kindLabel(m.kind), tabs, "");
   const foot = $(".panel .foot");
   const show = (i) => {
     document.querySelectorAll(".panel .tabs button").forEach((b) => b.classList.toggle("on", +b.dataset.tab === i));
     foot.innerHTML = "";
-    [tabGeneral, tabAddresses, tabPassword, tabForward, tabPerms, tabFolders, tabDevices][i](c, m, foot);
+    [tabGeneral, tabProfile, tabAddresses, tabPassword, tabForward, tabPerms, tabFolders, tabDevices][i](c, m, foot);
   };
   document.querySelectorAll(".panel .tabs button").forEach((b) => b.onclick = () => show(+b.dataset.tab));
   show(0);
@@ -635,7 +659,8 @@ function tabGeneral(c, m, foot) {
     (m.kind === "user" ? '<label class="check"><input type="checkbox" id="mbMailbox"' + (m.mailbox ? " checked" : "") + ">" + esc(t("hasMailbox")) + "</label>" : "") +
     (m.kind === "user" ? '<label class="check"><input type="checkbox" id="mbAdmin"' + (m.isAdmin ? " checked" : "") + ">" + esc(t("isAdmin")) + "</label>" : "") +
     '<div class="section"><h3>' + esc(t("outOfOffice")) + '</h3><div class="muted">' + esc(m.oof && m.oof.state && m.oof.state !== "Disabled" ? t("oofOn") + " (" + m.oof.state + ")" : t("oofOff")) + "</div></div>" +
-    '<div class="section"><h3>' + esc(t("used")) + "</h3><div>" + esc(fmtBytes(m.used)) + " · " + esc(m.items) + " " + esc(t("items")) + "</div></div>";
+    '<div class="section"><h3>' + esc(t("used")) + "</h3><div>" + esc(t("mailUsed")) + ": " + esc(fmtBytes(m.used)) + " · " + esc(m.items) + " " + esc(t("items")) + "</div>" +
+      (m.storage ? "<div>" + esc(t("filesLabel")) + ": " + esc(fmtBytes(m.storage.files)) + (m.storage.filesTrash ? " (" + esc(t("inRecycleBin").replace("{n}", fmtBytes(m.storage.filesTrash))) + ")" : "") + "</div>" : "") + "</div>";
   foot.innerHTML = '<button class="btn primary" id="saveGen">' + esc(t("save")) + '</button><span style="flex:1"></span><button class="btn danger" id="delMb">' + esc(t("deleteMailbox")) + "</button>";
   $("#saveGen").onclick = guard(async () => {
     await api("PATCH", "/mailboxes/" + m.id, { name: $("#mbName").value, quota: (+$("#mbQuota").value || 0) * 1048576, enabled: $("#mbEnabled").checked, isAdmin: m.kind === "user" ? $("#mbAdmin").checked : undefined, mailbox: m.kind === "user" ? $("#mbMailbox").checked : undefined, timeZone: $("#mbTz").value.trim() });
@@ -650,6 +675,19 @@ function tabGeneral(c, m, foot) {
     toast(t("saved")); const fresh = await api("GET", "/mailboxes/" + m.id); m.avatar = fresh.avatar; openMailbox(m.id);
   });
   if ($("#avRm")) $("#avRm").onclick = guard(async () => { await api("DELETE", "/mailboxes/" + m.id + "/avatar"); m.avatar = null; toast(t("deleted")); openMailbox(m.id); });
+}
+// Directory details shown to everyone in the organization directory.
+function tabProfile(c, m, foot) {
+  const p = m.profile || {};
+  const f = (id, label, v, type) => '<div class="field"><label>' + esc(t(label)) + '</label><input id="' + id + '"' + (type ? ' type="' + type + '"' : "") + ' value="' + esc(v || "") + '"></div>';
+  c.innerHTML = f("pfTitle", "jobTitle", p.title) + f("pfDept", "department", p.department) + f("pfOffice", "office", p.office) +
+    f("pfPhone", "phone", p.phone, "tel") + f("pfMobile", "mobile", p.mobile, "tel") + f("pfMgr", "manager", p.manager, "email") +
+    '<p class="muted">' + esc(t("profileLead")) + "</p>";
+  foot.innerHTML = '<button class="btn primary" id="savePf">' + esc(t("save")) + "</button>";
+  $("#savePf").onclick = guard(async () => {
+    m.profile = await api("POST", "/mailboxes/" + m.id + "/profile", { title: $("#pfTitle").value, department: $("#pfDept").value, office: $("#pfOffice").value, phone: $("#pfPhone").value, mobile: $("#pfMobile").value, manager: $("#pfMgr").value });
+    toast(t("saved"));
+  });
 }
 function tabAddresses(c, m) {
   c.innerHTML = '<div class="section"><h3>' + esc(t("emailAddresses")) + '</h3><div class="chips"><span class="chip">' + esc(m.email) + ' <span class="badge tint">' + esc(t("primary")) + "</span>&nbsp;</span>" +

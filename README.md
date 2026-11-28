@@ -34,7 +34,7 @@ Everything runs as one program with one database: no separate mail transfer agen
 - Room mailboxes that accept bookings when free and decline conflicts
 - Free/busy lookups for scheduling assistants
 - Contacts with all common fields, tasks and notes
-- Company directory (address book of all mailboxes)
+- Company directory (address book of all mailboxes) with title, department, office, phone, manager and direct reports
 
 **Phones and tablets**
 
@@ -64,9 +64,9 @@ Everything runs as one program with one database: no separate mail transfer agen
 
 - **Webmail** in the browser at `/mail`: sign in with any account and read, write and organise mail, calendar and contacts – no extra client needed, in German and English, light and dark
 - A home dashboard with an app for each area — Mail (with calendar and contacts), Files, SharePoint, Tasks and Notes — each at its own URL
-- Compose with attachments, reply and forward, flag, move and delete; month, week and day calendar views with invitations and room booking; a notification bell for mentions, shares, approvals and assigned tasks; contacts with groups and vCard import/export; tasks with steps, reminders, repeats and assignment
+- Compose with attachments, reply and forward, flag, move and delete; month, week and day calendar views with invitations and room booking; a notification bell for mentions, shares, approvals and assigned tasks; contacts with groups, vCard import/export and the organization directory; tasks with steps, reminders, repeats and assignment, a My Day list and a board
 - Two-step sign-in with an authenticator app for the web app, the Admin Center and the Nextcloud login, and app passwords for mail apps
-- Send later, snooze, templates, e-mail to task; drag-and-drop and subscriptions (ICS by URL) in the calendar; notes with notebooks and search; favorites and password-protected share links
+- Send later, snooze, templates, e-mail to task, attachments and share links straight from Files; a storage overview per account; drag-and-drop and subscriptions (ICS by URL) in the calendar; notes with notebooks and search; favorites and password-protected share links
 - Shares the same storage as ActiveSync and EWS, so changes appear everywhere at once
 
 ![Webmail](docs/screenshots/webmail.png)

@@ -861,6 +861,10 @@ pub struct Task {
     /// The e-mail the task was made from (an item id of the same account).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub source_message: Option<i64>,
+    /// The day (`YYYY-MM-DD`, the owner's local date) the task was added to
+    /// "My Day". It drops out of My Day once that day is over.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub my_day: Option<String>,
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]

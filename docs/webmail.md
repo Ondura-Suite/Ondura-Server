@@ -58,6 +58,11 @@ newest first, that expand and collapse; the choice is remembered. ActiveSync
 derives its conversation id from the same thread root, so phones group the same
 conversations.
 
+**Attach from Files** — **From Files** in the composer opens a picker over
+your personal drive and the libraries you belong to. Ticked files are either
+attached as a copy (files only, up to 25 MB together) or added to the message
+as view links (files and documents), the same links **Share** creates in Files.
+
 **Send later** — the composer's **Send later** button sends the message at a
 chosen time (later today, tomorrow morning, Monday morning, or any time up to a
 year ahead). Waiting messages are listed under **Scheduled** in the folder list;
@@ -176,6 +181,17 @@ Endpoints: `GET /mail/api/contacts/export.vcf`, `POST /mail/api/contacts/import`
 /mail/api/contact-group` (`{ "id"?, "name", "members": [{ "name", "email" }] }`),
 `POST /mail/api/contact-group/delete`.
 
+**Directory** — the **Directory** tab in Contacts lists everyone with an
+account on the server (rooms and shared mailboxes included), searchable by
+name, title, department or office. A person's page shows their work details,
+their manager and their direct reports, and starts a message or adds them to
+your contacts. Everyone keeps their own details under **Settings → Profile**
+(title, department, office, work and mobile phone, manager); administrators can
+edit them in the Admin Center. Directory entries are also offered when typing
+recipients. Endpoints: `GET /mail/api/directory`, `GET /mail/api/profile`,
+`POST /mail/api/profile` (`{ "title", "department", "office", "phone",
+"mobile", "manager" }`).
+
 **Documents** — collaborative documents are created and opened from Files (see
 `collab.md`). The editor has a formatting toolbar (headings, bold, italic,
 strikethrough, code, link, lists, task lists, quote), a **Preview** that shows
@@ -209,12 +225,22 @@ the next due date. A task can be **assigned** to another account on the server:
 it appears in their task list (marked with who assigned it), changes to title,
 due date and steps follow it there, and their progress and completion show on
 the original; both sides get a notice. Deleting the original removes the copy.
+Three views sit above the list: **My Day** holds the tasks picked for today
+with the sun button (and suggests open tasks that are due today or overdue);
+it starts empty again the next day. **All** is the full list. **Board** shows
+the tasks in columns *Not started*, *In progress* and *Completed*; dragging a
+card to another column sets its progress (a card moved to *In progress* gets
+50 % unless it already had some). The day a task was added to My Day is stored
+in the task as `my_day` (`YYYY-MM-DD`).
 
-**Settings** (gear icon) — change your display name and signature, set an
+**Settings** (gear icon) — change your display name, directory details and
+signature, see your storage (mail by folder and files, each against the quota,
+with the recycle bin, older file versions and the largest files listed), set an
 out-of-office auto-reply (with separate texts for internal and external
 senders), change your password, turn on two-step sign-in with an
-authenticator app, and manage app passwords for mail apps (see `admin.md`). With it on, the sign-in page asks for the
-code after the password.
+authenticator app, and manage app passwords for mail apps (see `admin.md`).
+With two-step sign-in on, the sign-in page asks for the code after the
+password. The storage overview is `GET /mail/api/storage`.
 
 **Multiple addresses** — a mailbox can have several e-mail addresses
 (aliases); mail to any of them arrives in the one inbox. An administrator

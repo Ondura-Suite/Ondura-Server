@@ -339,6 +339,16 @@ CREATE TABLE IF NOT EXISTS activity (
     seen INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS activity_user ON activity(user_id, id);
+CREATE TABLE IF NOT EXISTS user_profiles (
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title TEXT NOT NULL DEFAULT '',
+    department TEXT NOT NULL DEFAULT '',
+    office TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    mobile TEXT NOT NULL DEFAULT '',
+    manager TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (user_id)
+);
 CREATE TABLE IF NOT EXISTS totp (
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     secret TEXT NOT NULL,

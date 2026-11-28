@@ -276,7 +276,19 @@ Further addresses go to the same mailbox as **aliases**; `@example.com` as alias
 
 **Permissions**: *full access* lets a user open a shared or another person's mailbox (Ondura Mail and other EWS clients open it by its address). *Send as* lets them send with that address.
 
-**Quota**: optional per mailbox in the Admin Center; 0 means unlimited.
+**Quota**: optional per mailbox in the Admin Center; 0 means unlimited. It
+applies to the mail items and to the personal drive (Files) separately. The
+mailbox list shows both: mail use with the quota bar, and the files below it;
+the *General* tab of an account also shows how much of the drive sits in the
+recycle bin. Older file versions are not counted. Each person sees the same
+breakdown, by folder and with their largest files, under *Settings → Storage*
+in the web app.
+
+**Profile**: the *Profile* tab holds the details shown in the organization
+directory (Contacts → Directory in the web app): job title, department, office,
+work and mobile phone, and the manager's address, from which the directory
+also lists direct reports. People edit their own under *Settings → Profile*.
+Endpoint: `POST /admin/api/mailboxes/{id}/profile`.
 
 ### Accounts without a mailbox
 

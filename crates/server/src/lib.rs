@@ -38,6 +38,7 @@ pub mod store;
 pub mod tls;
 pub mod totp;
 pub mod tzinfo;
+pub mod usage;
 pub mod webmail;
 pub mod xml;
 
