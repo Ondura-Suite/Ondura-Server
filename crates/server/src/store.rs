@@ -242,6 +242,15 @@ CREATE TABLE IF NOT EXISTS drive_links (
     created_by INTEGER NOT NULL
 );
 CREATE INDEX IF NOT EXISTS drive_links_item ON drive_links(item_id);
+CREATE TABLE IF NOT EXISTS drive_file_versions (
+    id INTEGER PRIMARY KEY,
+    item_id INTEGER NOT NULL REFERENCES drive_items(id) ON DELETE CASCADE,
+    size INTEGER NOT NULL,
+    content_type TEXT NOT NULL DEFAULT '',
+    created INTEGER NOT NULL,
+    created_by INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS drive_file_versions_item ON drive_file_versions(item_id);
 CREATE TABLE IF NOT EXISTS app_passwords (
     token TEXT PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

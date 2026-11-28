@@ -49,6 +49,36 @@ fn file_path(app: &Shared, drive_id: i64, item_id: i64) -> PathBuf {
     drive_dir(app, drive_id).join(item_id.to_string())
 }
 
+/// Where a file's previous versions are stored, one file per version id.
+fn versions_dir(app: &Shared, drive_id: i64, item_id: i64) -> PathBuf {
+    drive_dir(app, drive_id).join(format!("{item_id}.versions"))
+}
+
+/// How many previous versions of a file are kept.
+const KEEP_VERSIONS: i64 = 50;
+
+/// Remove a deleted file's contents and its version history from disk.
+pub(crate) fn purge_item_disk(app: &Shared, drive_id: i64, item_id: i64) {
+    let _ = std::fs::remove_file(file_path(app, drive_id, item_id));
+    let _ = std::fs::remove_dir_all(versions_dir(app, drive_id, item_id));
+}
+
+/// Snapshot a file's current contents as a new version before it is overwritten
+/// or restored over. Best-effort: a snapshot failure never blocks the write.
+pub(crate) fn snapshot_version(app: &Shared, drive_id: i64, item_id: i64, by: i64) {
+    let Ok(Some(vid)) = app.store.snapshot_file_version(item_id, by) else { return };
+    let dir = versions_dir(app, drive_id, item_id);
+    if std::fs::create_dir_all(&dir).and_then(|_| std::fs::copy(file_path(app, drive_id, item_id), dir.join(vid.to_string()))).is_err() {
+        let _ = app.store.delete_file_version(vid);
+        return;
+    }
+    if let Ok(gone) = app.store.prune_file_versions(item_id, KEEP_VERSIONS) {
+        for g in gone {
+            let _ = std::fs::remove_file(dir.join(g.to_string()));
+        }
+    }
+}
+
 /// The caller's role in a drive, or 404 if they can't see it.
 fn role(app: &Shared, user: &User, drive_id: i64) -> Result<Role, (StatusCode, String)> {
     app.store.role_in_drive(user.id, drive_id).map_err(internal)?.ok_or_else(not_found)
@@ -252,7 +282,7 @@ pub fn trash_delete(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     }
     let files = app.store.delete_drive_item(b.item).map_err(internal)?;
     for id in files {
-        let _ = std::fs::remove_file(file_path(app, it.drive_id, id));
+        purge_item_disk(app, it.drive_id, id);
     }
     Ok(json!({ "ok": true }))
 }
@@ -264,7 +294,7 @@ pub fn trash_empty(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
     }
     let files = app.store.empty_trash(b.drive).map_err(internal)?;
     for id in files {
-        let _ = std::fs::remove_file(file_path(app, b.drive, id));
+        purge_item_disk(app, b.drive, id);
     }
     Ok(json!({ "ok": true }))
 }
@@ -331,9 +361,6 @@ pub fn upload(app: &Shared, user: &User, query: &str, headers: &HeaderMap, body:
     if body.len() > MAX_UPLOAD {
         return json_err(StatusCode::PAYLOAD_TOO_LARGE, "file too large");
     }
-    if over_quota(app, user, drive_id, 0, body.len() as i64) {
-        return json_err(StatusCode::INSUFFICIENT_STORAGE, "not enough storage");
-    }
     let parent: Option<i64> = query_param(query, "parent").and_then(|v| v.parse().ok());
     let name = query_param(query, "name").map(decode).unwrap_or_default();
     let content_type = headers
@@ -341,13 +368,31 @@ pub fn upload(app: &Shared, user: &User, query: &str, headers: &HeaderMap, body:
         .and_then(|v| v.to_str().ok())
         .filter(|v| !v.is_empty())
         .unwrap_or("application/octet-stream");
-    let item = match app.store.create_drive_file(drive_id, parent, &name, body.len() as i64, content_type, user.id) {
-        Ok(id) => id,
-        Err(e) => return json_err(StatusCode::BAD_REQUEST, &e.to_string()),
+    // Uploading over an existing file of the same name overwrites it and keeps
+    // the previous contents as a version, the way OneDrive does.
+    let existing = app.store.child_by_name(drive_id, parent, &name).ok().flatten().filter(|e| e.kind == "file");
+    let old_size = existing.as_ref().map(|e| e.size).unwrap_or(0);
+    if over_quota(app, user, drive_id, old_size, body.len() as i64) {
+        return json_err(StatusCode::INSUFFICIENT_STORAGE, "not enough storage");
+    }
+    let item = match &existing {
+        Some(e) => {
+            snapshot_version(app, drive_id, e.id, user.id);
+            if app.store.set_file_meta(e.id, body.len() as i64, content_type, user.id).is_err() {
+                return json_err(StatusCode::INTERNAL_SERVER_ERROR, "could not store file");
+            }
+            e.id
+        }
+        None => match app.store.create_drive_file(drive_id, parent, &name, body.len() as i64, content_type, user.id) {
+            Ok(id) => id,
+            Err(e) => return json_err(StatusCode::BAD_REQUEST, &e.to_string()),
+        },
     };
     let dir = drive_dir(app, drive_id);
     if std::fs::create_dir_all(&dir).and_then(|_| std::fs::write(dir.join(item.to_string()), body)).is_err() {
-        let _ = app.store.delete_drive_item(item);
+        if existing.is_none() {
+            let _ = app.store.delete_drive_item(item);
+        }
         return json_err(StatusCode::INTERNAL_SERVER_ERROR, "could not store file");
     }
     (StatusCode::OK, axum::Json(json!({ "id": item }))).into_response()
@@ -401,6 +446,73 @@ pub fn recent(app: &Shared, user: &User, query: &str) -> ApiResult {
             v
         }).collect::<Vec<_>>(),
     }))
+}
+
+// ---------------------------------------------------------------- file versions
+
+/// List a file's stored versions.
+pub fn versions(app: &Shared, user: &User, query: &str) -> ApiResult {
+    let item_id: i64 = query_param(query, "item").and_then(|v| v.parse().ok()).ok_or_else(|| bad("item required"))?;
+    let it = app.store.drive_item(item_id).map_err(internal)?.ok_or_else(not_found)?;
+    role(app, user, it.drive_id)?;
+    let versions = app.store.item_versions(item_id).map_err(internal)?;
+    Ok(json!({
+        "versions": versions.iter().map(|v| json!({
+            "id": v.id, "size": v.size, "contentType": v.content_type, "created": v.created, "by": v.created_by,
+        })).collect::<Vec<_>>(),
+    }))
+}
+
+#[derive(Deserialize)]
+struct VersionRef {
+    item: i64,
+    version: i64,
+}
+
+/// Make a stored version the file's current contents. The contents being
+/// replaced are themselves kept as a new version first, so a restore is
+/// reversible.
+pub fn restore_version(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
+    let b: VersionRef = parse(body)?;
+    let it = app.store.drive_item(b.item).map_err(internal)?.ok_or_else(not_found)?;
+    if !role(app, user, it.drive_id)?.can_write() {
+        return Err(forbidden());
+    }
+    let v = app.store.file_version(b.version).map_err(internal)?.filter(|v| v.item_id == b.item).ok_or_else(not_found)?;
+    let vpath = versions_dir(app, it.drive_id, it.id).join(v.id.to_string());
+    if !vpath.exists() {
+        return Err(not_found());
+    }
+    if over_quota(app, user, it.drive_id, it.size, v.size) {
+        return Err((StatusCode::INSUFFICIENT_STORAGE, "not enough storage".into()));
+    }
+    // Keep the current contents as a version, then copy the chosen one in.
+    snapshot_version(app, it.drive_id, it.id, user.id);
+    if std::fs::copy(&vpath, file_path(app, it.drive_id, it.id)).is_err() {
+        return Err(internal(anyhow::anyhow!("could not restore version")));
+    }
+    app.store.set_file_meta(it.id, v.size, &v.content_type, user.id).map_err(internal)?;
+    Ok(json!({ "ok": true }))
+}
+
+/// Download one stored version of a file.
+pub fn download_version(app: &Shared, user: &User, query: &str) -> Response {
+    let nf = || (StatusCode::NOT_FOUND, "Not found").into_response();
+    let Some(version_id) = query_param(query, "version").and_then(|v| v.parse::<i64>().ok()) else { return nf() };
+    let Ok(Some(v)) = app.store.file_version(version_id) else { return nf() };
+    let Ok(Some(it)) = app.store.drive_item(v.item_id) else { return nf() };
+    match app.store.role_in_drive(user.id, it.drive_id) {
+        Ok(Some(_)) => {}
+        _ => return nf(),
+    }
+    let path = versions_dir(app, it.drive_id, it.id).join(v.id.to_string());
+    let Ok(data) = std::fs::read(&path) else { return nf() };
+    let mut r = data.into_response();
+    let h = r.headers_mut();
+    h.insert(header::CONTENT_TYPE, HeaderValue::from_str(&v.content_type).unwrap_or(HeaderValue::from_static("application/octet-stream")));
+    let safe: String = it.name.chars().filter(|c| !c.is_control() && *c != '"').collect();
+    h.insert(header::CONTENT_DISPOSITION, HeaderValue::from_str(&format!("attachment; filename=\"{safe}\"")).unwrap_or(HeaderValue::from_static("attachment")));
+    r
 }
 
 // ------------------------------------------------------------- item share links

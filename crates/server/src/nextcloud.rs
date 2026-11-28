@@ -547,6 +547,7 @@ fn dav_put(app: &Shared, user: &User, drive: i64, rel: &str, headers: &HeaderMap
     let ct = headers.get(header::CONTENT_TYPE).and_then(|v| v.to_str().ok()).filter(|v| !v.is_empty()).unwrap_or("application/octet-stream");
     let (id, created) = match &existing {
         Some(e) => {
+            crate::webmail::drive_api::snapshot_version(app, drive, e.id, user.id);
             if app.store.set_file_meta(e.id, body.len() as i64, ct, user.id).is_err() {
                 return StatusCode::INTERNAL_SERVER_ERROR.into_response();
             }
@@ -604,7 +605,7 @@ fn dav_delete(app: &Shared, drive: i64, rel: &str) -> Response {
     match app.store.delete_drive_item(it.id) {
         Ok(files) => {
             for id in files {
-                let _ = std::fs::remove_file(item_file(app, drive, id));
+                crate::webmail::drive_api::purge_item_disk(app, drive, id);
             }
             (StatusCode::NO_CONTENT, "").into_response()
         }
@@ -645,7 +646,7 @@ fn dav_move(app: &Shared, user: &User, drive: i64, rel: &str, headers: &HeaderMa
         }
         if let Ok(files) = app.store.delete_drive_item(e.id) {
             for id in files {
-                let _ = std::fs::remove_file(item_file(app, drive, id));
+                crate::webmail::drive_api::purge_item_disk(app, drive, id);
             }
         }
     }
@@ -750,7 +751,11 @@ fn assemble_upload(app: &Shared, user: &User, drive: i64, dir: &std::path::Path,
     }
     let ct = "application/octet-stream";
     let id = match &existing {
-        Some(e) if e.kind == "file" => e.id,
+        Some(e) if e.kind == "file" => {
+            // Keep the previous contents as a version before overwriting.
+            crate::webmail::drive_api::snapshot_version(app, drive, e.id, user.id);
+            e.id
+        }
         Some(_) => return (StatusCode::METHOD_NOT_ALLOWED, "").into_response(),
         None => match app.store.create_drive_file(drive, parent, fname, 0, ct, user.id) {
             Ok(id) => id,

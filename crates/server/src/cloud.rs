@@ -80,6 +80,17 @@ pub struct RecentItem {
     pub drive_kind: String,
 }
 
+/// A stored previous version of a file's contents.
+#[derive(Debug, Clone, Serialize)]
+pub struct FileVersion {
+    pub id: i64,
+    pub item_id: i64,
+    pub size: i64,
+    pub content_type: String,
+    pub created: i64,
+    pub created_by: i64,
+}
+
 /// A member of a shared library.
 #[derive(Debug, Clone, Serialize)]
 pub struct Member {
@@ -540,6 +551,66 @@ impl Store {
         })
     }
 
+    // --------------------------------------------------------- file versions
+
+    /// Record the file's current contents as a new version and return its id.
+    /// The caller copies the on-disk file to the version's path. Returns `None`
+    /// if the item is not a file.
+    pub fn snapshot_file_version(&self, item_id: i64, by: i64) -> Result<Option<i64>> {
+        let db = self.db();
+        let meta: Option<(String, i64, String)> = db
+            .query_row("SELECT kind, size, content_type FROM drive_items WHERE id = ?1", [item_id], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?)))
+            .optional()?;
+        let Some((kind, size, ct)) = meta else { return Ok(None) };
+        if kind != "file" {
+            return Ok(None);
+        }
+        let id: i64 = db.query_row(
+            "INSERT INTO drive_file_versions (item_id, size, content_type, created, created_by) VALUES (?1, ?2, ?3, ?4, ?5) RETURNING id",
+            params![item_id, size, ct, now(), by],
+            |r| r.get(0),
+        )?;
+        Ok(Some(id))
+    }
+
+    /// A file's stored versions, newest first.
+    pub fn item_versions(&self, item_id: i64) -> Result<Vec<FileVersion>> {
+        let db = self.db();
+        let st = db.prepare("SELECT id, item_id, size, content_type, created, created_by FROM drive_file_versions WHERE item_id = ?1 ORDER BY created DESC, id DESC")?;
+        st.query_map([item_id], |r| {
+            Ok(FileVersion { id: r.get(0)?, item_id: r.get(1)?, size: r.get(2)?, content_type: r.get(3)?, created: r.get(4)?, created_by: r.get(5)? })
+        })
+    }
+
+    /// Look up one stored version by its id.
+    pub fn file_version(&self, version_id: i64) -> Result<Option<FileVersion>> {
+        self.db()
+            .query_row(
+                "SELECT id, item_id, size, content_type, created, created_by FROM drive_file_versions WHERE id = ?1",
+                [version_id],
+                |r| Ok(FileVersion { id: r.get(0)?, item_id: r.get(1)?, size: r.get(2)?, content_type: r.get(3)?, created: r.get(4)?, created_by: r.get(5)? }),
+            )
+            .optional()
+    }
+
+    /// Drop a stored version's row (the caller removes its file).
+    pub fn delete_file_version(&self, version_id: i64) -> Result<()> {
+        self.db().execute("DELETE FROM drive_file_versions WHERE id = ?1", [version_id])?;
+        Ok(())
+    }
+
+    /// Trim a file's version history to the newest `keep`, returning the ids of
+    /// the versions dropped so the caller can delete their files.
+    pub fn prune_file_versions(&self, item_id: i64, keep: i64) -> Result<Vec<i64>> {
+        let db = self.db();
+        let st = db.prepare("SELECT id FROM drive_file_versions WHERE item_id = ?1 ORDER BY created DESC, id DESC LIMIT -1 OFFSET ?2")?;
+        let gone: Vec<i64> = st.query_map(params![item_id, keep], |r| r.get(0))?;
+        for id in &gone {
+            db.execute("DELETE FROM drive_file_versions WHERE id = ?1", [*id])?;
+        }
+        Ok(gone)
+    }
+
     // ------------------------------------------------------------ share links
 
     /// Create a share link for a file or folder and return its token. The link
@@ -745,6 +816,33 @@ mod tests {
         assert_eq!(files, vec![file]);
         assert!(s.drive_item(folder).unwrap().is_none());
         assert!(s.trashed_items(d).unwrap().is_empty());
+    }
+
+    #[test]
+    fn file_versions_snapshot_and_prune() {
+        let (app, user) = App::test();
+        let s = &app.store;
+        let d = s.ensure_personal_drive(user.id).unwrap();
+        let file = s.create_drive_file(d, None, "a.txt", 3, "text/plain", user.id).unwrap();
+
+        // A folder has no versions to snapshot.
+        let folder = s.create_drive_folder(d, None, "F", user.id).unwrap();
+        assert!(s.snapshot_file_version(folder, user.id).unwrap().is_none());
+
+        // Snapshot the file a few times; each is recorded newest-first.
+        for _ in 0..3 {
+            assert!(s.snapshot_file_version(file, user.id).unwrap().is_some());
+        }
+        assert_eq!(s.item_versions(file).unwrap().len(), 3);
+
+        // Pruning keeps the newest N and reports the rest for disk cleanup.
+        let gone = s.prune_file_versions(file, 1).unwrap();
+        assert_eq!(gone.len(), 2);
+        assert_eq!(s.item_versions(file).unwrap().len(), 1);
+
+        // A version resolves back to its item.
+        let v = s.item_versions(file).unwrap()[0].clone();
+        assert_eq!(s.file_version(v.id).unwrap().unwrap().item_id, file);
     }
 
     #[test]

@@ -22,7 +22,7 @@ use crate::store::User;
 
 mod calendar_api;
 mod contacts_api;
-mod drive_api;
+pub(crate) mod drive_api;
 mod mail_api;
 mod pim_api;
 mod settings_api;
@@ -182,6 +182,9 @@ pub async fn handle(app: Shared, method: Method, path: &str, query: &str, header
         if method == Method::GET && let Some(id) = api.strip_prefix("/cloud/download/") {
             return security_headers(drive_api::download(&app, &user, id));
         }
+        if method == Method::GET && api == "/cloud/version/download" {
+            return security_headers(drive_api::download_version(&app, &user, query));
+        }
     }
     let result = route(&app, &user, &method, api, query, &body).await;
     security_headers(json_response(result))
@@ -218,6 +221,8 @@ async fn route(app: &Shared, user: &User, method: &Method, api: &str, query: &st
         (&Method::POST, "/cloud/member") => drive_api::set_member(app, user, body),
         (&Method::POST, "/cloud/member/delete") => drive_api::remove_member(app, user, body),
         (&Method::GET, "/cloud/recent") => drive_api::recent(app, user, query),
+        (&Method::GET, "/cloud/versions") => drive_api::versions(app, user, query),
+        (&Method::POST, "/cloud/version/restore") => drive_api::restore_version(app, user, body),
         (&Method::GET, "/cloud/links") => drive_api::item_links(app, user, query),
         (&Method::POST, "/cloud/link") => drive_api::create_item_link(app, user, body),
         (&Method::POST, "/cloud/link/update") => drive_api::update_item_link(app, user, body),
