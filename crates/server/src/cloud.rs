@@ -253,6 +253,86 @@ impl Store {
         db.query_row(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE doc_id = ?1"), [doc_id], item_from_row).optional()
     }
 
+    /// Total bytes stored in a drive (sum of file sizes), for quota reporting.
+    pub fn drive_total_size(&self, drive_id: i64) -> Result<i64> {
+        self.db().query_row(
+            "SELECT CAST(COALESCE(SUM(size), 0) AS BIGINT) FROM drive_items WHERE drive_id = ?1 AND kind = 'file'",
+            [drive_id],
+            |r| r.get(0),
+        )
+    }
+
+    /// Find a direct child of a folder by exact name (case-sensitive), for
+    /// path-based access such as WebDAV.
+    pub fn child_by_name(&self, drive_id: i64, parent: Option<i64>, name: &str) -> Result<Option<Item>> {
+        let db = self.db();
+        match parent {
+            None => db
+                .query_row(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND parent_id IS NULL AND name = ?2"), params![drive_id, name], item_from_row)
+                .optional(),
+            Some(p) => db
+                .query_row(&format!("SELECT {ITEM_COLUMNS} FROM drive_items WHERE drive_id = ?1 AND parent_id = ?3 AND name = ?2"), params![drive_id, name, p], item_from_row)
+                .optional(),
+        }
+    }
+
+    /// Resolve a `/`-separated path to an item in a drive. An empty path means
+    /// the drive root and returns `None`.
+    pub fn resolve_path(&self, drive_id: i64, path: &str) -> Result<Option<Item>> {
+        let mut parent = None;
+        let mut last = None;
+        for seg in path.split('/').filter(|s| !s.is_empty()) {
+            match self.child_by_name(drive_id, parent, seg)? {
+                Some(it) => {
+                    parent = Some(it.id);
+                    last = Some(it);
+                }
+                None => return Ok(None),
+            }
+        }
+        Ok(last)
+    }
+
+    /// Ensure every folder along a `/`-separated path exists, creating missing
+    /// ones; returns the id of the deepest folder (`None` for the root).
+    pub fn ensure_folders(&self, drive_id: i64, path: &str, by: i64) -> Result<Option<i64>> {
+        let mut parent = None;
+        for seg in path.split('/').filter(|s| !s.is_empty()) {
+            match self.child_by_name(drive_id, parent, seg)? {
+                Some(it) if it.kind == "folder" => parent = Some(it.id),
+                Some(_) => bail!("path component is not a folder"),
+                None => parent = Some(self.create_drive_folder(drive_id, parent, seg, by)?),
+            }
+        }
+        Ok(parent)
+    }
+
+    /// Replace a file item's content metadata after its bytes were rewritten.
+    pub fn set_file_meta(&self, id: i64, size: i64, content_type: &str, by: i64) -> Result<()> {
+        self.db().execute(
+            "UPDATE drive_items SET size = ?1, content_type = ?2, updated = ?3, updated_by = ?4 WHERE id = ?5",
+            params![size, content_type, now(), by, id],
+        )?;
+        Ok(())
+    }
+
+    /// Set an item's modification time (WebDAV `X-OC-Mtime`), to preserve the
+    /// original timestamp of an uploaded photo.
+    pub fn set_item_mtime(&self, id: i64, mtime: i64) -> Result<()> {
+        self.db().execute("UPDATE drive_items SET updated = ?1 WHERE id = ?2", params![mtime, id])?;
+        Ok(())
+    }
+
+    /// Move an item to a new parent folder and name in one step (WebDAV MOVE).
+    pub fn relocate_item(&self, id: i64, parent: Option<i64>, name: &str, by: i64) -> Result<()> {
+        let name = sanitize_name(name)?;
+        self.db().execute(
+            "UPDATE drive_items SET parent_id = ?1, name = ?2, updated = ?3, updated_by = ?4 WHERE id = ?5",
+            params![parent, name.as_str(), now(), by, id],
+        )?;
+        Ok(())
+    }
+
     fn touch_drive(db: &crate::db::Db, drive_id: i64) {
         let _ = db.execute("UPDATE drives SET updated = ?1 WHERE id = ?2", params![now(), drive_id]);
     }

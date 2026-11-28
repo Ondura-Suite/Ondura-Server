@@ -312,8 +312,9 @@ fn parse<T: for<'de> Deserialize<'de>>(body: &Bytes) -> Result<T, (StatusCode, S
 fn route(app: &Shared, user: &User, method: &Method, api: &str, _query: &str, body: &Bytes) -> ApiResult {
     let seg: Vec<&str> = api.trim_matches('/').split('/').filter(|s| !s.is_empty()).collect();
     match (method, seg.as_slice()) {
-        (&Method::GET, ["docs"]) => list_docs(app, user),
-        (&Method::POST, ["docs"]) => create_doc(app, user, body),
+        // Documents live only in the cloud now; they are created via
+        // /mail/api/cloud/doc and opened here by id. There is no standalone
+        // list or create endpoint.
         (&Method::GET, ["docs", id]) => get_doc(app, user, id),
         (&Method::DELETE, ["docs", id]) => delete_doc(app, user, id),
         (&Method::POST, ["docs", id, "rename"]) => rename_doc(app, user, id, body),
@@ -347,26 +348,6 @@ fn require_owner(app: &Shared, user: &User, id: i64) -> Result<(), (StatusCode, 
 
 fn ise(e: anyhow::Error) -> (StatusCode, String) {
     (StatusCode::INTERNAL_SERVER_ERROR, e.to_string())
-}
-
-fn list_docs(app: &Shared, user: &User) -> ApiResult {
-    let docs = app.store.docs_for(user.id).map_err(ise)?;
-    let list: Vec<Value> = docs
-        .iter()
-        .map(|d| json!({ "id": d.id, "name": d.name, "revision": d.revision, "updated": d.updated, "canWrite": d.can_write, "owned": d.owned }))
-        .collect();
-    Ok(json!({ "documents": list }))
-}
-
-fn create_doc(app: &Shared, user: &User, body: &Bytes) -> ApiResult {
-    #[derive(Deserialize)]
-    struct B {
-        #[serde(default)]
-        name: String,
-    }
-    let b: B = parse(body)?;
-    let id = app.store.create_doc(user.id, &b.name).map_err(ise)?;
-    Ok(json!({ "id": id }))
 }
 
 fn get_doc(app: &Shared, user: &User, id: &str) -> ApiResult {

@@ -231,6 +231,22 @@ CREATE TABLE IF NOT EXISTS drive_items (
 );
 CREATE INDEX IF NOT EXISTS drive_items_loc ON drive_items(drive_id, parent_id);
 CREATE INDEX IF NOT EXISTS drive_items_doc ON drive_items(doc_id);
+CREATE TABLE IF NOT EXISTS app_passwords (
+    token TEXT PRIMARY KEY,
+    user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    name TEXT NOT NULL DEFAULT '',
+    created INTEGER NOT NULL,
+    last_used INTEGER NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS app_passwords_user ON app_passwords(user_id);
+CREATE TABLE IF NOT EXISTS login_flows (
+    login_token TEXT PRIMARY KEY,
+    poll_token TEXT NOT NULL,
+    user_id INTEGER,
+    app_password TEXT,
+    created INTEGER NOT NULL
+);
+CREATE INDEX IF NOT EXISTS login_flows_poll ON login_flows(poll_token);
 CREATE TABLE IF NOT EXISTS mail_categories (
     id INTEGER PRIMARY KEY,
     user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,

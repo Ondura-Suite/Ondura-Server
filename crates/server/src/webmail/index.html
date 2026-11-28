@@ -685,7 +685,6 @@ function mailFolders() {
 function renderRail() {
   const navItems = [["mail", "mail"], ["calendar", "calendar"], ["contacts", "contacts"], ["tasks", "tasks"], ["notes", "note"]];
   if (me && me.cloud) navItems.push(["files", "folder"]);
-  if (me && me.collab) navItems.push(["documents", "doc"]);
   const nav = navItems.map(([k, ic]) =>
     `<div class="navitem ${view === k ? "active" : ""}" data-view="${k}">${icon(ic)}<span>${esc(t(k))}</span></div>`).join("");
   let html = nav;
@@ -1901,7 +1900,25 @@ function openItem(it) {
   else downloadItem(it);
 }
 
-function openDriveDoc(docId) { view = "documents"; renderRail(); renderDocuments(); setTimeout(() => openDoc(docId), 0); }
+function openDriveDoc(docId) { openCloudDoc(docId); }
+
+// A collaborative document now lives only inside the cloud; open it in a
+// focused editor reached from Files (no separate Documents section).
+async function openCloudDoc(id) {
+  curDoc = id;
+  let meta;
+  try { meta = await capi("GET", "/docs/" + id); } catch (e) { toast(e.message, true); return; }
+  view = "docview"; renderRail();
+  const shareBtn = meta.owned ? `<button class="btn" id="docShare">${icon("share")}<span>${esc(t("share"))}</span></button>` : "";
+  $("#view").innerHTML = `<div class="editor" id="docEditor" style="height:100%">
+    <div class="eh"><button class="iconbtn" id="docBack" title="${esc(t("files"))}">${icon("folder")}</button><h2 id="docTitle" style="flex:1">${esc(meta.name)}</h2><div class="pres" id="docPres"></div><span class="status" id="docStatus"><span class="dot-off"></span>${esc(t("connecting"))}</span><button class="iconbtn" id="docHist" title="${esc(t("history"))}">${icon("clock")}</button>${shareBtn}</div>
+    <div class="editorwrap"><div class="mirror" id="docMirror" aria-hidden="true"></div><textarea id="docArea" ${meta.canWrite ? "" : "readonly"} spellcheck="false"></textarea><div class="cursors" id="docCursors"></div></div>
+    ${meta.canWrite ? "" : `<div style="padding:6px 16px;color:var(--muted);font-size:12.5px;border-top:1px solid var(--border)">${esc(t("readOnlyDoc"))}</div>`}`;
+  $("#docBack").onclick = () => { if (docWs) { try { docWs.close(); } catch (e) {} } curDoc = null; view = "files"; renderRail(); renderFiles(); };
+  if ($("#docShare")) $("#docShare").onclick = () => openShare(id, meta);
+  $("#docHist").onclick = () => openHistory(id);
+  connectDoc(id, meta.canWrite);
+}
 
 function downloadItem(it) { const a = document.createElement("a"); a.href = "/mail/api/cloud/download/" + it.id; a.download = it.name; document.body.appendChild(a); a.click(); a.remove(); }
 

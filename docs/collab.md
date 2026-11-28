@@ -5,6 +5,9 @@ people signed in with their accounts can edit the same document at the same
 time. This is an optional feature — set `enabled = false` under `[collab]` to run
 a mail-only server, in which case every endpoint below returns `404`.
 
+Documents live inside the cloud storage (see `cloud.md`): each is an item in a
+drive, created and opened from the **Files** area, not a separate list.
+
 A document is plain text. Each belongs to one owner and can be shared two ways —
 with other Ondura accounts (read-only or read-write), or by a share link that
 anyone can open, signed in or as a guest, with the view or edit permission the

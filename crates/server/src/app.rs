@@ -128,6 +128,15 @@ impl App {
         let cfg: Config = toml::from_str("hostname = \"mail.example.com\"\n").expect("config");
         (Arc::new(App { cfg, store, settings: RwLock::new(SettingsOverrides::default()), smtp_tls: None, https_tls: None, dns: None, queue_wake: Notify::new() }), user)
     }
+
+    /// Like [`App::test`], but with a given data directory (so tests that store
+    /// files on disk, such as the cloud/WebDAV ones, write to a temp folder).
+    #[cfg(test)]
+    pub fn test_in(data_dir: std::path::PathBuf) -> (Shared, crate::store::User) {
+        let (store, user) = crate::store::test_store();
+        let cfg: Config = toml::from_str(&format!("hostname = \"mail.example.com\"\ndata_dir = {:?}\n", data_dir.to_string_lossy())).expect("config");
+        (Arc::new(App { cfg, store, settings: RwLock::new(SettingsOverrides::default()), smtp_tls: None, https_tls: None, dns: None, queue_wake: Notify::new() }), user)
+    }
 }
 
 #[cfg(test)]

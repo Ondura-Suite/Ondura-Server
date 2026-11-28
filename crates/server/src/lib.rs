@@ -26,6 +26,7 @@ pub mod imap;
 pub mod mime;
 pub mod model;
 pub mod netlimit;
+pub mod nextcloud;
 pub mod setup;
 pub mod smtp;
 pub mod store;

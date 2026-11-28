@@ -86,3 +86,13 @@ It shows the personal drive and any libraries as tabs, with folder browsing,
 drag-free breadcrumb navigation, file upload and download, new folders and new
 documents, rename and delete, and — for libraries — a member manager. Opening a
 document hands over to the collaborative editor described in `collab.md`.
+
+Collaborative documents live **only** inside the cloud now: they are created as
+items in a drive and opened from Files, and there is no separate documents
+section.
+
+## Nextcloud clients
+
+Each user's personal drive is also reachable by the official Nextcloud mobile
+and desktop clients (WebDAV, Login Flow, chunked uploads), which is how photo
+auto-upload works. See `nextcloud.md`.

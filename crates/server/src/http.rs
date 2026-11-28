@@ -149,6 +149,7 @@ pub async fn basic_auth(app: &Shared, headers: &HeaderMap, ip: IpAddr) -> std::r
 async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
     let peer = req.extensions().get::<Peer>().map(|p| p.0).unwrap_or(IpAddr::from([127, 0, 0, 1]));
     let ip = client_ip(&app, peer, req.headers());
+    let raw_path = req.uri().path().to_string();
     let path = req.uri().path().to_ascii_lowercase();
     let query = req.uri().query().unwrap_or_default().to_string();
     let method = req.method().clone();
@@ -195,6 +196,10 @@ async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
             webmail::handle(app.clone(), method, &path, &query, &headers, body, ip).await
         }
         p if p.starts_with("/collab/api") => crate::collab::server::handle(app.clone(), method, &path, &query, &headers, body).await,
+        // Nextcloud-compatible surface (status.php, OCS, Login Flow v2, WebDAV).
+        p if p == "/status.php" || p.starts_with("/remote.php") || p.starts_with("/ocs/") || p.starts_with("/index.php/login") => {
+            crate::nextcloud::handle(app.clone(), method, &raw_path, &query, &headers, body).await
+        }
         p if p == "/api" || p.starts_with("/api/") => crate::api::handle(app.clone(), method, &path, &query, &headers, body, ip).await,
         _ => StatusCode::NOT_FOUND.into_response(),
     }
