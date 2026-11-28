@@ -105,6 +105,18 @@ pub fn unauthorized() -> Response {
 /// request, require it to match the `Host`. Absent `Origin` (native clients,
 /// same-origin GETs) passes, since those are already guarded by the custom
 /// request header and the `SameSite=Strict` session cookie.
+/// HTTP/2 carries the authority in the `:authority` pseudo-header instead of a
+/// `Host` header. Copy it into `Host` so handlers that read `Host` (notably the
+/// CSRF Origin check) behave the same on HTTP/2 and HTTP/1.1.
+fn normalize_host(headers: &mut HeaderMap, uri: &axum::http::Uri) {
+    if headers.contains_key(header::HOST) {
+        return;
+    }
+    if let Some(value) = uri.authority().and_then(|a| HeaderValue::from_str(a.as_str()).ok()) {
+        headers.insert(header::HOST, value);
+    }
+}
+
 pub fn origin_ok(headers: &HeaderMap) -> bool {
     let Some(origin) = headers.get("Origin").and_then(|v| v.to_str().ok()) else {
         return true;
@@ -140,7 +152,8 @@ async fn dispatch(State(app): State<Shared>, req: Request) -> Response {
     let path = req.uri().path().to_ascii_lowercase();
     let query = req.uri().query().unwrap_or_default().to_string();
     let method = req.method().clone();
-    let headers = req.headers().clone();
+    let mut headers = req.headers().clone();
+    normalize_host(&mut headers, req.uri());
     debug!(%method, %path, %ip, "HTTP request");
     let limit = app.cfg.smtp.max_message_size * 2 + 1024 * 1024;
     let body = match axum::body::to_bytes(req.into_body(), limit).await {
@@ -306,6 +319,24 @@ mod tests {
         assert!(!origin_ok(&mk(&[("host", "mail.example.com"), ("origin", "https://evil.test")])));
         // Opaque origin is rejected.
         assert!(!origin_ok(&mk(&[("host", "mail.example.com"), ("origin", "null")])));
+    }
+
+    #[test]
+    fn http2_authority_becomes_host() {
+        // HTTP/2 requests have no Host header; the authority stands in for it,
+        // so the Origin check sees a host and same-origin requests pass.
+        let mut headers = HeaderMap::new();
+        headers.insert(axum::http::HeaderName::from_static("origin"), HeaderValue::from_static("https://mail.example.com"));
+        assert!(!origin_ok(&headers)); // without a host the check can't match
+        let uri: axum::http::Uri = "https://mail.example.com/mail/api/login".parse().unwrap();
+        normalize_host(&mut headers, &uri);
+        assert_eq!(headers.get(header::HOST).unwrap(), "mail.example.com");
+        assert!(origin_ok(&headers));
+        // An existing Host header (HTTP/1.1) is left untouched.
+        let mut h1 = HeaderMap::new();
+        h1.insert(header::HOST, HeaderValue::from_static("real.example.com"));
+        normalize_host(&mut h1, &uri);
+        assert_eq!(h1.get(header::HOST).unwrap(), "real.example.com");
     }
 
     #[tokio::test]
