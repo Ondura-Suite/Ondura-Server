@@ -78,6 +78,16 @@ Get the packages from the [releases page](https://github.com/Ondura-Suite/Ondura
 | Other Linux distributions | `ondura-server-<version>-<arch>-linux.tar.gz` |
 | Container | build with the included `Dockerfile` |
 
+On Debian and Ubuntu you can install from the MirraNET APT repository (`apt.mirranet.de`) instead, so new versions arrive with `sudo apt upgrade`:
+
+```sh
+sudo install -d /etc/apt/keyrings
+sudo curl -fsSL https://apt.mirranet.de/mirranet.gpg -o /etc/apt/keyrings/mirranet.gpg
+echo "deb [signed-by=/etc/apt/keyrings/mirranet.gpg] https://apt.mirranet.de stable main" \
+    | sudo tee /etc/apt/sources.list.d/mirranet.list
+sudo apt update && sudo apt install ondura-server
+```
+
 ## Quick start
 
 ```sh
